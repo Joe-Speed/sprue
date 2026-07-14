@@ -1,0 +1,4 @@
+kit: Warhammer 40,000 Redemptor Dreadnought
+brand: Games Workshop
+status: in stash
+next: clip and clean the torso parts, Saturday morning

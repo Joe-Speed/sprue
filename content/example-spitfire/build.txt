@@ -1,0 +1,15 @@
+kit: Airfix 1/72 Supermarine Spitfire Mk.I
+brand: Airfix
+scale: 1/72
+status: in progress
+started: July 2026
+
+## Unboxing
+Crisp moulding with almost no flash on the sprues. The panel lines are finely recessed, which bodes well for a wash later.
+The decal sheet includes markings for two Battle of Britain aircraft.
+
+## Cockpit
+Interior green base coat, then a dark wash to pick out the moulded detail. The seat gets leather brown straps painted on, since the kit provides none.
+
+## Fuselage
+The fuselage halves went together with only a little filler needed at the spine. Taped and left to cure overnight.
