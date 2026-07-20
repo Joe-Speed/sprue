@@ -1,0 +1,57 @@
+{{define "content"}}
+<p class="back"><a href="/competitions">&larr; competitions</a></p>
+<h1>{{.Data.Competition.Title}}</h1>
+<p class="meta">deadline {{.Data.Competition.Deadline}} · {{.Data.Competition.Status}}</p>
+
+{{if .Data.Trophies}}
+<h2>Results</h2>
+<ul class="trophies">
+{{range .Data.Trophies}}
+<li><img src="{{placeBadge .Place}}" alt="{{placeName .Place}} place" width="40" height="40"> {{placeName .Place}} place: <strong>{{.BuildTitle}}</strong></li>
+{{end}}
+</ul>
+{{end}}
+
+{{if .Data.CanEnter}}
+<h2>Enter this competition</h2>
+<form method="post" action="/competitions/{{.Data.Competition.Slug}}/enter">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<label>Pick one of your builds
+<select name="build">
+{{range .Data.MyBuilds}}<option value="{{.ID}}">{{.Title}} ({{.Kit}})</option>{{end}}
+</select>
+</label>
+<button type="submit">Enter</button>
+</form>
+{{else if eq .Data.Competition.Status "open"}}
+{{if not .User}}<p class="next"><a href="/login">Sign in</a> to enter one of your builds.</p>{{end}}
+{{end}}
+
+{{if .Data.HasVoted}}<p class="next">Your vote is in.</p>{{end}}
+
+<h2>Entries</h2>
+{{if not .Data.Entries}}<p class="stash">No entries yet.</p>{{end}}
+{{if .Data.CanVote}}
+<form method="post" action="/competitions/{{.Data.Competition.Slug}}/vote">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+{{end}}
+<ul class="cards">
+{{range .Data.Entries}}
+<li>
+{{if $.Data.CanVote}}{{if ne .Build.UserID $.User.ID}}<label class="votebox"><input type="radio" name="entry" value="{{.ID}}"> vote</label>{{else}}<span class="meta">your entry</span>{{end}}{{end}}
+<a href="/builds/{{.Build.ID}}">
+{{if .Build.CoverPhoto}}<img src="/photos/{{.Build.ID}}/{{.Build.CoverPhoto}}" alt="" loading="lazy">{{end}}
+<strong>{{.Build.Title}}</strong>
+<em>{{.Build.Kit}}</em>
+<span class="meta">by {{.Build.OwnerName}}{{if $.Data.ShowVotes}} · {{.Votes}} vote{{if ne .Votes 1}}s{{end}}{{end}}</span>
+</a>
+</li>
+{{end}}
+</ul>
+{{if .Data.CanVote}}
+<p><button type="submit">Cast my vote</button></p>
+</form>
+{{else if and (eq .Data.Competition.Status "voting") (not .User)}}
+<p class="next"><a href="/login">Sign in</a> to vote.</p>
+{{end}}
+{{end}}

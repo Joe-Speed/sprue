@@ -1,0 +1,9 @@
+{{define "content"}}
+<h1>Settings</h1>
+<form method="post" action="/settings">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<label>Display name <input type="text" name="display_name" value="{{.Data.DisplayName}}" required maxlength="100"></label>
+<p class="meta">Your page stays at /u/{{.Data.Slug}}</p>
+<button type="submit">Save</button>
+</form>
+{{end}}

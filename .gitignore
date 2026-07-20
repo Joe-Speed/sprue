@@ -1,0 +1,6 @@
+data/
+platform/benchtime
+.env
+*.stl
+*.db
+.DS_Store

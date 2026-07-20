@@ -1,0 +1,40 @@
+{{define "content"}}
+<h1>{{.Data.Owner.DisplayName}}</h1>
+<p class="meta">on the bench since {{.Data.Owner.CreatedAt}}{{if .Data.IsSelf}} · <a href="/settings">settings</a>{{end}}</p>
+{{if .Data.Trophies}}
+<h2>Trophy case</h2>
+<ul class="trophies">
+{{range .Data.Trophies}}
+<li>
+<img src="{{placeBadge .Place}}" alt="{{placeName .Place}} place" width="40" height="40">
+{{placeName .Place}} place, <a href="/competitions/{{.CompetitionSlug}}">{{.CompetitionTitle}}</a>, with {{.BuildTitle}}
+{{if and $.Data.IsSelf (gt .DownloadsLeft 0)}} · <a href="/trophies/{{.ID}}/download">download your trophy STL</a>{{end}}
+</li>
+{{end}}
+</ul>
+{{end}}
+{{if .Data.Featured}}
+<h2>Featured</h2>
+<ul class="cards">
+{{range .Data.Featured}}
+<li><a href="/builds/{{.ID}}">
+{{if .CoverPhoto}}<img src="/photos/{{.ID}}/{{.CoverPhoto}}" alt="" loading="lazy">{{end}}
+<strong>{{.Title}}{{if .TrophyPlace}} <img class="badge" src="{{placeBadge .TrophyPlace}}" alt="{{placeName .TrophyPlace}} place" width="20" height="20">{{end}}</strong>
+<em>{{.Kit}}</em>
+</a></li>
+{{end}}
+</ul>
+{{end}}
+<h2>Builds</h2>
+{{if not .Data.Builds}}<p class="stash">Nothing here yet.{{if .Data.IsSelf}} <a href="/builds/new">Add your first build.</a>{{end}}</p>{{end}}
+<ul class="cards">
+{{range .Data.Builds}}
+<li><a href="/builds/{{.ID}}">
+{{if .CoverPhoto}}<img src="/photos/{{.ID}}/{{.CoverPhoto}}" alt="" loading="lazy">{{end}}
+<strong>{{.Title}}{{if .TrophyPlace}} <img class="badge" src="{{placeBadge .TrophyPlace}}" alt="{{placeName .TrophyPlace}} place" width="20" height="20">{{end}}</strong>
+<em>{{.Kit}}</em>
+{{if .BuiltOn}}<span class="meta">built {{.BuiltOn}}</span>{{end}}
+</a></li>
+{{end}}
+</ul>
+{{end}}

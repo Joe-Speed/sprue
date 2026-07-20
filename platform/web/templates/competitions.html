@@ -1,0 +1,9 @@
+{{define "content"}}
+<h1>Competitions</h1>
+{{if not .Data}}<p class="stash">No competitions yet.</p>{{end}}
+<ul class="builds">
+{{range .Data}}
+<li><a href="/competitions/{{.Slug}}"><strong>{{.Title}}</strong> <em>{{.Status}} · deadline {{.Deadline}}</em></a></li>
+{{end}}
+</ul>
+{{end}}

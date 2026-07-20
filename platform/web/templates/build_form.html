@@ -1,0 +1,24 @@
+{{define "content"}}
+<h1>{{if .Data.IsNew}}Add a build{{else}}Edit build{{end}}</h1>
+<form method="post" action="{{if .Data.IsNew}}/builds/new{{else}}/builds/{{.Data.Build.ID}}/edit{{end}}">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<label>Title <input type="text" name="title" value="{{.Data.Build.Title}}" required maxlength="200"></label>
+<label>Kit <input type="text" name="kit" value="{{.Data.Build.Kit}}" required maxlength="200" placeholder="Airfix 1/72 Spitfire Mk.I"></label>
+<label>Brand <input type="text" name="brand" value="{{.Data.Build.Brand}}" maxlength="200" placeholder="Airfix"></label>
+<label>Scale <input type="text" name="scale" value="{{.Data.Build.Scale}}" maxlength="200" placeholder="1/72"></label>
+<label>Finished on <input type="date" name="built_on" value="{{.Data.Build.BuiltOn}}"></label>
+<label>Notes <textarea name="description" maxlength="2000" rows="6">{{.Data.Build.Description}}</textarea></label>
+<label class="checkbox"><input type="checkbox" name="featured" {{if .Data.Build.Featured}}checked{{end}}> Feature this build at the top of my page</label>
+<button type="submit">Save</button>
+</form>
+{{if not .Data.IsNew}}
+<h2>Photos</h2>
+{{range .Data.Photos}}<img class="thumb" src="/photos/{{$.Data.Build.ID}}/{{.}}" alt="build photo">{{end}}
+<form method="post" action="/builds/{{.Data.Build.ID}}/photos" enctype="multipart/form-data">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<label>Add a photo <input type="file" name="photo" accept="image/jpeg,image/png,image/gif" required></label>
+<button type="submit">Upload</button>
+</form>
+<p><a href="/builds/{{.Data.Build.ID}}">View the build page</a></p>
+{{end}}
+{{end}}

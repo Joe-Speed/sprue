@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · benchtime</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="site">
+<nav>
+<a class="brand" href="/">benchtime</a>
+<a href="/competitions">competitions</a>
+{{if .User}}
+<a href="/u/{{.User.Slug}}">my bench</a>
+<a href="/builds/new">add a build</a>
+{{if .User.IsAdmin}}<a href="/admin">admin</a>{{end}}
+<form class="inline" method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="linkish">sign out</button></form>
+{{else}}
+<a href="/login">sign in</a>
+{{end}}
+</nav>
+</header>
+<main>
+{{if .Error}}<p class="flash error">{{.Error}}</p>{{end}}
+{{if .Note}}<p class="flash note">{{.Note}}</p>{{end}}
+{{block "content" .}}{{end}}
+</main>
+</body>
+</html>

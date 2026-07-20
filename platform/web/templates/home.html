@@ -1,0 +1,17 @@
+{{define "content"}}
+<h1>The community bench</h1>
+<p class="meta">Scale models, built and shared. Competitions with printable trophies.</p>
+{{if not .Data}}
+<p class="stash">No builds yet. {{if .User}}<a href="/builds/new">Put the first one up.</a>{{else}}<a href="/login">Sign in</a> and put the first one up.{{end}}</p>
+{{end}}
+<ul class="cards">
+{{range .Data}}
+<li><a href="/builds/{{.ID}}">
+{{if .CoverPhoto}}<img src="/photos/{{.ID}}/{{.CoverPhoto}}" alt="" loading="lazy">{{end}}
+<strong>{{.Title}}{{if .TrophyPlace}} <img class="badge" src="{{placeBadge .TrophyPlace}}" alt="{{placeName .TrophyPlace}} place" width="20" height="20">{{end}}</strong>
+<em>{{.Kit}}</em>
+<span class="meta">by {{.OwnerName}}</span>
+</a></li>
+{{end}}
+</ul>
+{{end}}
