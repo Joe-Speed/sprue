@@ -70,6 +70,8 @@ These are nudges, not magic. The stash count only helps if you log the stash hon
 
 If a build folder contains a `spin/` directory with frames named `spin_01.jpg`, `spin_02.jpg`, and so on, the build page gets a drag-to-rotate viewer. It is not a 3D model. It is a sequence of photographs, and dragging swaps between them, the same technique product sites use. The viewer is a small piece of plain JavaScript with no libraries, generated into the site.
 
+The example Spitfire build ships with a synthetic 36 frame spin, so you can clone the repo, generate the site, and try the viewer before you have photographed anything. Replace it with real frames by following the guide below.
+
 ## Photographing a spin
 
 You need a turntable, a camera, and patience. The quality of the result depends almost entirely on keeping everything except the model identical between frames.
