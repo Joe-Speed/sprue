@@ -1,10 +1,10 @@
-# benchtime
+# sprue
 
 A multi-user scale modelling platform reflecting Joe's passion for the hobby. Builders sign in with email magic links, share builds with photos, organise their profile (featured first, then by date), and enter mini competitions with an Airfix focus. Winners get placement badges and download their 3D-printable trophy STL, which is never in the repo and never public.
 
 ## Architecture
 
-One Go binary in `platform/`, standard library plus the pure-Go SQLite driver, no framework. Server-rendered HTML templates, no JavaScript build step. All mutable state (SQLite database, uploaded photos, trophy STLs) lives in one data directory from `BENCHTIME_DATA`, mounted as a volume in deployment. `main.go` is a thin shell; logic lives in `store`, `images`, and `web` packages. Nothing outside `store` writes SQL.
+One Go binary in `platform/`, standard library plus the pure-Go SQLite driver, no framework. Server-rendered HTML templates, no JavaScript build step. All mutable state (SQLite database, uploaded photos, trophy STLs) lives in one data directory from `SPRUE_DATA`, mounted as a volume in deployment. `main.go` is a thin shell; logic lives in `store`, `images`, and `web` packages. Nothing outside `store` writes SQL.
 
 ## Code standards
 

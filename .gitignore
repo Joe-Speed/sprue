@@ -1,5 +1,5 @@
 data/
-platform/benchtime
+platform/sprue
 .env
 *.stl
 *.db

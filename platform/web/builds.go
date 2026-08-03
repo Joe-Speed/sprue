@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Joe-Speed/benchtime/platform/images"
-	"github.com/Joe-Speed/benchtime/platform/store"
+	"github.com/Joe-Speed/sprue/platform/images"
+	"github.com/Joe-Speed/sprue/platform/store"
 )
 
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
@@ -22,7 +22,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not load the bench.")
 		return
 	}
-	s.render(w, r, "home", "benchtime", builds)
+	s.render(w, r, "home", "sprue", builds)
 }
 
 type profileData struct {

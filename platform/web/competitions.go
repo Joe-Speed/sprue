@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Joe-Speed/benchtime/platform/store"
+	"github.com/Joe-Speed/sprue/platform/store"
 )
 
 const voteMinGap = 5 * time.Second

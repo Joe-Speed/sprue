@@ -1,14 +1,14 @@
-# Maintaining benchtime
+# Maintaining sprue
 
-benchtime is a multi-user scale modelling platform: builders sign in with email magic links, put up their builds with photos, and enter competitions. The community votes, and winners download a printable trophy from their own profile. One Go binary, one SQLite file, no admin console beyond the built-in admin pages.
+sprue is a multi-user scale modelling platform: builders sign in with email magic links, put up their builds with photos, and enter competitions. The community votes, and winners download a printable trophy from their own profile. One Go binary, one SQLite file, no admin console beyond the built-in admin pages.
 
 ## The moving parts
 
-The code lives in `platform/`. Everything mutable lives in one data directory set by `BENCHTIME_DATA` (default `data`):
+The code lives in `platform/`. Everything mutable lives in one data directory set by `SPRUE_DATA` (default `data`):
 
 ```
 data/
-  benchtime.db      SQLite database: users, sessions, builds, competitions, votes, trophies
+  sprue.db      SQLite database: users, sessions, builds, competitions, votes, trophies
   photos/           uploaded build photos, one folder per build
   stl/              first-place.stl, second-place.stl, third-place.stl (you put these here)
 ```
@@ -19,21 +19,21 @@ Trophy STL files are never in the repo and never at a public URL. Copy them into
 
 ```sh
 cd platform
-go build -o benchtime .
-BENCHTIME_ADMIN_EMAIL=you@example.com ./benchtime
+go build -o sprue .
+SPRUE_ADMIN_EMAIL=you@example.com ./sprue
 ```
 
-Without SMTP configured, sign-in links are printed to the server log instead of emailed. Open the site, enter your email, copy the link from the log into the browser. Signing in with the address in `BENCHTIME_ADMIN_EMAIL` makes that account the admin.
+Without SMTP configured, sign-in links are printed to the server log instead of emailed. Open the site, enter your email, copy the link from the log into the browser. Signing in with the address in `SPRUE_ADMIN_EMAIL` makes that account the admin.
 
 Gates before calling any change done: `gofmt -l .` prints nothing, `go vet ./...` is clean, `go test ./...` passes, and the flow you touched works in a browser or with curl against a locally running server.
 
 ## Environment variables
 
 - `PORT`: listen port, default 8080. Railway and Render set this themselves.
-- `BENCHTIME_DATA`: the data directory. In the container it defaults to `/data`; mount your persistent volume there.
-- `BENCHTIME_URL`: the public base URL, used inside emailed sign-in links. Set it to your real domain in production.
-- `BENCHTIME_ADMIN_EMAIL`: the email address that gets admin on sign-in.
-- `BENCHTIME_SMTP_HOST`, `BENCHTIME_SMTP_PORT`, `BENCHTIME_SMTP_USER`, `BENCHTIME_SMTP_PASS`, `BENCHTIME_SMTP_FROM`: outbound email. Leave the host unset and links go to the log, which is only useful in development.
+- `SPRUE_DATA`: the data directory. In the container it defaults to `/data`; mount your persistent volume there.
+- `SPRUE_URL`: the public base URL, used inside emailed sign-in links. Set it to your real domain in production.
+- `SPRUE_ADMIN_EMAIL`: the email address that gets admin on sign-in.
+- `SPRUE_SMTP_HOST`, `SPRUE_SMTP_PORT`, `SPRUE_SMTP_USER`, `SPRUE_SMTP_PASS`, `SPRUE_SMTP_FROM`: outbound email. Leave the host unset and links go to the log, which is only useful in development.
 
 ## One full competition
 
@@ -54,8 +54,8 @@ Winners download their own trophy: each winner sees a `download your trophy STL`
 The Dockerfile at the repo root builds the platform. Set up the service with:
 
 - a persistent volume mounted at `/data`
-- `BENCHTIME_URL` set to your domain
-- `BENCHTIME_ADMIN_EMAIL` set to your email
+- `SPRUE_URL` set to your domain
+- `SPRUE_ADMIN_EMAIL` set to your email
 - the SMTP variables pointed at your email provider
 
 Copy the three STL files into the volume once. Everything else, including the database, lives on that volume, so redeploys lose nothing.

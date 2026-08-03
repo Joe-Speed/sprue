@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Joe-Speed/benchtime/platform/store"
+	"github.com/Joe-Speed/sprue/platform/store"
 )
 
 //go:embed templates/*.html
@@ -24,7 +24,7 @@ var templateFiles embed.FS
 //go:embed static
 var staticFiles embed.FS
 
-const sessionCookie = "benchtime_session"
+const sessionCookie = "sprue_session"
 
 type Config struct {
 	DataDir    string

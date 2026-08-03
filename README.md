@@ -1,4 +1,4 @@
-# benchtime
+# sprue
 
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
@@ -24,10 +24,10 @@ Built as a single Go binary with SQLite. No framework, no JavaScript build step,
 Requires Go 1.26 or newer.
 
 ```sh
-git clone https://github.com/Joe-Speed/benchtime.git
-cd benchtime/platform
-go build -o benchtime .
-BENCHTIME_ADMIN_EMAIL=you@example.com ./benchtime
+git clone https://github.com/Joe-Speed/sprue.git
+cd sprue/platform
+go build -o sprue .
+SPRUE_ADMIN_EMAIL=you@example.com ./sprue
 ```
 
 Open http://localhost:8080, enter your email, and copy the sign-in link from the server log (with no SMTP configured, links are logged instead of emailed, which is the development mode). Signing in with the admin email gives that account the admin pages.
@@ -43,10 +43,10 @@ go test ./...
 All configuration is environment variables. None of them are secrets you would ever commit.
 
 - `PORT` sets the listen port, default 8080.
-- `BENCHTIME_DATA` sets the data directory, default `data`. The SQLite database, uploaded photos, and trophy STL files all live here and nowhere else.
-- `BENCHTIME_URL` is the public base URL used inside emailed sign-in links.
-- `BENCHTIME_ADMIN_EMAIL` grants admin to that address on sign-in.
-- `BENCHTIME_SMTP_HOST`, `BENCHTIME_SMTP_PORT`, `BENCHTIME_SMTP_USER`, `BENCHTIME_SMTP_PASS`, `BENCHTIME_SMTP_FROM` configure outbound email. Unset means development mode.
+- `SPRUE_DATA` sets the data directory, default `data`. The SQLite database, uploaded photos, and trophy STL files all live here and nowhere else.
+- `SPRUE_URL` is the public base URL used inside emailed sign-in links.
+- `SPRUE_ADMIN_EMAIL` grants admin to that address on sign-in.
+- `SPRUE_SMTP_HOST`, `SPRUE_SMTP_PORT`, `SPRUE_SMTP_USER`, `SPRUE_SMTP_PASS`, `SPRUE_SMTP_FROM` configure outbound email. Unset means development mode.
 
 ## Deployment
 
@@ -58,4 +58,4 @@ Everything user-generated stays in the data directory: the database, photos, and
 
 ## License
 
-benchtime is released under the [GNU AGPL v3](LICENSE). You are free to run, study, and modify it; if you run a modified version as a public service, you must offer your changes under the same terms. Copyright remains with the author, who may offer the software under other terms.
+sprue is released under the [GNU AGPL v3](LICENSE). You are free to run, study, and modify it; if you run a modified version as a public service, you must offer your changes under the same terms. Copyright remains with the author, who may offer the software under other terms.

@@ -58,7 +58,7 @@ func (s *Server) sendMagicLink(email, link string) error {
 	if from == "" {
 		from = s.config.SMTPUser
 	}
-	message := fmt.Sprintf("From: benchtime <%s>\r\nTo: %s\r\nSubject: Your benchtime sign-in link\r\n\r\nSign in to benchtime:\r\n\r\n%s\r\n\r\nThis link works once and expires in 15 minutes.\r\n", from, email, link)
+	message := fmt.Sprintf("From: sprue <%s>\r\nTo: %s\r\nSubject: Your sprue sign-in link\r\n\r\nSign in to sprue:\r\n\r\n%s\r\n\r\nThis link works once and expires in 15 minutes.\r\n", from, email, link)
 	address := s.config.SMTPHost + ":" + s.config.SMTPPort
 	auth := smtp.PlainAuth("", s.config.SMTPUser, s.config.SMTPPass, s.config.SMTPHost)
 	return smtp.SendMail(address, auth, from, []string{email}, []byte(message))

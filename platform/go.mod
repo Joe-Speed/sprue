@@ -1,4 +1,4 @@
-module github.com/Joe-Speed/benchtime/platform
+module github.com/Joe-Speed/sprue/platform
 
 go 1.26
 
