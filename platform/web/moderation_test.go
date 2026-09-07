@@ -61,4 +61,11 @@ func TestHiddenBuildVisibility(t *testing.T) {
 	if !visibleTo(hidden, owner) || !visibleTo(hidden, admin) {
 		t.Error("owner and admin must still see a hidden build")
 	}
+	private := store.Build{UserID: 1, Private: true}
+	if visibleTo(private, nil) || visibleTo(private, other) || visibleTo(private, admin) {
+		t.Error("private builds are for the owner only")
+	}
+	if !visibleTo(private, owner) {
+		t.Error("owner must see their private build")
+	}
 }

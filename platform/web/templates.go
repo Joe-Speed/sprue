@@ -16,7 +16,7 @@ import (
 // base.html and partials.html so every page shares the same shell and cards.
 var pageNames = []string{
 	"home", "login", "check_email", "settings", "profile", "build", "build_form",
-	"competitions", "competition", "competition_form", "stash", "stash_item", "admin", "error",
+	"competitions", "competition", "competition_form", "stash", "stash_item", "members", "friends", "admin", "error",
 }
 
 // assetVersion is a short hash of every embedded static file, appended to

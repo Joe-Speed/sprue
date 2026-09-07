@@ -10,7 +10,8 @@
 <span class="meta"><a href="/login">Sign in</a> to vote.</span>
 {{end}}
 </div>
-{{if .Data.Build.Hidden}}<p class="flash error">Hidden after a report. Only you{{if .User.IsAdmin}} and the admin{{end}} can see this page.</p>{{end}}
+{{if .Data.Build.Hidden}}<p class="flash error">Hidden after a report. Only you{{if .User.IsAdmin}} and the admin{{end}} can see this page.</p>
+{{else if .Data.Build.Private}}<p class="prompt">Private. Only you can see this build. <a href="/builds/{{.Data.Build.ID}}/edit">Edit</a> to post it.</p>{{end}}
 {{if .Data.Build.Description}}<p>{{.Data.Build.Description}}</p>{{end}}
 {{if .Data.Photos}}
 <div class="gallery">

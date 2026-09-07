@@ -56,6 +56,7 @@ type profileData struct {
 	Trophies   []store.Trophy
 	BuildCount int
 	IsSelf     bool
+	Friendship string // viewer's standing with the owner, empty when none or signed out
 }
 
 func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
@@ -79,6 +80,12 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 		viewer = &user
 	}
 	data := profileData{Owner: owner, Trophies: trophies, IsSelf: viewer != nil && viewer.ID == owner.ID}
+	if viewer != nil && !data.IsSelf {
+		if data.Friendship, err = s.store.Friendship(viewer.ID, owner.ID); err != nil {
+			s.renderError(w, r, http.StatusInternalServerError, "Could not load the bench.")
+			return
+		}
+	}
 	for _, build := range all {
 		if !visibleTo(build, viewer) {
 			continue
@@ -146,6 +153,7 @@ func buildFromForm(r *http.Request, userID int64) store.Build {
 		Description: r.FormValue("description"),
 		BuiltOn:     r.FormValue("built_on"),
 		Pinned:      r.FormValue("pinned") == "on",
+		Private:     r.FormValue("private") == "on",
 	}
 }
 
@@ -179,7 +187,11 @@ func (s *Server) handleBuildCreate(w http.ResponseWriter, r *http.Request) {
 		files = files[:maxPhotosPerUpload]
 	}
 	added, failure := s.savePhotos(id, files)
-	flashRedirect(w, r, fmt.Sprintf("/builds/%d", id), "Posted.", uploadError(added, len(files), failure))
+	note := "Posted."
+	if build.Private {
+		note = "Saved to your bench."
+	}
+	flashRedirect(w, r, fmt.Sprintf("/builds/%d", id), note, uploadError(added, len(files), failure))
 }
 
 func (s *Server) handleBuildUpdate(w http.ResponseWriter, r *http.Request) {
@@ -194,8 +206,11 @@ func (s *Server) handleBuildUpdate(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusNotFound, "Not your build.")
 		return
 	}
-	if err := s.store.UpdateBuild(build); err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not save the build.")
+	if err := s.store.UpdateBuild(build); errors.Is(err, store.ErrInUse) {
+		flashRedirect(w, r, fmt.Sprintf("/builds/%d/edit", build.ID), "", "This build is in a competition, so it stays public.")
+		return
+	} else if err != nil {
+		flashRedirect(w, r, fmt.Sprintf("/builds/%d/edit", build.ID), "", "A build needs at least a title and a kit.")
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/builds/%d", build.ID), http.StatusSeeOther)
@@ -231,7 +246,7 @@ func (s *Server) handleBuildPage(w http.ResponseWriter, r *http.Request) {
 	data := buildPageData{Build: build, Photos: photos}
 	if viewer != nil {
 		data.IsOwner = viewer.ID == build.UserID
-		data.CanVote = !data.IsOwner
+		data.CanVote = !data.IsOwner && !build.Private
 		if voted, err := s.store.HasVotedBuild(build.ID, viewer.ID); err == nil {
 			data.Voted = voted
 		}

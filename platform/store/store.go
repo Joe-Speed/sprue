@@ -94,6 +94,7 @@ create table if not exists builds (
 	description text not null default '',
 	built_on text not null default '',
 	pinned integer not null default 0,
+	private integer not null default 0,
 	hidden integer not null default 0,
 	created_at text not null
 );
@@ -142,6 +143,15 @@ create table if not exists votes (
 	created_at text not null,
 	primary key (competition_id, user_id)
 );
+create table if not exists friendships (
+	requester_id integer not null references users(id),
+	addressee_id integer not null references users(id),
+	status text not null default 'pending',
+	created_at text not null,
+	primary key (requester_id, addressee_id),
+	check (requester_id != addressee_id)
+);
+create unique index if not exists friendship_pair on friendships (min(requester_id, addressee_id), max(requester_id, addressee_id));
 create table if not exists trophies (
 	id integer primary key,
 	competition_id integer not null references competitions(id),
@@ -391,6 +401,7 @@ type Build struct {
 	Description string
 	BuiltOn     string
 	Pinned      bool // owner keeps it at the top of their bench
+	Private     bool // owner keeps it off the workbench; only they see it
 	Hidden      bool // taken out of public view by the admin after a report
 	CreatedAt   string
 	// Filled by list queries for display.
@@ -413,27 +424,38 @@ func (s *Store) CreateBuild(b Build) (int64, error) {
 		return 0, ErrLimit
 	}
 	result, err := s.db.Exec(
-		`insert into builds (user_id, title, kit, brand, scale, description, built_on, pinned, created_at)
-		 values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`insert into builds (user_id, title, kit, brand, scale, description, built_on, pinned, private, created_at)
+		 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		b.UserID, clip(b.Title, maxShortField), clip(b.Kit, maxShortField), clip(b.Brand, maxShortField),
 		clip(b.Scale, maxShortField), clip(b.Description, maxTextField), clip(b.BuiltOn, maxShortField),
-		boolInt(b.Pinned), now())
+		boolInt(b.Pinned), boolInt(b.Private), now())
 	if err != nil {
 		return 0, err
 	}
 	return result.LastInsertId()
 }
 
+// UpdateBuild saves the owner's edits. A build that has entered a
+// competition cannot be made private, because the entry is public.
 func (s *Store) UpdateBuild(b Build) error {
-	if b.ID <= 0 || b.UserID <= 0 {
+	if b.ID <= 0 || b.UserID <= 0 || clip(b.Title, maxShortField) == "" || clip(b.Kit, maxShortField) == "" {
 		return errors.New("store: bad build update")
 	}
+	if b.Private {
+		entered, err := s.BuildHasEntries(b.ID)
+		if err != nil {
+			return err
+		}
+		if entered {
+			return ErrInUse
+		}
+	}
 	_, err := s.db.Exec(
-		`update builds set title = ?, kit = ?, brand = ?, scale = ?, description = ?, built_on = ?, pinned = ?
+		`update builds set title = ?, kit = ?, brand = ?, scale = ?, description = ?, built_on = ?, pinned = ?, private = ?
 		 where id = ? and user_id = ?`,
 		clip(b.Title, maxShortField), clip(b.Kit, maxShortField), clip(b.Brand, maxShortField),
 		clip(b.Scale, maxShortField), clip(b.Description, maxTextField), clip(b.BuiltOn, maxShortField),
-		boolInt(b.Pinned), b.ID, b.UserID)
+		boolInt(b.Pinned), boolInt(b.Private), b.ID, b.UserID)
 	return err
 }
 
@@ -445,7 +467,7 @@ func boolInt(b bool) int {
 }
 
 const buildColumns = `
-	b.id, b.user_id, b.title, b.kit, b.brand, b.scale, b.description, b.built_on, b.pinned, b.hidden, b.created_at,
+	b.id, b.user_id, b.title, b.kit, b.brand, b.scale, b.description, b.built_on, b.pinned, b.private, b.hidden, b.created_at,
 	u.display_name, u.slug,
 	coalesce((select p.file_name from photos p where p.build_id = b.id order by p.position limit 1), ''),
 	coalesce((select min(t.place) from trophies t where t.build_id = b.id), 0),
@@ -457,13 +479,14 @@ func (s *Store) scanBuilds(rows *sql.Rows) ([]Build, error) {
 	var builds []Build
 	for rows.Next() {
 		var b Build
-		var pinned, hidden int
+		var pinned, private, hidden int
 		err := rows.Scan(&b.ID, &b.UserID, &b.Title, &b.Kit, &b.Brand, &b.Scale, &b.Description,
-			&b.BuiltOn, &pinned, &hidden, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.CoverPhoto, &b.TrophyPlace, &b.Votes)
+			&b.BuiltOn, &pinned, &private, &hidden, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.CoverPhoto, &b.TrophyPlace, &b.Votes)
 		if err != nil {
 			return nil, err
 		}
 		b.Pinned = pinned != 0
+		b.Private = private != 0
 		b.Hidden = hidden != 0
 		builds = append(builds, b)
 	}
@@ -507,7 +530,7 @@ func (s *Store) RecentBuilds(beforeID int64, limit int) ([]Build, error) {
 		beforeID = math.MaxInt64
 	}
 	rows, err := s.db.Query(`select `+buildColumns+` from builds b join users u on u.id = b.user_id
-		where b.id < ? and b.hidden = 0 order by b.id desc limit ?`, beforeID, limit)
+		where b.id < ? and b.private = 0 and b.hidden = 0 order by b.id desc limit ?`, beforeID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -521,7 +544,7 @@ type SitemapBuild struct {
 
 // BuildsForSitemap lists the newest builds' IDs and creation stamps.
 func (s *Store) BuildsForSitemap(limit int) ([]SitemapBuild, error) {
-	rows, err := s.db.Query(`select id, created_at from builds where hidden = 0 order by id desc limit ?`, limit)
+	rows, err := s.db.Query(`select id, created_at from builds where private = 0 and hidden = 0 order by id desc limit ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -658,7 +681,7 @@ func (s *Store) FeaturedBuilds(since time.Time, limit int) ([]Build, error) {
 			select build_id, count(*) as votes from build_votes where created_at >= ? group by build_id
 		)
 		select `+buildColumns+` from builds b join users u on u.id = b.user_id join recent r on r.build_id = b.id
-		where b.hidden = 0 order by r.votes desc, b.id desc limit ?`, since.UTC().Format(time.RFC3339), limit)
+		where b.private = 0 and b.hidden = 0 order by r.votes desc, b.id desc limit ?`, since.UTC().Format(time.RFC3339), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -909,6 +932,9 @@ func (s *Store) EnterCompetition(competitionID, buildID, userID int64) error {
 	if build.UserID != userID {
 		return errors.New("store: not your build")
 	}
+	if build.Private {
+		return errors.New("store: a private build cannot enter a competition")
+	}
 	var count int
 	if err := s.db.QueryRow(`select count(*) from entries where competition_id = ?`, competitionID).Scan(&count); err != nil {
 		return err
@@ -943,14 +969,15 @@ func (s *Store) EntriesWithVotes(competitionID int64) ([]Entry, error) {
 	var list []Entry
 	for rows.Next() {
 		var entry Entry
-		var pinned, hidden int
+		var pinned, private, hidden int
 		b := &entry.Build
 		err := rows.Scan(&entry.ID, &b.ID, &b.UserID, &b.Title, &b.Kit, &b.Brand, &b.Scale, &b.Description,
-			&b.BuiltOn, &pinned, &hidden, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.CoverPhoto, &b.TrophyPlace, &b.Votes, &entry.Votes)
+			&b.BuiltOn, &pinned, &private, &hidden, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.CoverPhoto, &b.TrophyPlace, &b.Votes, &entry.Votes)
 		if err != nil {
 			return nil, err
 		}
 		b.Pinned = pinned != 0
+		b.Private = private != 0
 		b.Hidden = hidden != 0
 		list = append(list, entry)
 	}

@@ -83,6 +83,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /settings", s.handleSettingsPage)
 	mux.HandleFunc("POST /settings", s.handleSettingsSave)
 	mux.HandleFunc("GET /u/{slug}", s.handleProfile)
+	mux.HandleFunc("GET /members", s.handleMembers)
+	mux.HandleFunc("GET /friends", s.handleFriends)
+	mux.HandleFunc("POST /friends/{slug}/{action}", s.handleFriendAction)
 	mux.HandleFunc("GET /builds/new", s.handleBuildForm)
 	mux.HandleFunc("POST /builds/new", s.handleBuildCreate)
 	mux.HandleFunc("GET /builds/{id}", s.handleBuildPage)
@@ -230,6 +233,7 @@ type page struct {
 	Error       string
 	Note        string
 	Config      *Config
+	Requests    int // friend requests waiting on the signed-in member
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, name, title string, data any) {
@@ -262,6 +266,9 @@ func (s *Server) renderMeta(w http.ResponseWriter, r *http.Request, status int, 
 	if user, token, err := s.sessionUser(r); err == nil {
 		p.User = &user
 		p.CSRF = csrfToken(token)
+		if count, err := s.store.PendingRequestCount(user.ID); err == nil {
+			p.Requests = count
+		}
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)

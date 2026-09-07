@@ -12,7 +12,8 @@ Built as a single Go binary with SQLite. No framework, no JavaScript build step,
 ## Features
 
 - **Passwordless sign-in.** Email magic links, single use, fifteen minute expiry. No passwords stored, ever.
-- **Your bench, your page.** Every builder gets a profile at `/u/name` with a trophy case, pinned builds up top, and the rest ordered by build date.
+- **Your bench, your page.** Every builder gets a profile at `/u/name` with a trophy case, pinned builds up top, and the rest ordered by build date. A build can be kept private: it sits on your bench for you alone and never reaches the workbench.
+- **Members and friends.** Search members by name. Ask someone to be friends from their bench; they accept or decline. Friend lists are private to each member.
 - **Community featured spot.** Members vote for builds they like, one vote per build each and never for their own. The most voted builds of the last 30 days sit at the top of the workbench.
 - **Builds with photos.** Upload up to six at a time, pick the cover, remove the ones you do not want. Uploads are decoded and re-encoded server side, stripped of metadata, and capped at 1600 pixels on the long edge. Nothing a browser sends is stored verbatim.
 - **Your stash and your model debt.** A private list of the kits you own and have not built, what they cost, and how long the oldest has waited. Mark one kit as next, set a goal of kits to finish by a date, keep a short journal per kit, and turn a finished kit into a posted build in one click. Optional weekly or monthly email reminders. No points, streaks, or badges.
@@ -30,6 +31,7 @@ platform/            the whole application, one Go module
   main.go            reads the environment, opens the store, runs the server
   store/             SQLite schema and every query; nothing else writes SQL
     stash.go         stash, journal, goals, reminder schedule
+    friends.go       member search, friendships
     moderation.go    reports and hidden builds
   images/            photo validation and re-encoding
   web/
@@ -38,6 +40,7 @@ platform/            the whole application, one Go module
     builds.go        workbench, profiles, builds, photos, build votes
     competitions.go  competitions, entries, voting, trophies, admin
     stash.go         stash, model debt summary, goals, journal
+    friends.go       member search, friend requests
     housekeeping.go  hourly jobs and outbound email
     moderation.go    reports, hiding, photo screening
     seo.go           robots.txt, sitemap.xml, page metadata, CSP

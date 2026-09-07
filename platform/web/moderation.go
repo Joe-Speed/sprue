@@ -105,10 +105,15 @@ func likely(level string) bool {
 }
 
 // visibleTo reports whether a build may be shown to the caller: everyone for
-// a normal build, only the owner and the admin for a hidden one.
+// a normal build, the owner and the admin for a hidden one, the owner alone
+// for a private one.
 func visibleTo(build store.Build, user *store.User) bool {
-	if !build.Hidden {
-		return true
+	owner := user != nil && user.ID == build.UserID
+	if build.Hidden {
+		return owner || (user != nil && user.IsAdmin)
 	}
-	return user != nil && (user.ID == build.UserID || user.IsAdmin)
+	if build.Private {
+		return owner
+	}
+	return true
 }

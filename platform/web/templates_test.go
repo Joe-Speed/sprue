@@ -23,6 +23,7 @@ func TestEveryPageRenders(t *testing.T) {
 	comp := store.Competition{ID: 3, Slug: "summer", Title: "Summer sprint", Description: "Anything with wings.", CreatorID: 1, CreatorName: "Joe", CreatorSlug: "joe", EntriesClose: "2026-07-01", VotingCloses: "2026-08-01", Status: "voting"}
 	trophy := store.Trophy{ID: 9, CompetitionSlug: "summer", CompetitionTitle: "Summer sprint", Place: 1, UserID: 1, BuildID: 7, BuildTitle: "Spitfire Mk.I", DownloadsLeft: 1}
 	entry := store.Entry{ID: 4, Build: build, Votes: 2}
+	member := store.Member{ID: 2, DisplayName: "Sam", Slug: "sam", CreatedAt: "2026-03-01T00:00:00Z", BuildCount: 4}
 	kit := store.StashItem{ID: 5, UserID: 1, Title: "Lancaster", Brand: "Airfix", Scale: "1/72", CostPence: 1299, Status: "building", Next: true, AddedAt: "2026-04-01T10:00:00Z"}
 	user.GoalCount = 3
 	user.GoalBy = "2026-06-01"
@@ -33,13 +34,15 @@ func TestEveryPageRenders(t *testing.T) {
 		"login":            nil,
 		"check_email":      "joe@example.com",
 		"settings":         user,
-		"profile":          profileData{Owner: user, Builds: []store.Build{build}, Pinned: []store.Build{build}, Trophies: []store.Trophy{trophy}, IsSelf: true},
+		"profile":          profileData{Owner: user, Builds: []store.Build{build}, Pinned: []store.Build{build}, Trophies: []store.Trophy{trophy}, Friendship: "incoming"},
 		"build":            buildPageData{Build: build, Photos: []string{"abc.jpg"}, CanVote: true, Voted: true},
 		"build_form":       buildFormData{Build: build, Photos: []string{"abc.jpg", "def.jpg"}, CanDelete: true},
 		"competitions":     competitionsData{Competitions: []store.Competition{comp}},
 		"competition_form": competitionFormData{Tomorrow: "2026-06-02"},
 		"stash": stashData{Items: []store.StashItem{kit}, Tomorrow: "2026-06-02",
 			Summary: stashSummary{Waiting: 1, DebtPence: 1299, Oldest: "Lancaster", OldestDays: 40, Next: &kit, GoalDone: 1, GoalDaysLeft: -3}},
+		"members":     membersData{Query: "jo", Members: []store.Member{member}},
+		"friends":     friendsData{Requests: []store.Member{member}, Sent: []store.Member{member}, Friends: []store.Member{member}},
 		"stash_item":  stashItemData{Item: kit, Journal: []store.JournalEntry{{ID: 1, StashID: 5, Text: "Primed.", CreatedAt: "2026-05-02T10:00:00Z"}}},
 		"competition": competitionData{Competition: comp, Entries: []store.Entry{entry}, Trophies: []store.Trophy{trophy}, MyBuilds: []store.Build{build}, CanEnter: true, CanVote: true, ShowVotes: true},
 		"admin": adminData{Competitions: []store.Competition{comp}, Trophies: []store.Trophy{trophy},
@@ -51,7 +54,7 @@ func TestEveryPageRenders(t *testing.T) {
 	}
 	for name, data := range pages {
 		var out bytes.Buffer
-		p := page{Title: name, Path: "/competitions", Mark: "green", User: &user, CSRF: "token", Data: data, Config: &Config{}}
+		p := page{Title: name, Path: "/competitions", Mark: "green", User: &user, CSRF: "token", Data: data, Config: &Config{}, Requests: 2}
 		if err := templates[name].Execute(&out, p); err != nil {
 			t.Errorf("%s: %v", name, err)
 			continue
@@ -189,7 +192,7 @@ func TestSignedOutPagesRender(t *testing.T) {
 	comp := store.Competition{ID: 3, Slug: "summer", Title: "Summer sprint", CreatorName: "Joe", CreatorSlug: "joe", EntriesClose: "2026-07-01", VotingCloses: "2026-08-01", Status: "open"}
 	var out bytes.Buffer
 	data := competitionData{Competition: comp}
-	if err := templates["competition"].Execute(&out, page{Title: "x", Data: data, Config: &Config{}}); err != nil {
+	if err := templates["competition"].Execute(&out, page{Title: "x", Data: data, Config: &Config{}, Requests: 2}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "/login") {

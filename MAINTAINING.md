@@ -51,6 +51,16 @@ Builders can remove photos, choose the cover photo, and delete a build. A build 
 - `SPRUE_CURRENCY`: the symbol shown before stash costs, default `£`.
 - `SPRUE_VISION_KEY`: a Google Cloud Vision API key. When set, every uploaded photo is run through SafeSearch before it is saved and refused if likely adult or violent. Unset, photos are not screened.
 
+## Members and friends
+
+The members page searches display names and slugs, case insensitively, and lists the newest members when the box is empty. Results are capped at fifty.
+
+Friendship is a request one member sends from another's bench, which the other accepts or declines. The database holds one row per pair in either direction, so a second request from either side is refused. Three actions cover everything: request, accept, and remove, where remove also cancels a sent request, declines an incoming one, and ends a friendship. Each member's friends page shows requests waiting on them, requests they have sent, and their friends, and nobody else can see it. The account menu shows a count while requests are waiting. Friendship changes nothing about what a member can see; private builds stay private.
+
+## Private builds
+
+A member can keep a build private when adding or editing it. Private builds show only on the owner's own bench, marked with a tag, and their page returns not found to anyone else. They are left out of the workbench, the featured spot, the sitemap, and link previews, and they cannot enter a competition. A build already in a competition cannot be made private, because its entry is public.
+
 ## Reports and hidden builds
 
 Any signed-in member can report a build that is not their own, with an optional reason, once per build. The admin page lists reported builds with the count and the latest reason. Hide takes a build out of the workbench, the featured spot, member pages, competition entry lists, and the sitemap, and its page returns not found to everyone except the owner and the admin, who see a notice. Unhide reverses it. Dismiss clears the reports. Nothing is deleted by the admin; the owner can still delete their own build if it is not in a competition.

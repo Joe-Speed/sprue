@@ -9,7 +9,7 @@
      with no photos shows text only. */}}
 {{define "build_card_body"}}<a href="/builds/{{.Build.ID}}">
 {{if .Build.CoverPhoto}}<img class="cover" src="/photos/{{.Build.ID}}/{{.Build.CoverPhoto}}" alt="" loading="lazy">{{end}}
-<strong>{{.Build.Title}}{{template "place_badge" .Build.TrophyPlace}}{{if .Build.Hidden}} <span class="tag">hidden</span>{{end}}</strong>
+<strong>{{.Build.Title}}{{template "place_badge" .Build.TrophyPlace}}{{if .Build.Private}} <span class="tag private">private</span>{{end}}{{if .Build.Hidden}} <span class="tag">hidden</span>{{end}}</strong>
 <em>{{.Build.Kit}}</em>
 {{if .ShowOwner}}<span class="meta">by {{.Build.OwnerName}}</span>{{else if .Build.BuiltOn}}<span class="meta">built {{niceDate .Build.BuiltOn}}</span>{{end}}
 </a>{{end}}
@@ -19,6 +19,9 @@
 
 {{/* status_tag colours a competition status. */}}
 {{define "status_tag"}}<span class="tag {{.}}">{{.}}</span>{{end}}
+
+{{/* member_row is one member in a list: name, public build count, join month. */}}
+{{define "member_row"}}<li><a href="/u/{{.Slug}}">{{.DisplayName}}</a><span class="meta">{{.BuildCount}} build{{if ne .BuildCount 1}}s{{end}} · since {{monthYear .CreatedAt}}</span></li>{{end}}
 
 {{/* competition_dates states the date that matters for the current status. */}}
 {{define "competition_dates"}}{{if eq .Status "open"}}entries close {{niceDate .EntriesClose}}, voting closes {{niceDate .VotingCloses}}{{else if eq .Status "voting"}}voting closes {{niceDate .VotingCloses}}{{else}}decided {{niceDate .VotingCloses}}{{end}}{{end}}

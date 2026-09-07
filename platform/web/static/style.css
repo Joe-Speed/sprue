@@ -412,6 +412,10 @@ section.nes-container > :last-child {
   background: var(--red);
 }
 
+.tag.private {
+  background: var(--ink-soft);
+}
+
 /* Cards */
 
 ul.cards {
@@ -514,6 +518,17 @@ li.card .cardlink {
 .page-head h1,
 .page-head .nes-btn {
   margin: 0;
+}
+
+.page-head .actions {
+  margin: 0;
+}
+
+.menu summary .tag,
+.menu-list .tag {
+  margin-left: 0.3rem;
+  font-size: 0.5rem;
+  vertical-align: 1px;
 }
 
 /* Vote row on a build page. */

@@ -1,6 +1,9 @@
 package store
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestReportsAndHiding(t *testing.T) {
 	s := testStore(t)
@@ -43,5 +46,39 @@ func TestReportsAndHiding(t *testing.T) {
 	}
 	if recent, _ := s.RecentBuilds(0, 10); len(recent) != 1 {
 		t.Error("unhidden build missing")
+	}
+}
+
+func TestPrivateBuilds(t *testing.T) {
+	s := testStore(t)
+	alice := testUser(t, s, "alice@example.com")
+	id, err := s.CreateBuild(Build{UserID: alice.ID, Title: "Shelf queen", Kit: "K", Private: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recent, _ := s.RecentBuilds(0, 10); len(recent) != 0 {
+		t.Error("private build on the workbench")
+	}
+	if items, _ := s.BuildsForSitemap(10); len(items) != 0 {
+		t.Error("private build in the sitemap")
+	}
+	if mine, _ := s.BuildsForUser(alice.ID); len(mine) != 1 || !mine[0].Private {
+		t.Error("owner should still list it")
+	}
+	comp := testCompetition(t, s, alice.ID, "Cup")
+	if err := s.EnterCompetition(comp.ID, id, alice.ID); err == nil {
+		t.Error("private build entered a competition")
+	}
+	build, _ := s.BuildByID(id)
+	build.Private = false
+	if err := s.UpdateBuild(build); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnterCompetition(comp.ID, id, alice.ID); err != nil {
+		t.Fatal(err)
+	}
+	build.Private = true
+	if err := s.UpdateBuild(build); !errors.Is(err, ErrInUse) {
+		t.Errorf("entered build went private: %v", err)
 	}
 }
