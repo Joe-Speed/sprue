@@ -10,6 +10,7 @@
 <span class="meta"><a href="/login">Sign in</a> to vote.</span>
 {{end}}
 </div>
+{{if .Data.Build.Hidden}}<p class="flash error">Hidden after a report. Only you{{if .User.IsAdmin}} and the admin{{end}} can see this page.</p>{{end}}
 {{if .Data.Build.Description}}<p>{{.Data.Build.Description}}</p>{{end}}
 {{if .Data.Photos}}
 <div class="gallery">
@@ -17,5 +18,15 @@
 </div>
 {{else if .Data.IsOwner}}
 <p class="prompt">No photos yet. <a href="/builds/{{.Data.Build.ID}}/edit">Add some.</a></p>
+{{end}}
+{{if .Data.CanVote}}
+<details class="report">
+<summary>report this build</summary>
+<form method="post" action="/builds/{{.Data.Build.ID}}/report">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<div class="nes-field"><label for="reason">What is wrong with it</label><textarea class="nes-textarea" id="reason" name="reason" rows="2" maxlength="500"></textarea></div>
+<button class="nes-btn" type="submit">Send report</button>
+</form>
+</details>
 {{end}}
 {{end}}

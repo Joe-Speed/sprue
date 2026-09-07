@@ -100,8 +100,8 @@ func TestPageMeta(t *testing.T) {
 			t.Errorf("home missing %s", want)
 		}
 	}
-	if strings.Contains(home, "noindex") || strings.Contains(home, "<script") {
-		t.Error("home should be indexable and script free without analytics")
+	if strings.Contains(home, "noindex") || strings.Contains(home, "googletagmanager") {
+		t.Error("home should be indexable and carry no analytics tag by default")
 	}
 	_, build := get(t, ts, "/builds/1")
 	for _, want := range []string{
@@ -117,9 +117,9 @@ func TestPageMeta(t *testing.T) {
 	if !strings.Contains(login, `<meta name="robots" content="noindex">`) {
 		t.Error("login page should be noindex")
 	}
-	if !strings.Contains(res.Header.Get("Content-Security-Policy"), "default-src 'none'") ||
-		strings.Contains(res.Header.Get("Content-Security-Policy"), "script-src") {
-		t.Errorf("csp without analytics: %s", res.Header.Get("Content-Security-Policy"))
+	csp := res.Header.Get("Content-Security-Policy")
+	if !strings.Contains(csp, "default-src 'none'") || !strings.Contains(csp, "script-src 'self';") || strings.Contains(csp, "googletagmanager") {
+		t.Errorf("csp without analytics: %s", csp)
 	}
 }
 

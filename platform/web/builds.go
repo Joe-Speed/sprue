@@ -74,18 +74,23 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not load trophies.")
 		return
 	}
-	data := profileData{Owner: owner, Trophies: trophies, BuildCount: len(all)}
+	var viewer *store.User
+	if user, _, err := s.sessionUser(r); err == nil {
+		viewer = &user
+	}
+	data := profileData{Owner: owner, Trophies: trophies, IsSelf: viewer != nil && viewer.ID == owner.ID}
 	for _, build := range all {
+		if !visibleTo(build, viewer) {
+			continue
+		}
+		data.BuildCount++
 		if build.Pinned {
 			data.Pinned = append(data.Pinned, build)
 		} else {
 			data.Builds = append(data.Builds, build)
 		}
 	}
-	if user, _, err := s.sessionUser(r); err == nil && user.ID == owner.ID {
-		data.IsSelf = true
-	}
-	description := fmt.Sprintf("%d build%s by %s on sprue.", len(all), plural(len(all)), owner.DisplayName)
+	description := fmt.Sprintf("%d build%s by %s on sprue.", data.BuildCount, plural(data.BuildCount), owner.DisplayName)
 	s.renderMeta(w, r, http.StatusOK, "profile", owner.DisplayName, data, meta{Description: description})
 }
 
@@ -200,7 +205,7 @@ type buildPageData struct {
 	Build   store.Build
 	Photos  []string
 	IsOwner bool
-	CanVote bool // signed in and not the owner
+	CanVote bool // signed in and not the owner; also allows reporting
 	Voted   bool
 }
 
@@ -210,16 +215,24 @@ func (s *Server) handleBuildPage(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusNotFound, "No such build.")
 		return
 	}
+	var viewer *store.User
+	if user, _, err := s.sessionUser(r); err == nil {
+		viewer = &user
+	}
+	if !visibleTo(build, viewer) {
+		s.renderError(w, r, http.StatusNotFound, "No such build.")
+		return
+	}
 	photos, err := s.store.Photos(build.ID)
 	if err != nil {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not load photos.")
 		return
 	}
 	data := buildPageData{Build: build, Photos: photos}
-	if user, _, err := s.sessionUser(r); err == nil {
-		data.IsOwner = user.ID == build.UserID
+	if viewer != nil {
+		data.IsOwner = viewer.ID == build.UserID
 		data.CanVote = !data.IsOwner
-		if voted, err := s.store.HasVotedBuild(build.ID, user.ID); err == nil {
+		if voted, err := s.store.HasVotedBuild(build.ID, viewer.ID); err == nil {
 			data.Voted = voted
 		}
 	}
@@ -339,6 +352,10 @@ func uploadError(added, wanted int, failure error) string {
 		reason = fmt.Sprintf("This build holds %d photos at most", store.MaxPhotosPerBuild)
 	case errors.Is(failure, errUnusablePhoto):
 		reason = "That file is not a usable photo (8MB max, jpeg or png)"
+	case errors.Is(failure, errUnsafePhoto):
+		reason = "That photo was refused by the image check"
+	case errors.Is(failure, errScreenUnavailable):
+		reason = "The image check did not answer. Try again in a moment"
 	}
 	if added == 0 {
 		return reason
@@ -361,6 +378,9 @@ func (s *Server) savePhoto(buildID int64, header *multipart.FileHeader) error {
 	processed, err := images.Process(raw)
 	if err != nil {
 		return errUnusablePhoto
+	}
+	if err := s.screenPhoto(processed); err != nil {
+		return err
 	}
 	name, err := randomToken()
 	if err != nil {

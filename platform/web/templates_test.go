@@ -42,8 +42,9 @@ func TestEveryPageRenders(t *testing.T) {
 			Summary: stashSummary{Waiting: 1, DebtPence: 1299, Oldest: "Lancaster", OldestDays: 40, Next: &kit, GoalDone: 1, GoalDaysLeft: -3}},
 		"stash_item":  stashItemData{Item: kit, Journal: []store.JournalEntry{{ID: 1, StashID: 5, Text: "Primed.", CreatedAt: "2026-05-02T10:00:00Z"}}},
 		"competition": competitionData{Competition: comp, Entries: []store.Entry{entry}, Trophies: []store.Trophy{trophy}, MyBuilds: []store.Build{build}, CanEnter: true, CanVote: true, ShowVotes: true},
-		"admin":       adminData{Competitions: []store.Competition{comp}, Trophies: []store.Trophy{trophy}},
-		"error":       "Not your build.",
+		"admin": adminData{Competitions: []store.Competition{comp}, Trophies: []store.Trophy{trophy},
+			Reports: []store.Report{{BuildID: 7, BuildTitle: "Spitfire Mk.I", OwnerName: "Joe", Count: 2, Reason: "Not a model.", LatestAt: "2026-05-01T00:00:00Z"}}},
+		"error": "Not your build.",
 	}
 	if len(pages) != len(pageNames) {
 		t.Fatalf("test covers %d pages, server has %d", len(pages), len(pageNames))

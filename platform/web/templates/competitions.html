@@ -1,11 +1,11 @@
 {{define "content"}}
-<div class="profile-head">
-<div>
+<div class="page-head">
 <h1>competitions</h1>
+{{if .User}}<a class="nes-btn is-primary" href="/competitions/new">start a competition</a>{{end}}
+</div>
 <p class="meta">Any member can start one. Entries stay open until the entry date, then the community votes, then the results stand.</p>
-</div>
-{{if .User}}<p class="actions"><a class="nes-btn is-primary" href="/competitions/new">start a competition</a></p>{{end}}
-</div>
+<section class="nes-container with-title">
+<h2 class="title">all competitions</h2>
 {{if not .Data.Competitions}}<p class="quiet">No competitions yet.{{if not .User}} <a href="/login">Sign in</a> to start one.{{end}}</p>{{end}}
 <ul class="rows">
 {{range .Data.Competitions}}
@@ -15,4 +15,5 @@
 </li>
 {{end}}
 </ul>
+</section>
 {{end}}

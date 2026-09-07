@@ -9,7 +9,7 @@
      with no photos shows text only. */}}
 {{define "build_card_body"}}<a href="/builds/{{.Build.ID}}">
 {{if .Build.CoverPhoto}}<img class="cover" src="/photos/{{.Build.ID}}/{{.Build.CoverPhoto}}" alt="" loading="lazy">{{end}}
-<strong>{{.Build.Title}}{{template "place_badge" .Build.TrophyPlace}}</strong>
+<strong>{{.Build.Title}}{{template "place_badge" .Build.TrophyPlace}}{{if .Build.Hidden}} <span class="tag">hidden</span>{{end}}</strong>
 <em>{{.Build.Kit}}</em>
 {{if .ShowOwner}}<span class="meta">by {{.Build.OwnerName}}</span>{{else if .Build.BuiltOn}}<span class="meta">built {{niceDate .Build.BuiltOn}}</span>{{end}}
 </a>{{end}}

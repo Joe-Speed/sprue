@@ -59,6 +59,7 @@ func main() {
 		AnalyticsID:      os.Getenv("SPRUE_ANALYTICS_ID"),
 		SiteVerification: os.Getenv("SPRUE_SITE_VERIFICATION"),
 		Currency:         os.Getenv("SPRUE_CURRENCY"),
+		VisionKey:        os.Getenv("SPRUE_VISION_KEY"),
 	})
 	if err != nil {
 		log.Fatalf("sprue: %v", err)

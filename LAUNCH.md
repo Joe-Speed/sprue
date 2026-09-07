@@ -14,6 +14,8 @@ Create these before touching the code. Each takes a few minutes.
 
 ## 2. Email
 
+Any SMTP provider works; the five variables are the same. Brevo is the suggestion because its free plan needs no domain to start. Resend (about 3,000 a month free, needs your own domain), Postmark (100 a month free, the best deliverability), Mailjet (200 a day free), and Amazon SES (cheap, needs an AWS account and production access) all fit the same way. Change provider later by changing the variables.
+
 In Brevo, open Senders and add the address mail will come from, for example hello@yourdomain. Verify it by clicking the link Brevo sends. Then open SMTP and API, create an SMTP key, and note the four values:
 
 ```
@@ -44,6 +46,7 @@ SPRUE_SMTP_PASS=...
 SPRUE_SMTP_FROM=...
 SPRUE_ANALYTICS_ID=G-XXXXXXXX        optional
 SPRUE_SITE_VERIFICATION=...          optional, see step 6
+SPRUE_VISION_KEY=...                  optional, see step 7
 SPRUE_CURRENCY=£                      optional, default £
 ```
 
@@ -87,11 +90,17 @@ The names must match exactly. TROPHIES.md covers designing them.
 
 ## 6. Google
 
-Analytics: paste the measurement ID into `SPRUE_ANALYTICS_ID` and redeploy. Without the variable the site serves no script at all; with it, only Google's tag is allowed by the security policy. Real-time reports in GA4 show your own visit within a minute.
+Analytics: paste the measurement ID into `SPRUE_ANALYTICS_ID` and redeploy. Without the variable the site serves only its own small photo preview script; with it, Google's tag is allowed too and nothing else. Real-time reports in GA4 show your own visit within a minute.
 
 Search Console: add the domain as a property. The DNS method is simplest: Google gives you a TXT record, you add it in Cloudflare, done. The alternative is the HTML tag method: put the content value into `SPRUE_SITE_VERIFICATION` and redeploy. Once verified, open Sitemaps and submit `https://yourdomain/sitemap.xml`. The sitemap is built from the database on every request, so it never needs resubmitting.
 
-## 7. First run
+## 7. Photo screening
+
+Members can report any build and you can hide it from the admin page, which is the part that matters for a small site. Automatic screening on top of that is optional and uses Google Cloud Vision's SafeSearch: the first thousand images a month are free, then about a dollar fifty per thousand.
+
+In Google Cloud console, create a project, enable the Cloud Vision API, then under Credentials create an API key and restrict it to the Cloud Vision API only. Put it in `SPRUE_VISION_KEY` and redeploy. Every uploaded photo is then checked before it is saved; anything rated likely adult or violent is refused with a plain message, and if the check cannot be reached the photo is refused rather than let through. Without the key nothing is checked and nothing changes.
+
+## 8. First run
 
 Open `https://yourdomain/healthz` and expect `ok`.
 
@@ -103,7 +112,7 @@ Start a competition, enter the build, and check the competition page. Voting ope
 
 Add a kit to your stash, set a goal, and switch reminders to weekly in settings. The first reminder arrives a week later.
 
-## 8. Backups
+## 9. Backups
 
 Railway volumes are durable but not versioned on the free and Hobby plans. Take your own copies. From `railway ssh`:
 
@@ -114,9 +123,9 @@ sqlite3 /data/sprue.db ".backup /data/backup.db"
 
 Then copy `/data/backup.db` and the `/data/photos` folder somewhere else. Doing this monthly by hand is fine at first. The database is one file and photos are plain JPEGs, so restoring means putting them back on the volume.
 
-## 9. Money
+## 10. Money
 
-Railway: free trial credit, then the Hobby plan at five dollars a month. Cloudflare, Brevo, Google Analytics, and Search Console: free at this scale. A domain is the only other cost if you need to buy one.
+Railway: free trial credit, then the Hobby plan at five dollars a month. Cloudflare, Brevo, Google Analytics, Search Console, and Vision at under a thousand photos a month: free. A domain is the only other cost if you need to buy one.
 
 ## Afterwards
 

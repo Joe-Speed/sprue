@@ -49,6 +49,7 @@ html {
 
 a,
 button,
+summary,
 .nes-btn,
 .nes-select select,
 .nes-radio + span,
@@ -202,10 +203,77 @@ header.site nav form {
   display: inline;
 }
 
-@media (max-width: 720px) {
-  header.site nav.account {
-    margin-left: 0;
-  }
+/* Account menu: a details element, so it opens without any script. */
+.menu {
+  position: relative;
+}
+
+.menu summary {
+  list-style: none;
+  padding-bottom: 2px;
+  color: var(--ink);
+  text-shadow: 2px 2px 0 var(--paper);
+  border-bottom: 3px solid transparent;
+}
+
+.menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.menu summary::after {
+  content: "";
+  display: inline-block;
+  margin-left: 0.5rem;
+  border: 5px solid transparent;
+  border-top-color: var(--ink);
+  border-bottom: 0;
+  vertical-align: 2px;
+}
+
+.menu[open] summary {
+  border-bottom-color: var(--ink);
+}
+
+.menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.8rem);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 14rem;
+  padding: 0.6rem 0;
+  background: var(--paper);
+  border: 4px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+
+header.site .menu-list a,
+header.site .menu-list a[aria-current="page"],
+header.site .menu-list button.linkish {
+  display: block;
+  width: 100%;
+  padding: 0.7rem 1.4rem;
+  text-align: left;
+  text-shadow: none;
+  border: 0;
+  border-left: 4px solid transparent;
+}
+
+header.site .menu-list a:hover,
+header.site .menu-list button.linkish:hover {
+  background: var(--paper-deep);
+}
+
+header.site .menu-list a[aria-current="page"] {
+  border-left-color: var(--ink);
+}
+
+header.site .menu-list form {
+  display: block;
+  margin: 0.5rem 0 0;
+  padding-top: 0.5rem;
+  border-top: 4px dotted var(--paper-deep);
 }
 
 /* The paper panel every page sits on */
@@ -433,22 +501,18 @@ li.card .cardlink {
   text-decoration: none;
 }
 
-/* Profile head: name and count on the left, owner actions on the right. */
-.profile-head {
+/* Page head: title on the left, one action button on the right. */
+.page-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
+  margin-bottom: 0.6rem;
 }
 
-.profile-head .actions {
-  display: flex;
-  gap: 0.5rem;
-  margin: 0;
-}
-
-.profile-head .actions .nes-btn {
+.page-head h1,
+.page-head .nes-btn {
   margin: 0;
 }
 
@@ -539,6 +603,21 @@ form.remove {
   margin-top: 1.5rem;
 }
 
+/* Report a build: folded away until wanted. */
+details.report {
+  margin-top: 2rem;
+  font-size: 1rem;
+}
+
+details.report summary {
+  color: var(--ink-soft);
+  text-decoration: underline;
+}
+
+details.report form {
+  margin-top: 0.8rem;
+}
+
 /* Build page photos */
 
 .gallery {
@@ -568,6 +647,20 @@ ul.thumbs img {
   display: block;
   width: 140px;
   height: 100px;
+  object-fit: cover;
+  border: 4px solid var(--ink);
+}
+
+.previews {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0.6rem 0 0;
+}
+
+.previews img {
+  width: 120px;
+  height: 90px;
   object-fit: cover;
   border: 4px solid var(--ink);
 }

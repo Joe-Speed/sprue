@@ -29,16 +29,16 @@ var noIndexPages = map[string]bool{
 
 var analyticsIDPattern = regexp.MustCompile(`^G-[A-Z0-9]{4,16}$`)
 
-// contentSecurityPolicy builds the header for this deployment. Without an
-// analytics ID no script may run at all. With one, only Google's tag script
-// and its collection endpoints are allowed.
+// contentSecurityPolicy builds the header for this deployment. Only the
+// site's own script may run, plus Google's tag when an analytics ID is set.
+// blob: images are the photo previews before upload.
 func contentSecurityPolicy(analyticsID string) string {
 	if analyticsID == "" {
-		return "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; " +
+		return "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; script-src 'self'; " +
 			"form-action 'self'; base-uri 'self'; frame-ancestors 'none'"
 	}
 	return "default-src 'none'; style-src 'self'; font-src 'self'; " +
-		"img-src 'self' data: https://*.google-analytics.com https://*.googletagmanager.com; " +
+		"img-src 'self' data: blob: https://*.google-analytics.com https://*.googletagmanager.com; " +
 		"script-src 'self' https://www.googletagmanager.com; " +
 		"connect-src https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; " +
 		"form-action 'self'; base-uri 'self'; frame-ancestors 'none'"

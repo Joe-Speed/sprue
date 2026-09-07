@@ -46,9 +46,18 @@ Builders can remove photos, choose the cover photo, and delete a build. A build 
 - `SPRUE_URL`: the public base URL, used inside emailed sign-in links. Set it to your real domain in production.
 - `SPRUE_ADMIN_EMAIL`: the email address that gets admin on sign-in.
 - `SPRUE_SMTP_HOST`, `SPRUE_SMTP_PORT`, `SPRUE_SMTP_USER`, `SPRUE_SMTP_PASS`, `SPRUE_SMTP_FROM`: outbound email. The host is required unless `SPRUE_URL` is a localhost address. Locally, with no host set, sign-in links go to the log instead.
-- `SPRUE_ANALYTICS_ID`: a Google Analytics measurement ID such as `G-XXXXXXXX`. Leave it unset and no script of any kind is served. Set it and the pages load Google's tag, with the Content-Security-Policy widened to allow exactly that and nothing else.
+- `SPRUE_ANALYTICS_ID`: a Google Analytics measurement ID such as `G-XXXXXXXX`. Leave it unset and the only script served is the site's own photo preview. Set it and the pages also load Google's tag, with the Content-Security-Policy widened to allow exactly that and nothing else.
 - `SPRUE_SITE_VERIFICATION`: the value from Google Search Console's HTML tag method. Verifying through DNS at Cloudflare works too and needs no variable.
 - `SPRUE_CURRENCY`: the symbol shown before stash costs, default `£`.
+- `SPRUE_VISION_KEY`: a Google Cloud Vision API key. When set, every uploaded photo is run through SafeSearch before it is saved and refused if likely adult or violent. Unset, photos are not screened.
+
+## Reports and hidden builds
+
+Any signed-in member can report a build that is not their own, with an optional reason, once per build. The admin page lists reported builds with the count and the latest reason. Hide takes a build out of the workbench, the featured spot, member pages, competition entry lists, and the sitemap, and its page returns not found to everyone except the owner and the admin, who see a notice. Unhide reverses it. Dismiss clears the reports. Nothing is deleted by the admin; the owner can still delete their own build if it is not in a competition.
+
+## Schema changes
+
+Tables are created on first start and never altered. Adding a table is safe. Adding a column to an existing table needs a migration step, because an existing database will not get it. Nothing has needed one before launch; add a versioned migration in the store before the first such change afterwards.
 
 ## The stash
 

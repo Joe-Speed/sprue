@@ -39,6 +39,7 @@ type Config struct {
 	AnalyticsID      string // Google Analytics measurement ID, empty for none
 	SiteVerification string // Google Search Console meta tag value, empty for none
 	Currency         string // symbol shown before stash costs
+	VisionKey        string // Google Cloud Vision API key for photo screening, empty to skip
 }
 
 type Server struct {
@@ -92,6 +93,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /builds/{id}/photos/{name}/delete", s.handlePhotoDelete)
 	mux.HandleFunc("POST /builds/{id}/delete", s.handleBuildDelete)
 	mux.HandleFunc("POST /builds/{id}/vote", s.handleBuildVote)
+	mux.HandleFunc("POST /builds/{id}/report", s.handleReport)
 	mux.HandleFunc("GET /photos/{build}/{name}", s.handlePhoto)
 	mux.HandleFunc("GET /stash", s.handleStash)
 	mux.HandleFunc("POST /stash", s.handleStashAdd)
@@ -108,6 +110,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /admin", s.handleAdmin)
 	mux.HandleFunc("POST /admin/competitions/{slug}/decide", s.handleAdminDecide)
 	mux.HandleFunc("POST /admin/trophies/{id}/rearm", s.handleAdminRearm)
+	mux.HandleFunc("POST /admin/builds/{id}/{action}", s.handleAdminModerate)
 	mux.HandleFunc("GET /mark/next", s.handleMarkNext)
 	mux.HandleFunc("GET /robots.txt", s.handleRobots)
 	mux.HandleFunc("GET /sitemap.xml", s.handleSitemap)

@@ -1,6 +1,20 @@
 {{define "content"}}
 <h1>admin</h1>
-<p class="meta">Competitions run themselves by date. From here you can decide one early while it is in voting, and re-arm a trophy download.</p>
+<p class="meta">Competitions open, vote, and close on their own dates. Here you can act on reported builds, end a vote early, and give a winner another trophy download.</p>
+<section class="nes-container with-title">
+<h2 class="title">reports</h2>
+{{if not .Data.Reports}}<p class="quiet">Nothing reported.</p>{{end}}
+<ul class="rows">
+{{range .Data.Reports}}
+<li>
+<a href="/builds/{{.BuildID}}">{{.BuildTitle}}</a>{{if .Hidden}}<span class="tag">hidden</span>{{end}}
+<span class="meta">by {{.OwnerName}} · {{.Count}} report{{if ne .Count 1}}s{{end}} · latest {{niceDate .LatestAt}}{{if .Reason}} · "{{.Reason}}"{{end}}</span>
+<form method="post" action="/admin/builds/{{.BuildID}}/{{if .Hidden}}unhide{{else}}hide{{end}}"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="nes-btn{{if not .Hidden}} is-error{{end}}">{{if .Hidden}}unhide{{else}}hide{{end}}</button></form>
+<form method="post" action="/admin/builds/{{.BuildID}}/dismiss"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="nes-btn">dismiss</button></form>
+</li>
+{{end}}
+</ul>
+</section>
 <section class="nes-container with-title">
 <h2 class="title">competitions</h2>
 {{if not .Data.Competitions}}<p class="quiet">None yet.</p>{{end}}

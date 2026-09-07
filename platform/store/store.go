@@ -94,7 +94,16 @@ create table if not exists builds (
 	description text not null default '',
 	built_on text not null default '',
 	pinned integer not null default 0,
+	hidden integer not null default 0,
 	created_at text not null
+);
+create table if not exists reports (
+	id integer primary key,
+	build_id integer not null references builds(id),
+	user_id integer not null references users(id),
+	reason text not null default '',
+	created_at text not null,
+	unique(build_id, user_id)
 );
 create table if not exists build_votes (
 	build_id integer not null references builds(id),
@@ -382,6 +391,7 @@ type Build struct {
 	Description string
 	BuiltOn     string
 	Pinned      bool // owner keeps it at the top of their bench
+	Hidden      bool // taken out of public view by the admin after a report
 	CreatedAt   string
 	// Filled by list queries for display.
 	OwnerName   string
@@ -435,7 +445,7 @@ func boolInt(b bool) int {
 }
 
 const buildColumns = `
-	b.id, b.user_id, b.title, b.kit, b.brand, b.scale, b.description, b.built_on, b.pinned, b.created_at,
+	b.id, b.user_id, b.title, b.kit, b.brand, b.scale, b.description, b.built_on, b.pinned, b.hidden, b.created_at,
 	u.display_name, u.slug,
 	coalesce((select p.file_name from photos p where p.build_id = b.id order by p.position limit 1), ''),
 	coalesce((select min(t.place) from trophies t where t.build_id = b.id), 0),
@@ -447,13 +457,14 @@ func (s *Store) scanBuilds(rows *sql.Rows) ([]Build, error) {
 	var builds []Build
 	for rows.Next() {
 		var b Build
-		var pinned int
+		var pinned, hidden int
 		err := rows.Scan(&b.ID, &b.UserID, &b.Title, &b.Kit, &b.Brand, &b.Scale, &b.Description,
-			&b.BuiltOn, &pinned, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.CoverPhoto, &b.TrophyPlace, &b.Votes)
+			&b.BuiltOn, &pinned, &hidden, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.CoverPhoto, &b.TrophyPlace, &b.Votes)
 		if err != nil {
 			return nil, err
 		}
 		b.Pinned = pinned != 0
+		b.Hidden = hidden != 0
 		builds = append(builds, b)
 	}
 	return builds, rows.Err()
@@ -496,7 +507,7 @@ func (s *Store) RecentBuilds(beforeID int64, limit int) ([]Build, error) {
 		beforeID = math.MaxInt64
 	}
 	rows, err := s.db.Query(`select `+buildColumns+` from builds b join users u on u.id = b.user_id
-		where b.id < ? order by b.id desc limit ?`, beforeID, limit)
+		where b.id < ? and b.hidden = 0 order by b.id desc limit ?`, beforeID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -510,7 +521,7 @@ type SitemapBuild struct {
 
 // BuildsForSitemap lists the newest builds' IDs and creation stamps.
 func (s *Store) BuildsForSitemap(limit int) ([]SitemapBuild, error) {
-	rows, err := s.db.Query(`select id, created_at from builds order by id desc limit ?`, limit)
+	rows, err := s.db.Query(`select id, created_at from builds where hidden = 0 order by id desc limit ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -586,6 +597,9 @@ func (s *Store) DeleteBuild(id, userID int64) ([]string, error) {
 	if _, err := tx.Exec(`delete from build_votes where build_id = ?`, id); err != nil {
 		return nil, err
 	}
+	if _, err := tx.Exec(`delete from reports where build_id = ?`, id); err != nil {
+		return nil, err
+	}
 	if _, err := tx.Exec(`delete from builds where id = ?`, id); err != nil {
 		return nil, err
 	}
@@ -644,7 +658,7 @@ func (s *Store) FeaturedBuilds(since time.Time, limit int) ([]Build, error) {
 			select build_id, count(*) as votes from build_votes where created_at >= ? group by build_id
 		)
 		select `+buildColumns+` from builds b join users u on u.id = b.user_id join recent r on r.build_id = b.id
-		order by r.votes desc, b.id desc limit ?`, since.UTC().Format(time.RFC3339), limit)
+		where b.hidden = 0 order by r.votes desc, b.id desc limit ?`, since.UTC().Format(time.RFC3339), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -921,7 +935,7 @@ func (s *Store) EntriesWithVotes(competitionID int64) ([]Entry, error) {
 	rows, err := s.db.Query(`select e.id, `+buildColumns+`,
 		(select count(*) from votes v where v.entry_id = e.id)
 		from entries e join builds b on b.id = e.build_id join users u on u.id = b.user_id
-		where e.competition_id = ? order by e.id limit ?`, competitionID, MaxEntriesPerComp)
+		where e.competition_id = ? and b.hidden = 0 order by e.id limit ?`, competitionID, MaxEntriesPerComp)
 	if err != nil {
 		return nil, err
 	}
@@ -929,14 +943,15 @@ func (s *Store) EntriesWithVotes(competitionID int64) ([]Entry, error) {
 	var list []Entry
 	for rows.Next() {
 		var entry Entry
-		var pinned int
+		var pinned, hidden int
 		b := &entry.Build
 		err := rows.Scan(&entry.ID, &b.ID, &b.UserID, &b.Title, &b.Kit, &b.Brand, &b.Scale, &b.Description,
-			&b.BuiltOn, &pinned, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.CoverPhoto, &b.TrophyPlace, &b.Votes, &entry.Votes)
+			&b.BuiltOn, &pinned, &hidden, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.CoverPhoto, &b.TrophyPlace, &b.Votes, &entry.Votes)
 		if err != nil {
 			return nil, err
 		}
 		b.Pinned = pinned != 0
+		b.Hidden = hidden != 0
 		list = append(list, entry)
 	}
 	return list, rows.Err()

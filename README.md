@@ -20,6 +20,7 @@ Built as a single Go binary with SQLite. No framework, no JavaScript build step,
 - **Deterministic results.** Ties break to the earlier entry, entries with zero votes never place, and the tally is reproducible from the database.
 - **Printable trophies.** First, second, and third get placement badges on their builds and profile, plus a single-use download of their trophy STL. The STL files live only on the server and are released only to their winner. Recommended paints: gold DB0016, silver DB0011, antique bronze DB0171.
 - **Retro pixel look.** NES.css borders and controls, self-hosted pixel fonts, a sky and paper palette, and pixel-art trophy badges. Photos stay photographs. No external requests from the browser.
+- **Reports and screening.** Members report a build, the admin hides or clears it. Optionally, every photo is checked by Google SafeSearch before it is saved.
 - **Bounded by design.** Every collection has a hard cap and every limit is a clean error, never growth. The code follows the spirit of NASA's Power of 10 rules, adapted to Go.
 
 ## Layout
@@ -29,6 +30,7 @@ platform/            the whole application, one Go module
   main.go            reads the environment, opens the store, runs the server
   store/             SQLite schema and every query; nothing else writes SQL
     stash.go         stash, journal, goals, reminder schedule
+    moderation.go    reports and hidden builds
   images/            photo validation and re-encoding
   web/
     server.go        routing, sessions, security headers, rate limiting
@@ -37,6 +39,7 @@ platform/            the whole application, one Go module
     competitions.go  competitions, entries, voting, trophies, admin
     stash.go         stash, model debt summary, goals, journal
     housekeeping.go  hourly jobs and outbound email
+    moderation.go    reports, hiding, photo screening
     seo.go           robots.txt, sitemap.xml, page metadata, CSP
     templates.go     template parsing and helpers
     templates/       one HTML file per page, base.html shell, partials.html fragments

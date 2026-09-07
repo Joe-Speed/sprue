@@ -1,13 +1,6 @@
 {{define "content"}}
-<div class="profile-head">
-<div>
 <h1>{{.Data.Owner.DisplayName}}</h1>
 <p class="meta">{{.Data.BuildCount}} build{{if ne .Data.BuildCount 1}}s{{end}} · on the bench since {{monthYear .Data.Owner.CreatedAt}}</p>
-</div>
-{{if .Data.IsSelf}}
-<p class="actions"><a class="nes-btn is-primary" href="/builds/new">post a build</a><a class="nes-btn" href="/settings">settings</a></p>
-{{end}}
-</div>
 {{if .Data.Trophies}}
 <section class="nes-container with-title">
 <h2 class="title">trophy case</h2>

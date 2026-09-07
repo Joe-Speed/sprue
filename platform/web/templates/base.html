@@ -20,6 +20,7 @@
 <link rel="apple-touch-icon" href="{{static "apple-touch-icon.png"}}">
 <link rel="stylesheet" href="{{static "vendor/nes-core.min.css"}}">
 <link rel="stylesheet" href="{{static "style.css"}}">
+<script src="{{static "preview.js"}}" defer></script>
 {{if .Config.AnalyticsID}}<script async src="https://www.googletagmanager.com/gtag/js?id={{.Config.AnalyticsID}}"></script>
 <script src="{{static "analytics.js"}}" data-id="{{.Config.AnalyticsID}}"></script>{{end}}
 </head>
@@ -32,11 +33,17 @@
 </nav>
 <nav class="account" aria-label="Account">
 {{if .User}}
+<a class="nes-btn is-primary" href="/builds/new">post a build</a>
+<details class="menu">
+<summary>{{.User.DisplayName}}</summary>
+<div class="menu-list">
 <a href="/u/{{.User.Slug}}"{{if eq .Path (print "/u/" .User.Slug)}} aria-current="page"{{end}}>my bench</a>
 <a href="/stash"{{if under .Path "/stash"}} aria-current="page"{{end}}>stash</a>
+<a href="/settings"{{if eq .Path "/settings"}} aria-current="page"{{end}}>settings</a>
 {{if .User.IsAdmin}}<a href="/admin"{{if under .Path "/admin"}} aria-current="page"{{end}}>admin</a>{{end}}
-<a class="nes-btn is-primary" href="/builds/new">post a build</a>
 <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="linkish">sign out</button></form>
+</div>
+</details>
 {{else}}
 <a class="nes-btn is-primary" href="/login">sign in</a>
 {{end}}

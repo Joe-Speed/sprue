@@ -234,6 +234,7 @@ func (s *Server) handleTrophyDownload(w http.ResponseWriter, r *http.Request) {
 type adminData struct {
 	Competitions []store.Competition
 	Trophies     []store.Trophy
+	Reports      []store.Report
 }
 
 func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
@@ -246,7 +247,12 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not load competitions.")
 		return
 	}
-	data := adminData{Competitions: comps}
+	reports, err := s.store.OpenReports()
+	if err != nil {
+		s.renderError(w, r, http.StatusInternalServerError, "Could not load reports.")
+		return
+	}
+	data := adminData{Competitions: comps, Reports: reports}
 	for _, comp := range comps {
 		if comp.Status != "decided" {
 			continue
