@@ -327,6 +327,23 @@ section.nes-container > :last-child {
   background: var(--blue);
 }
 
+.tag.unbuilt {
+  background: var(--ink-soft);
+}
+
+.tag.building {
+  background: var(--amber);
+  color: var(--ink);
+}
+
+.tag.built {
+  background: var(--green);
+}
+
+.tag.next {
+  background: var(--red);
+}
+
 /* Cards */
 
 ul.cards {
@@ -467,6 +484,59 @@ form.post .post-fields {
 form.post .meta {
   display: inline-block;
   margin-left: 0.5rem;
+}
+
+/* Short forms whose fields sit in a row: stash add, goal. */
+form.inline-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 0 1rem;
+  flex-wrap: wrap;
+}
+
+form.inline-fields .nes-field {
+  flex: 1 1 160px;
+  margin-bottom: 0.6rem;
+}
+
+form.inline-fields .nes-btn {
+  margin-bottom: 0.6rem;
+}
+
+/* Stash */
+.debt {
+  font-size: 1.25rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0 0 1rem;
+}
+
+.actions form {
+  display: inline;
+}
+
+ul.journal {
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+}
+
+ul.journal li {
+  padding: 0.6rem 0;
+  border-top: 4px dotted var(--paper-deep);
+}
+
+ul.journal p {
+  margin: 0.2rem 0 0;
+  white-space: pre-line;
+}
+
+form.remove {
+  margin-top: 1.5rem;
 }
 
 /* Build page photos */

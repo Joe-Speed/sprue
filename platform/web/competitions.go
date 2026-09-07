@@ -113,7 +113,11 @@ func (s *Server) handleCompetition(w http.ResponseWriter, r *http.Request) {
 	if user, _, err := s.sessionUser(r); err == nil {
 		s.fillViewerState(&data, user)
 	}
-	s.render(w, r, "competition", comp.Title, data)
+	description := comp.Description
+	if description == "" {
+		description = "A scale modelling competition on sprue, started by " + comp.CreatorName + "."
+	}
+	s.renderMeta(w, r, http.StatusOK, "competition", comp.Title, data, meta{Description: description})
 }
 
 func (s *Server) fillViewerState(data *competitionData, user store.User) {

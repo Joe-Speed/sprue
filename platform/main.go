@@ -55,6 +55,10 @@ func main() {
 		SMTPUser:   os.Getenv("SPRUE_SMTP_USER"),
 		SMTPPass:   os.Getenv("SPRUE_SMTP_PASS"),
 		SMTPFrom:   os.Getenv("SPRUE_SMTP_FROM"),
+
+		AnalyticsID:      os.Getenv("SPRUE_ANALYTICS_ID"),
+		SiteVerification: os.Getenv("SPRUE_SITE_VERIFICATION"),
+		Currency:         os.Getenv("SPRUE_CURRENCY"),
 	})
 	if err != nil {
 		log.Fatalf("sprue: %v", err)
@@ -71,7 +75,7 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	go housekeeping(ctx, st)
+	go server.Housekeeping(ctx)
 
 	go func() {
 		log.Printf("sprue: serving on port %s, data in %s", port, dataDir)
@@ -89,27 +93,4 @@ func main() {
 	}
 }
 
-const (
-	sweepInterval = time.Hour
-	shutdownGrace = 15 * time.Second
-)
-
-// housekeeping clears expired sessions and tokens and advances competitions
-// by date, once at start and then every sweepInterval until the context ends.
-func housekeeping(ctx context.Context, st *store.Store) {
-	ticker := time.NewTicker(sweepInterval)
-	defer ticker.Stop()
-	for {
-		if err := st.Sweep(); err != nil {
-			log.Printf("sprue: %v", err)
-		}
-		if err := st.Advance(time.Now()); err != nil {
-			log.Printf("sprue: %v", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
-}
+const shutdownGrace = 15 * time.Second

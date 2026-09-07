@@ -35,7 +35,7 @@ Static files are served with a one year cache and a version parameter derived fr
 
 ## Operations
 
-`GET /healthz` returns `ok` when the database answers, for platform health checks. Every response carries a strict Content-Security-Policy (no scripts, same-origin styles, fonts, and images), nosniff, and frame denial. Text form posts are capped at 64KB; photo uploads at six files of 8MB each. Expired sessions and sign-in tokens are swept at startup and every hour. SIGTERM drains open requests for up to fifteen seconds before exit.
+`GET /healthz` returns `ok` when the database answers, for platform health checks. Every response carries a strict Content-Security-Policy (no scripts, same-origin styles, fonts, and images), nosniff, and frame denial. Text form posts are capped at 64KB; photo uploads at six files of 8MB each. Expired sessions and sign-in tokens are swept at startup and every hour, competitions advance by date in the same run, and due stash reminders go out. SIGTERM drains open requests for up to fifteen seconds before exit.
 
 Builders can remove photos, choose the cover photo, and delete a build. A build that has entered a competition cannot be deleted because entries, votes, and trophies refer to it. Build IDs are never reused, so a link to a deleted build stays a 404.
 
@@ -46,6 +46,21 @@ Builders can remove photos, choose the cover photo, and delete a build. A build 
 - `SPRUE_URL`: the public base URL, used inside emailed sign-in links. Set it to your real domain in production.
 - `SPRUE_ADMIN_EMAIL`: the email address that gets admin on sign-in.
 - `SPRUE_SMTP_HOST`, `SPRUE_SMTP_PORT`, `SPRUE_SMTP_USER`, `SPRUE_SMTP_PASS`, `SPRUE_SMTP_FROM`: outbound email. The host is required unless `SPRUE_URL` is a localhost address. Locally, with no host set, sign-in links go to the log instead.
+- `SPRUE_ANALYTICS_ID`: a Google Analytics measurement ID such as `G-XXXXXXXX`. Leave it unset and no script of any kind is served. Set it and the pages load Google's tag, with the Content-Security-Policy widened to allow exactly that and nothing else.
+- `SPRUE_SITE_VERIFICATION`: the value from Google Search Console's HTML tag method. Verifying through DNS at Cloudflare works too and needs no variable.
+- `SPRUE_CURRENCY`: the symbol shown before stash costs, default `£`.
+
+## The stash
+
+Each member has a private stash page listing kits they own and have not built, with brand, scale, and cost. The page opens with the member's model debt: how many kits are waiting, what they cost in total, and how long the oldest has sat. One kit can be marked as next. A goal is a number of kits and a date, and every kit finished from the stash after the goal was set counts toward it. Each kit has a journal of short dated notes. Finishing a kit creates a build with the kit's details and sends the member to add photos; the stash entry keeps its journal and links to the build.
+
+Members can opt into a weekly or monthly reminder email in settings. The hourly housekeeping run sends up to fifty due reminders, each a plain text note with the debt line, the next kit, and the goal. A member is marked as reminded before the send is attempted, so a bouncing address is not retried every hour. Nothing is sent when the stash is empty and no goal is set. There are no points, streaks, or badges anywhere; the stash exists to make unbuilt kits visible and to hold a commitment the member chose.
+
+## Search engines and link previews
+
+`/robots.txt` allows everything public and keeps crawlers out of sign-in, account, form, and admin pages. `/sitemap.xml` is built from the database on request and lists the front page, every competition, every member page, and every build, newest first, capped at five thousand of each. Submit it in Search Console once and it stays current.
+
+Every page carries a description, a canonical URL, and Open Graph tags, so links pasted into chat or social apps show a title, a line of text, and an image. Build pages use their cover photo; everything else uses the plane on paper, which is also the home screen icon on phones. Sign-in, settings, forms, admin, and error pages are marked noindex.
 
 ## The featured spot
 

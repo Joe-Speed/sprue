@@ -46,7 +46,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.render(w, r, "home", "sprue", data)
+	s.render(w, r, "home", "the community workbench", data)
 }
 
 type profileData struct {
@@ -85,7 +85,8 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 	if user, _, err := s.sessionUser(r); err == nil && user.ID == owner.ID {
 		data.IsSelf = true
 	}
-	s.render(w, r, "profile", owner.DisplayName, data)
+	description := fmt.Sprintf("%d build%s by %s on sprue.", len(all), plural(len(all)), owner.DisplayName)
+	s.renderMeta(w, r, http.StatusOK, "profile", owner.DisplayName, data, meta{Description: description})
 }
 
 type buildFormData struct {
@@ -222,7 +223,18 @@ func (s *Server) handleBuildPage(w http.ResponseWriter, r *http.Request) {
 			data.Voted = voted
 		}
 	}
-	s.render(w, r, "build", build.Title, data)
+	m := meta{Description: fmt.Sprintf("%s, built by %s.", build.Kit, build.OwnerName)}
+	if build.CoverPhoto != "" {
+		m.Image = s.absolute(fmt.Sprintf("/photos/%d/%s", build.ID, build.CoverPhoto))
+	}
+	s.renderMeta(w, r, http.StatusOK, "build", build.Title, data, m)
+}
+
+func plural(count int) string {
+	if count == 1 {
+		return ""
+	}
+	return "s"
 }
 
 // handleBuildVote toggles the caller's vote for a build.

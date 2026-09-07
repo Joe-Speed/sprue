@@ -28,14 +28,17 @@ var staticFiles embed.FS
 const sessionCookie = "sprue_session"
 
 type Config struct {
-	DataDir    string
-	BaseURL    string
-	AdminEmail string
-	SMTPHost   string
-	SMTPPort   string
-	SMTPUser   string
-	SMTPPass   string
-	SMTPFrom   string
+	DataDir          string
+	BaseURL          string
+	AdminEmail       string
+	SMTPHost         string
+	SMTPPort         string
+	SMTPUser         string
+	SMTPPass         string
+	SMTPFrom         string
+	AnalyticsID      string // Google Analytics measurement ID, empty for none
+	SiteVerification string // Google Search Console meta tag value, empty for none
+	Currency         string // symbol shown before stash costs
 }
 
 type Server struct {
@@ -43,6 +46,7 @@ type Server struct {
 	config    Config
 	templates map[string]*template.Template
 	limiter   *rateLimiter
+	csp       string
 }
 
 const staticCacheControl = "public, max-age=31536000, immutable"
@@ -51,11 +55,20 @@ func New(st *store.Store, config Config) (*Server, error) {
 	if st == nil || config.DataDir == "" || config.BaseURL == "" {
 		return nil, errors.New("web: store, data dir, and base url are required")
 	}
+	if config.AnalyticsID != "" && !analyticsIDPattern.MatchString(config.AnalyticsID) {
+		return nil, errors.New("web: analytics id must look like G-XXXXXXXX")
+	}
+	if config.Currency == "" {
+		config.Currency = "£"
+	}
 	templates, err := parseTemplates()
 	if err != nil {
 		return nil, err
 	}
-	return &Server{store: st, config: config, templates: templates, limiter: newRateLimiter()}, nil
+	return &Server{
+		store: st, config: config, templates: templates, limiter: newRateLimiter(),
+		csp: contentSecurityPolicy(config.AnalyticsID),
+	}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -80,6 +93,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /builds/{id}/delete", s.handleBuildDelete)
 	mux.HandleFunc("POST /builds/{id}/vote", s.handleBuildVote)
 	mux.HandleFunc("GET /photos/{build}/{name}", s.handlePhoto)
+	mux.HandleFunc("GET /stash", s.handleStash)
+	mux.HandleFunc("POST /stash", s.handleStashAdd)
+	mux.HandleFunc("GET /stash/{id}", s.handleStashItem)
+	mux.HandleFunc("POST /stash/{id}/{action}", s.handleStashAction)
+	mux.HandleFunc("POST /goal", s.handleGoal)
 	mux.HandleFunc("GET /competitions", s.handleCompetitions)
 	mux.HandleFunc("GET /competitions/new", s.handleCompetitionForm)
 	mux.HandleFunc("POST /competitions/new", s.handleCompetitionCreate)
@@ -91,9 +109,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /admin/competitions/{slug}/decide", s.handleAdminDecide)
 	mux.HandleFunc("POST /admin/trophies/{id}/rearm", s.handleAdminRearm)
 	mux.HandleFunc("GET /mark/next", s.handleMarkNext)
+	mux.HandleFunc("GET /robots.txt", s.handleRobots)
+	mux.HandleFunc("GET /sitemap.xml", s.handleSitemap)
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("/", s.handleNotFound)
-	return s.withRequestLog(withSecurityHeaders(withBodyLimit(mux)))
+	return s.withRequestLog(s.withSecurityHeaders(withBodyLimit(mux)))
 }
 
 // maxFormBytes bounds every POST except the two that carry photos, which set
@@ -113,16 +133,10 @@ func withBodyLimit(next http.Handler) http.Handler {
 	})
 }
 
-// contentSecurityPolicy allows only what the pages use: same-origin pages,
-// styles, fonts, and images, plus the data URIs NES.css draws its borders
-// with. No scripts run at all.
-const contentSecurityPolicy = "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; " +
-	"form-action 'self'; base-uri 'self'; frame-ancestors 'none'"
-
-func withSecurityHeaders(next http.Handler) http.Handler {
+func (s *Server) withSecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
-		h.Set("Content-Security-Policy", contentSecurityPolicy)
+		h.Set("Content-Security-Policy", s.csp)
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
 		h.Set("X-Frame-Options", "DENY")
@@ -200,29 +214,48 @@ func (s *Server) withRequestLog(next http.Handler) http.Handler {
 
 // page is the data every template receives.
 type page struct {
-	Title string
-	Path  string // request path, so the nav can mark where the reader is
-	Mark  string // colour of the airplane mark, from the reader's cookie
-	User  *store.User
-	CSRF  string
-	Data  any
-	Error string
-	Note  string
+	Title       string // full document title
+	Description string
+	Image       string // absolute URL for link previews
+	Canonical   string // absolute URL of this page without its query
+	NoIndex     bool
+	Path        string // request path, so the nav can mark where the reader is
+	Mark        string // colour of the airplane mark, from the reader's cookie
+	User        *store.User
+	CSRF        string
+	Data        any
+	Error       string
+	Note        string
+	Config      *Config
 }
 
 func (s *Server) render(w http.ResponseWriter, r *http.Request, name, title string, data any) {
-	s.renderStatus(w, r, http.StatusOK, name, title, data)
+	s.renderMeta(w, r, http.StatusOK, name, title, data, meta{})
 }
 
-func (s *Server) renderStatus(w http.ResponseWriter, r *http.Request, status int, name, title string, data any) {
+func (s *Server) renderMeta(w http.ResponseWriter, r *http.Request, status int, name, title string, data any, m meta) {
 	t, ok := s.templates[name]
 	if !ok {
 		http.Error(w, "template missing", http.StatusInternalServerError)
 		return
 	}
+	if m.Description == "" {
+		m.Description = siteDescription
+	}
+	if m.Image == "" {
+		m.Image = s.absolute(staticPath("apple-touch-icon.png"))
+	}
 	query := r.URL.Query()
-	p := page{Title: title, Path: r.URL.Path, Mark: readMark(r), Data: data,
-		Error: clipMessage(query.Get("error")), Note: clipMessage(query.Get("note"))}
+	p := page{
+		Title: title + " · sprue", Description: m.Description, Image: m.Image,
+		Canonical: s.absolute(r.URL.Path), NoIndex: noIndexPages[name],
+		Path: r.URL.Path, Mark: readMark(r), Data: data,
+		Error: clipMessage(query.Get("error")), Note: clipMessage(query.Get("note")),
+		Config: &s.config,
+	}
+	if name == "home" {
+		p.Title = "sprue · " + title
+	}
 	if user, token, err := s.sessionUser(r); err == nil {
 		p.User = &user
 		p.CSRF = csrfToken(token)
@@ -239,7 +272,7 @@ func (s *Server) handleNotFound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) renderError(w http.ResponseWriter, r *http.Request, status int, message string) {
-	s.renderStatus(w, r, status, "error", "Something went wrong", message)
+	s.renderMeta(w, r, status, "error", "Something went wrong", message, meta{})
 }
 
 // maxMessageLength bounds the flash text a page will show from its query

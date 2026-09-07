@@ -15,11 +15,39 @@ Built as a single Go binary with SQLite. No framework, no JavaScript build step,
 - **Your bench, your page.** Every builder gets a profile at `/u/name` with a trophy case, pinned builds up top, and the rest ordered by build date.
 - **Community featured spot.** Members vote for builds they like, one vote per build each and never for their own. The most voted builds of the last 30 days sit at the top of the workbench.
 - **Builds with photos.** Upload up to six at a time, pick the cover, remove the ones you do not want. Uploads are decoded and re-encoded server side, stripped of metadata, and capped at 1600 pixels on the long edge. Nothing a browser sends is stored verbatim.
+- **Your stash and your model debt.** A private list of the kits you own and have not built, what they cost, and how long the oldest has waited. Mark one kit as next, set a goal of kits to finish by a date, keep a short journal per kit, and turn a finished kit into a posted build in one click. Optional weekly or monthly email reminders. No points, streaks, or badges.
 - **Competitions, run by members.** Anyone can start one with a brief, an entry close date and a voting close date. Entries open, then voting, then results, all by date. Enter one of your own builds, one entry per builder. One vote per account, no voting for yourself, and vote counts stay hidden until the result is decided.
 - **Deterministic results.** Ties break to the earlier entry, entries with zero votes never place, and the tally is reproducible from the database.
 - **Printable trophies.** First, second, and third get placement badges on their builds and profile, plus a single-use download of their trophy STL. The STL files live only on the server and are released only to their winner. Recommended paints: gold DB0016, silver DB0011, antique bronze DB0171.
 - **Retro pixel look.** NES.css borders and controls, self-hosted pixel fonts, a sky and paper palette, and pixel-art trophy badges. Photos stay photographs. No external requests from the browser.
 - **Bounded by design.** Every collection has a hard cap and every limit is a clean error, never growth. The code follows the spirit of NASA's Power of 10 rules, adapted to Go.
+
+## Layout
+
+```
+platform/            the whole application, one Go module
+  main.go            reads the environment, opens the store, runs the server
+  store/             SQLite schema and every query; nothing else writes SQL
+    stash.go         stash, journal, goals, reminder schedule
+  images/            photo validation and re-encoding
+  web/
+    server.go        routing, sessions, security headers, rate limiting
+    auth.go          magic link sign-in and settings
+    builds.go        workbench, profiles, builds, photos, build votes
+    competitions.go  competitions, entries, voting, trophies, admin
+    stash.go         stash, model debt summary, goals, journal
+    housekeeping.go  hourly jobs and outbound email
+    seo.go           robots.txt, sitemap.xml, page metadata, CSP
+    templates.go     template parsing and helpers
+    templates/       one HTML file per page, base.html shell, partials.html fragments
+    static/          stylesheet, fonts, pixel art, vendored NES.css
+Dockerfile           two stage build to a small Alpine image
+LAUNCH.md            taking the site live, step by step
+MAINTAINING.md       running, deploying, and operating the site
+TROPHIES.md          designing the printable trophies
+```
+
+Tests sit next to the code they cover. The `assets` folder, if present locally, holds licensed source artwork and is not committed.
 
 ## Quick start
 

@@ -1,0 +1,121 @@
+package web
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/smtp"
+	"strings"
+	"time"
+
+	"github.com/Joe-Speed/sprue/platform/store"
+)
+
+const (
+	housekeepingInterval = time.Hour
+	maxNudgesPerRun      = 50
+)
+
+// Housekeeping runs the hourly jobs until ctx ends: expired sessions and
+// tokens go, competitions move along by date, and due stash nudges are sent.
+func (s *Server) Housekeeping(ctx context.Context) {
+	ticker := time.NewTicker(housekeepingInterval)
+	defer ticker.Stop()
+	for {
+		s.housekeep()
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *Server) housekeep() {
+	if err := s.store.Sweep(); err != nil {
+		log.Printf("web: %v", err)
+	}
+	if err := s.store.Advance(time.Now()); err != nil {
+		log.Printf("web: %v", err)
+	}
+	s.sendNudges()
+}
+
+// sendNudges emails members whose reminder is due. A member is marked nudged
+// before the attempt so a failing mailbox is not retried every hour.
+func (s *Server) sendNudges() {
+	if s.config.SMTPHost == "" {
+		return
+	}
+	users, err := s.store.UsersDueNudge(time.Now(), maxNudgesPerRun)
+	if err != nil {
+		log.Printf("web: nudges: %v", err)
+		return
+	}
+	for _, user := range users {
+		if err := s.store.MarkNudged(user.ID); err != nil {
+			log.Printf("web: nudge %d: %v", user.ID, err)
+			continue
+		}
+		items, err := s.store.StashForUser(user.ID)
+		if err != nil {
+			log.Printf("web: nudge %d: %v", user.ID, err)
+			continue
+		}
+		summary, err := s.summaryFor(user, items)
+		if err != nil || (summary.Waiting == 0 && user.GoalCount == 0) {
+			continue
+		}
+		if err := s.sendMail(user.Email, nudgeSubject(summary), s.nudgeBody(user, summary)); err != nil {
+			log.Printf("web: nudge %d: %v", user.ID, err)
+		}
+	}
+}
+
+func nudgeSubject(summary stashSummary) string {
+	if summary.Waiting == 0 {
+		return "Your stash is clear"
+	}
+	return fmt.Sprintf("Your stash: %d kit%s waiting", summary.Waiting, plural(summary.Waiting))
+}
+
+func (s *Server) nudgeBody(user store.User, summary stashSummary) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Hello %s,\n\n", user.DisplayName)
+	if summary.Waiting > 0 {
+		fmt.Fprintf(&b, "%d kit%s are sitting unbuilt in your stash, about %s%s of shelf.", summary.Waiting, plural(summary.Waiting), s.config.Currency, money(summary.DebtPence))
+		if summary.Oldest != "" {
+			fmt.Fprintf(&b, " The oldest, %s, has waited %d days.", summary.Oldest, summary.OldestDays)
+		}
+		b.WriteString("\n\n")
+		if summary.Next != nil {
+			fmt.Fprintf(&b, "Next up: %s.\n\n", summary.Next.Title)
+		} else {
+			b.WriteString("No kit is marked next. Picking one is what gets a box open.\n\n")
+		}
+	}
+	if user.GoalCount > 0 {
+		fmt.Fprintf(&b, "Goal: %d of %d finished", summary.GoalDone, user.GoalCount)
+		if summary.GoalDaysLeft < 0 {
+			fmt.Fprintf(&b, ", %d days past the date.\n\n", -summary.GoalDaysLeft)
+		} else {
+			fmt.Fprintf(&b, ", %d days left.\n\n", summary.GoalDaysLeft)
+		}
+	}
+	fmt.Fprintf(&b, "Your stash: %s\nChange how often you get this: %s\n", s.absolute("/stash"), s.absolute("/settings"))
+	return b.String()
+}
+
+// sendMail delivers one plain text message over SMTP. Callers check that
+// SMTP is configured; main refuses to start without it outside localhost.
+func (s *Server) sendMail(to, subject, body string) error {
+	from := s.config.SMTPFrom
+	if from == "" {
+		from = s.config.SMTPUser
+	}
+	message := fmt.Sprintf("From: sprue <%s>\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n%s",
+		from, to, subject, strings.ReplaceAll(body, "\n", "\r\n"))
+	address := s.config.SMTPHost + ":" + s.config.SMTPPort
+	auth := smtp.PlainAuth("", s.config.SMTPUser, s.config.SMTPPass, s.config.SMTPHost)
+	return smtp.SendMail(address, auth, from, []string{to}, []byte(message))
+}

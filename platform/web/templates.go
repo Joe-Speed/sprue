@@ -16,7 +16,7 @@ import (
 // base.html and partials.html so every page shares the same shell and cards.
 var pageNames = []string{
 	"home", "login", "check_email", "settings", "profile", "build", "build_form",
-	"competitions", "competition", "competition_form", "admin", "error",
+	"competitions", "competition", "competition_form", "stash", "stash_item", "admin", "error",
 }
 
 // assetVersion is a short hash of every embedded static file, appended to
@@ -54,6 +54,9 @@ func parseTemplates() (map[string]*template.Template, error) {
 		"under":      under,
 		"niceDate":   niceDate,
 		"monthYear":  monthYear,
+		"daysSince":  daysSince,
+		"money":      money,
+		"neg":        func(n int) int { return -n },
 	}
 	templates := make(map[string]*template.Template, len(pageNames))
 	for _, name := range pageNames {
@@ -100,6 +103,13 @@ func niceDate(value string) string {
 		return t.Format("2 Jan 2006")
 	}
 	return value
+}
+
+func daysSince(value string) int {
+	if t, ok := parseStoredDate(value); ok {
+		return int(time.Since(t).Hours() / 24)
+	}
+	return 0
 }
 
 func monthYear(value string) string {

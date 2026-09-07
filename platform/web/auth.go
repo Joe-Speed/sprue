@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"net/mail"
-	"net/smtp"
 	"strings"
 	"time"
 )
@@ -70,14 +69,8 @@ func (s *Server) sendMagicLink(email, link string) error {
 		log.Printf("web: magic link for %s: %s", email, link)
 		return nil
 	}
-	from := s.config.SMTPFrom
-	if from == "" {
-		from = s.config.SMTPUser
-	}
-	message := fmt.Sprintf("From: sprue <%s>\r\nTo: %s\r\nSubject: Your sprue sign-in link\r\n\r\nSign in to sprue:\r\n\r\n%s\r\n\r\nThis link works once and expires in 15 minutes.\r\n", from, email, link)
-	address := s.config.SMTPHost + ":" + s.config.SMTPPort
-	auth := smtp.PlainAuth("", s.config.SMTPUser, s.config.SMTPPass, s.config.SMTPHost)
-	return smtp.SendMail(address, auth, from, []string{email}, []byte(message))
+	body := fmt.Sprintf("Sign in to sprue:\n\n%s\n\nThis link works once and expires in 15 minutes.\n", link)
+	return s.sendMail(email, "Your sprue sign-in link", body)
 }
 
 func (s *Server) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
@@ -141,6 +134,12 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.RenameUser(user.ID, name); err != nil {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not save your settings.")
 		return
+	}
+	if nudge := r.FormValue("nudge"); nudge != user.Nudge {
+		if err := s.store.SetNudge(user.ID, nudge); err != nil {
+			flashRedirect(w, r, "/settings", "", "Pick off, weekly, or monthly for reminders.")
+			return
+		}
 	}
 	flashRedirect(w, r, "/settings", "Saved.", "")
 }

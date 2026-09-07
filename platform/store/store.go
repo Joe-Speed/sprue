@@ -46,6 +46,31 @@ create table if not exists users (
 	display_name text not null,
 	slug text not null unique,
 	is_admin integer not null default 0,
+	created_at text not null,
+	goal_count integer not null default 0,
+	goal_by text not null default '',
+	goal_set_at text not null default '',
+	nudge text not null default 'off',
+	nudged_at text not null default ''
+);
+create table if not exists stash (
+	id integer primary key autoincrement,
+	user_id integer not null references users(id),
+	title text not null,
+	brand text not null default '',
+	scale text not null default '',
+	note text not null default '',
+	cost_pence integer not null default 0,
+	status text not null default 'unbuilt',
+	next integer not null default 0,
+	build_id integer references builds(id),
+	added_at text not null,
+	finished_at text not null default ''
+);
+create table if not exists journal (
+	id integer primary key,
+	stash_id integer not null references stash(id),
+	text text not null,
 	created_at text not null
 );
 create table if not exists magic_tokens (
@@ -180,6 +205,30 @@ type User struct {
 	Slug        string
 	IsAdmin     bool
 	CreatedAt   string
+	GoalCount   int    // kits to finish, zero for no goal
+	GoalBy      string // YYYY-MM-DD
+	GoalSetAt   string // finished kits from this stamp count toward the goal
+	Nudge       string // off, weekly, monthly
+	NudgedAt    string
+}
+
+const userColumns = `id, email, display_name, slug, is_admin, created_at, goal_count, goal_by, goal_set_at, nudge, nudged_at`
+
+func scanUsers(rows *sql.Rows) ([]User, error) {
+	defer rows.Close()
+	var users []User
+	for rows.Next() {
+		var u User
+		var admin int
+		err := rows.Scan(&u.ID, &u.Email, &u.DisplayName, &u.Slug, &admin, &u.CreatedAt,
+			&u.GoalCount, &u.GoalBy, &u.GoalSetAt, &u.Nudge, &u.NudgedAt)
+		if err != nil {
+			return nil, err
+		}
+		u.IsAdmin = admin != 0
+		users = append(users, u)
+	}
+	return users, rows.Err()
 }
 
 func (s *Store) CreateMagicToken(tokenHash, email string) error {
@@ -262,18 +311,18 @@ func (s *Store) FindOrCreateUser(email string, makeAdmin bool) (User, error) {
 }
 
 func (s *Store) userBy(where string, arg any) (User, error) {
-	var u User
-	var admin int
-	err := s.db.QueryRow(`select id, email, display_name, slug, is_admin, created_at from users where `+where, arg).
-		Scan(&u.ID, &u.Email, &u.DisplayName, &u.Slug, &admin, &u.CreatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return User{}, ErrNotFound
-	}
+	rows, err := s.db.Query(`select `+userColumns+` from users where `+where, arg)
 	if err != nil {
 		return User{}, err
 	}
-	u.IsAdmin = admin != 0
-	return u, nil
+	users, err := scanUsers(rows)
+	if err != nil {
+		return User{}, err
+	}
+	if len(users) == 0 {
+		return User{}, ErrNotFound
+	}
+	return users[0], nil
 }
 
 func (s *Store) UserBySlug(slug string) (User, error) { return s.userBy("slug = ?", slug) }
@@ -452,6 +501,47 @@ func (s *Store) RecentBuilds(beforeID int64, limit int) ([]Build, error) {
 		return nil, err
 	}
 	return s.scanBuilds(rows)
+}
+
+type SitemapBuild struct {
+	ID        int64
+	CreatedAt string
+}
+
+// BuildsForSitemap lists the newest builds' IDs and creation stamps.
+func (s *Store) BuildsForSitemap(limit int) ([]SitemapBuild, error) {
+	rows, err := s.db.Query(`select id, created_at from builds order by id desc limit ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []SitemapBuild
+	for rows.Next() {
+		var b SitemapBuild
+		if err := rows.Scan(&b.ID, &b.CreatedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, b)
+	}
+	return list, rows.Err()
+}
+
+// UserSlugs lists the newest members' page slugs.
+func (s *Store) UserSlugs(limit int) ([]string, error) {
+	rows, err := s.db.Query(`select slug from users order by id desc limit ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var slugs []string
+	for rows.Next() {
+		var slug string
+		if err := rows.Scan(&slug); err != nil {
+			return nil, err
+		}
+		slugs = append(slugs, slug)
+	}
+	return slugs, rows.Err()
 }
 
 // BuildHasEntries reports whether a build has ever entered a competition.

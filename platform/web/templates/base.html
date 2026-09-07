@@ -3,10 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Title}} · sprue</title>
+<title>{{.Title}}</title>
+<meta name="description" content="{{.Description}}">
+<link rel="canonical" href="{{.Canonical}}">
+{{if .NoIndex}}<meta name="robots" content="noindex">{{end}}
+<meta property="og:site_name" content="sprue">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{.Title}}">
+<meta property="og:description" content="{{.Description}}">
+<meta property="og:url" content="{{.Canonical}}">
+<meta property="og:image" content="{{.Image}}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#4f9fe0">
+{{if .Config.SiteVerification}}<meta name="google-site-verification" content="{{.Config.SiteVerification}}">{{end}}
 <link rel="icon" type="image/svg+xml" href="{{markPath .Mark}}">
+<link rel="apple-touch-icon" href="{{static "apple-touch-icon.png"}}">
 <link rel="stylesheet" href="{{static "vendor/nes-core.min.css"}}">
 <link rel="stylesheet" href="{{static "style.css"}}">
+{{if .Config.AnalyticsID}}<script async src="https://www.googletagmanager.com/gtag/js?id={{.Config.AnalyticsID}}"></script>
+<script src="{{static "analytics.js"}}" data-id="{{.Config.AnalyticsID}}"></script>{{end}}
 </head>
 <body>
 <header class="site">
@@ -18,6 +33,7 @@
 <nav class="account" aria-label="Account">
 {{if .User}}
 <a href="/u/{{.User.Slug}}"{{if eq .Path (print "/u/" .User.Slug)}} aria-current="page"{{end}}>my bench</a>
+<a href="/stash"{{if under .Path "/stash"}} aria-current="page"{{end}}>stash</a>
 {{if .User.IsAdmin}}<a href="/admin"{{if under .Path "/admin"}} aria-current="page"{{end}}>admin</a>{{end}}
 <a class="nes-btn is-primary" href="/builds/new">post a build</a>
 <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="linkish">sign out</button></form>

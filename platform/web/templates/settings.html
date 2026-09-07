@@ -4,6 +4,13 @@
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="nes-field"><label for="display_name">Display name</label><input class="nes-input" id="display_name" type="text" name="display_name" value="{{.Data.DisplayName}}" required maxlength="100"></div>
 <p class="meta">Your page stays at /u/{{.Data.Slug}}</p>
+<div class="nes-field"><label for="nudge">Stash reminders by email</label>
+<div class="nes-select"><select id="nudge" name="nudge">
+<option value="off"{{if eq .Data.Nudge "off"}} selected{{end}}>off</option>
+<option value="weekly"{{if eq .Data.Nudge "weekly"}} selected{{end}}>weekly</option>
+<option value="monthly"{{if eq .Data.Nudge "monthly"}} selected{{end}}>monthly</option>
+</select></div>
+<p class="meta">A short note on what is waiting in your stash and how your goal stands. Nothing else is ever sent.</p></div>
 <button class="nes-btn is-primary" type="submit">Save</button>
 </form>
 {{end}}
