@@ -1,20 +1,20 @@
 {{define "content"}}
 <p class="back"><a href="/stash">&larr; my stash</a></p>
 <h1>{{.Data.Item.Title}}</h1>
-<p class="meta"><span class="tag {{.Data.Item.Status}}">{{.Data.Item.Status}}</span>{{if .Data.Item.Next}} <span class="tag next">next</span>{{end}} {{if .Data.Item.Brand}}{{.Data.Item.Brand}} · {{end}}{{if .Data.Item.Scale}}{{.Data.Item.Scale}} · {{end}}{{if .Data.Item.CostPence}}{{.Config.Currency}}{{money .Data.Item.CostPence}} · {{end}}added {{niceDate .Data.Item.AddedAt}}</p>
+<p class="meta"><span class="tag {{.Data.Item.Status}}">{{.Data.Item.Status}}</span>{{if .Data.Item.Next}} <span class="tag next">next</span>{{end}} {{if .Data.Item.Brand}}{{.Data.Item.Brand}} · {{end}}{{if .Data.Item.Scale}}{{.Data.Item.Scale}} · {{end}}{{if .Data.Item.CostPence}}{{.Site.Currency}}{{money .Data.Item.CostPence}} · {{end}}added {{niceDate .Data.Item.AddedAt}}</p>
 {{if .Data.Item.Note}}<p>{{.Data.Item.Note}}</p>{{end}}
 {{if eq .Data.Item.Status "built"}}
 <p class="prompt">Finished {{niceDate .Data.Item.FinishedAt}}. <a href="/builds/{{.Data.Item.BuildID}}">See the build.</a></p>
 {{else}}
 <div class="actions">
-{{if not .Data.Item.Next}}<form method="post" action="/stash/{{.Data.Item.ID}}/next"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn" type="submit">build this next</button></form>{{end}}
-{{if eq .Data.Item.Status "unbuilt"}}<form method="post" action="/stash/{{.Data.Item.ID}}/building"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn" type="submit">started building</button></form>
-{{else}}<form method="post" action="/stash/{{.Data.Item.ID}}/unbuilt"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn" type="submit">back on the shelf</button></form>{{end}}
-<form method="post" action="/stash/{{.Data.Item.ID}}/finish"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn is-primary" type="submit">finished, post it</button></form>
+{{if not .Data.Item.Next}}<form method="post" action="/stash/{{.Data.Item.ID}}/next"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn" type="submit">Build this next</button></form>{{end}}
+{{if eq .Data.Item.Status "unbuilt"}}<form method="post" action="/stash/{{.Data.Item.ID}}/building"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn" type="submit">Started building</button></form>
+{{else}}<form method="post" action="/stash/{{.Data.Item.ID}}/unbuilt"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn" type="submit">Not started yet</button></form>{{end}}
+<form method="post" action="/stash/{{.Data.Item.ID}}/finish"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn is-primary" type="submit">Finished</button></form>
 </div>
 {{end}}
 <section class="nes-container with-title">
-<h2 class="title">journal</h2>
+<h2 class="title">Journal</h2>
 <form method="post" action="/stash/{{.Data.Item.ID}}/journal">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="nes-field"><label for="text">What happened</label><textarea class="nes-textarea" id="text" name="text" rows="3" maxlength="2000" required></textarea></div>
@@ -26,5 +26,5 @@
 </ul>
 {{end}}
 </section>
-<form method="post" action="/stash/{{.Data.Item.ID}}/delete" class="remove"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="linkish danger" type="submit">remove from stash</button></form>
+<form method="post" action="/stash/{{.Data.Item.ID}}/delete" class="remove"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="linkish danger" type="submit">Remove from stash</button></form>
 {{end}}

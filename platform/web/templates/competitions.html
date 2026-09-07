@@ -1,16 +1,24 @@
 {{define "content"}}
 <div class="page-head">
-<h1>competitions</h1>
-{{if .User}}<a class="nes-btn is-primary" href="/competitions/new">start a competition</a>{{end}}
+<h1>Competitions</h1>
+<div class="actions">
+{{if .User}}<a class="nes-btn is-primary" href="/competitions/new">Start a competition</a>{{else}}<a class="nes-btn is-primary" href="/login">Sign in to start a competition</a>{{end}}
+{{template "legend"}}
+</div>
 </div>
 <p class="meta">Any member can start one. Entries stay open until the entry date, then the community votes, then the results stand.</p>
+<nav class="filters" aria-label="Filter by category">
+<a href="/competitions"{{if not .Data.Category}} aria-current="page"{{end}}>All</a>
+{{range .Data.Categories}}<a href="/competitions?category={{.}}"{{if eq . $.Data.Category}} aria-current="page"{{end}}>{{.}}</a>{{end}}
+<a class="past" href="/competitions/past">Past winners</a>
+</nav>
 <section class="nes-container with-title">
-<h2 class="title">all competitions</h2>
-{{if not .Data.Competitions}}<p class="quiet">No competitions yet.{{if not .User}} <a href="/login">Sign in</a> to start one.{{end}}</p>{{end}}
+<h2 class="title">{{if .Data.Category}}{{.Data.Category}}{{else}}All competitions{{end}}</h2>
+{{if not .Data.Competitions}}<p class="quiet">No competitions{{if .Data.Category}} in this category{{end}} yet.</p>{{end}}
 <ul class="rows">
 {{range .Data.Competitions}}
 <li>
-<a href="/competitions/{{.Slug}}">{{.Title}}</a>{{template "status_tag" .Status}}
+<a href="/competitions/{{.Slug}}">{{.Title}}</a>{{if .Official}}<span class="tag official">sprue</span>{{end}}<span class="tag category">{{.Category}}</span>{{template "status_tag" .Status}}
 <span class="meta">{{template "competition_dates" .}} · by {{.CreatorName}}</span>
 </li>
 {{end}}

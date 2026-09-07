@@ -1,9 +1,9 @@
 {{define "content"}}
-<h1>the community workbench</h1>
+<h1>The community</h1>
 <p class="lede">Scale models, built and shared. Vote for the builds you like and the most voted are featured here. Any member can start a competition.</p>
 {{if .User}}
 <section class="nes-container with-title">
-<h2 class="title">post a build</h2>
+<h2 class="title">Post a build</h2>
 <form class="wide post" method="post" action="/builds/new" enctype="multipart/form-data">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="post-fields">
@@ -11,7 +11,7 @@
 <div class="nes-field"><label for="post-kit">Kit</label><input class="nes-input" id="post-kit" type="text" name="kit" required maxlength="200"></div>
 <div class="nes-field"><label for="post-photos">Photos</label><input id="post-photos" type="file" name="photos" accept="image/jpeg,image/png,image/gif" multiple></div>
 </div>
-<div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="private"><span>Keep this private. Only I see it, on my bench.</span></label></div>
+<div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="private"><span>Keep this private. Only I can see it.</span></label></div>
 <button class="nes-btn is-primary" type="submit">Post</button>
 <span class="meta">Up to six photos. Brand, scale, date and notes can be added afterwards, or use the <a href="/builds/new">full form</a>.</span>
 </form>
@@ -21,7 +21,7 @@
 {{end}}
 {{if .Data.Featured}}
 <section class="nes-container with-title">
-<h2 class="title">featured</h2>
+<h2 class="title">Featured</h2>
 <p class="meta">Most voted in the last 30 days.</p>
 <ul class="cards featured">
 {{range .Data.Featured}}{{template "build_card" (card . true)}}{{end}}
@@ -29,11 +29,11 @@
 </section>
 {{end}}
 <section class="nes-container with-title">
-<h2 class="title">latest builds</h2>
+<h2 class="title">Latest builds</h2>
 {{if not .Data.Builds}}<p class="quiet">No builds yet.</p>{{end}}
 <ul class="cards">
 {{range .Data.Builds}}{{template "build_card" (card . true)}}{{end}}
 </ul>
-{{if .Data.Older}}<p class="pager"><a class="nes-btn" href="/?before={{.Data.Older}}">older builds</a></p>{{end}}
+{{if .Data.Older}}<p class="pager"><a class="nes-btn" href="/?before={{.Data.Older}}">Older builds</a></p>{{end}}
 </section>
 {{end}}

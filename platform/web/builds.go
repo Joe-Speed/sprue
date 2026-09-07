@@ -31,7 +31,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 	before := parseID(r.URL.Query().Get("before"))
 	builds, err := s.store.RecentBuilds(before, homePageSize)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load the workbench.")
+		s.renderError(w, r, http.StatusInternalServerError, "Could not load the community page.")
 		return
 	}
 	data := homeData{Builds: builds}
@@ -42,11 +42,11 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 		since := time.Now().Add(-store.FeaturedWindowDays * 24 * time.Hour)
 		data.Featured, err = s.store.FeaturedBuilds(since, store.MaxFeatured)
 		if err != nil {
-			s.renderError(w, r, http.StatusInternalServerError, "Could not load the workbench.")
+			s.renderError(w, r, http.StatusInternalServerError, "Could not load the community page.")
 			return
 		}
 	}
-	s.render(w, r, "home", "the community workbench", data)
+	s.render(w, r, "home", "The community", data)
 }
 
 type profileData struct {
@@ -82,7 +82,7 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 	data := profileData{Owner: owner, Trophies: trophies, IsSelf: viewer != nil && viewer.ID == owner.ID}
 	if viewer != nil && !data.IsSelf {
 		if data.Friendship, err = s.store.Friendship(viewer.ID, owner.ID); err != nil {
-			s.renderError(w, r, http.StatusInternalServerError, "Could not load the bench.")
+			s.renderError(w, r, http.StatusInternalServerError, "Could not load the profile.")
 			return
 		}
 	}
@@ -99,6 +99,21 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	description := fmt.Sprintf("%d build%s by %s on sprue.", data.BuildCount, plural(data.BuildCount), owner.DisplayName)
 	s.renderMeta(w, r, http.StatusOK, "profile", owner.DisplayName, data, meta{Description: description})
+}
+
+// handleMyBuilds lists everything the member has added, whatever its state,
+// with a way into each one's edit page.
+func (s *Server) handleMyBuilds(w http.ResponseWriter, r *http.Request) {
+	user, ok := s.requireUser(w, r)
+	if !ok {
+		return
+	}
+	builds, err := s.store.BuildsForUser(user.ID)
+	if err != nil {
+		s.renderError(w, r, http.StatusInternalServerError, "Could not load your builds.")
+		return
+	}
+	s.render(w, r, "builds", "My builds", builds)
 }
 
 type buildFormData struct {
@@ -180,7 +195,7 @@ func (s *Server) handleBuildCreate(w http.ResponseWriter, r *http.Request) {
 		files = r.MultipartForm.File["photos"]
 	}
 	if len(files) == 0 {
-		flashRedirect(w, r, fmt.Sprintf("/builds/%d/edit", id), "Saved. Add photos below.", "")
+		flashRedirect(w, r, buildEdit(id), "Saved. Add photos below.", "")
 		return
 	}
 	if len(files) > maxPhotosPerUpload {
@@ -189,9 +204,9 @@ func (s *Server) handleBuildCreate(w http.ResponseWriter, r *http.Request) {
 	added, failure := s.savePhotos(id, files)
 	note := "Posted."
 	if build.Private {
-		note = "Saved to your bench."
+		note = "Saved to your profile."
 	}
-	flashRedirect(w, r, fmt.Sprintf("/builds/%d", id), note, uploadError(added, len(files), failure))
+	flashRedirect(w, r, buildPage(id), note, uploadError(added, len(files), failure))
 }
 
 func (s *Server) handleBuildUpdate(w http.ResponseWriter, r *http.Request) {
@@ -207,13 +222,13 @@ func (s *Server) handleBuildUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.store.UpdateBuild(build); errors.Is(err, store.ErrInUse) {
-		flashRedirect(w, r, fmt.Sprintf("/builds/%d/edit", build.ID), "", "This build is in a competition, so it stays public.")
+		flashRedirect(w, r, buildEdit(build.ID), "", "This build is in a competition, so it stays public.")
 		return
 	} else if err != nil {
-		flashRedirect(w, r, fmt.Sprintf("/builds/%d/edit", build.ID), "", "A build needs at least a title and a kit.")
+		flashRedirect(w, r, buildEdit(build.ID), "", "A build needs at least a title and a kit.")
 		return
 	}
-	http.Redirect(w, r, fmt.Sprintf("/builds/%d", build.ID), http.StatusSeeOther)
+	http.Redirect(w, r, buildPage(build.ID), http.StatusSeeOther)
 }
 
 type buildPageData struct {
@@ -276,7 +291,11 @@ func (s *Server) handleBuildVote(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusNotFound, "No such build.")
 		return
 	}
-	page := fmt.Sprintf("/builds/%d", build.ID)
+	page := buildPage(build.ID)
+	if !visibleTo(build, &user) || build.Private {
+		s.renderError(w, r, http.StatusNotFound, "No such build.")
+		return
+	}
 	if build.UserID == user.ID {
 		flashRedirect(w, r, page, "", "You cannot vote for your own build.")
 		return
@@ -319,18 +338,18 @@ func (s *Server) handlePhotoUpload(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusNotFound, "Not your build.")
 		return
 	}
-	editPath := fmt.Sprintf("/builds/%d/edit", build.ID)
+	editPath := buildEdit(build.ID)
 	if r.MultipartForm == nil {
-		flashRedirect(w, r, editPath, "", "Choose a photo first")
+		flashRedirect(w, r, editPath, "", "Choose a photo first.")
 		return
 	}
 	files := r.MultipartForm.File["photos"]
 	if len(files) == 0 {
-		flashRedirect(w, r, editPath, "", "Choose a photo first")
+		flashRedirect(w, r, editPath, "", "Choose a photo first.")
 		return
 	}
 	if len(files) > maxPhotosPerUpload {
-		flashRedirect(w, r, editPath, "", fmt.Sprintf("Up to %d photos at a time", maxPhotosPerUpload))
+		flashRedirect(w, r, editPath, "", fmt.Sprintf("Up to %d photos at a time.", maxPhotosPerUpload))
 		return
 	}
 	added, failure := s.savePhotos(build.ID, files)
@@ -352,25 +371,25 @@ func (s *Server) savePhotos(buildID int64, files []*multipart.FileHeader) (int, 
 
 func uploadNote(added int) string {
 	if added == 1 {
-		return "Photo added"
+		return "Photo added."
 	}
-	return fmt.Sprintf("%d photos added", added)
+	return fmt.Sprintf("%d photos added.", added)
 }
 
 func uploadError(added, wanted int, failure error) string {
 	if failure == nil {
 		return ""
 	}
-	reason := "Could not save the photo"
+	reason := "Could not save the photo."
 	switch {
 	case errors.Is(failure, store.ErrLimit):
-		reason = fmt.Sprintf("This build holds %d photos at most", store.MaxPhotosPerBuild)
+		reason = fmt.Sprintf("This build holds %d photos at most.", store.MaxPhotosPerBuild)
 	case errors.Is(failure, errUnusablePhoto):
-		reason = "That file is not a usable photo (8MB max, jpeg or png)"
+		reason = "That file is not a usable photo. JPEG or PNG up to 15MB; iPhone HEIC photos need converting first."
 	case errors.Is(failure, errUnsafePhoto):
-		reason = "That photo was refused by the image check"
+		reason = "That photo was refused by the image check."
 	case errors.Is(failure, errScreenUnavailable):
-		reason = "The image check did not answer. Try again in a moment"
+		reason = "The image check did not answer. Try again in a moment."
 	}
 	if added == 0 {
 		return reason
@@ -444,12 +463,12 @@ func (s *Server) handlePhotoCover(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	editPath := fmt.Sprintf("/builds/%d/edit", build.ID)
+	editPath := buildEdit(build.ID)
 	if err := s.store.SetCoverPhoto(build.ID, name); err != nil {
-		flashRedirect(w, r, editPath, "", "Could not change the cover")
+		flashRedirect(w, r, editPath, "", "Could not change the cover.")
 		return
 	}
-	flashRedirect(w, r, editPath, "Cover changed", "")
+	flashRedirect(w, r, editPath, "Cover changed.", "")
 }
 
 func (s *Server) handlePhotoDelete(w http.ResponseWriter, r *http.Request) {
@@ -457,13 +476,13 @@ func (s *Server) handlePhotoDelete(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	editPath := fmt.Sprintf("/builds/%d/edit", build.ID)
+	editPath := buildEdit(build.ID)
 	if err := s.store.RemovePhoto(build.ID, name); err != nil {
-		flashRedirect(w, r, editPath, "", "Could not remove that photo")
+		flashRedirect(w, r, editPath, "", "Could not remove that photo.")
 		return
 	}
 	s.removePhotoFiles(build.ID, []string{name})
-	flashRedirect(w, r, editPath, "Photo removed", "")
+	flashRedirect(w, r, editPath, "Photo removed.", "")
 }
 
 // removePhotoFiles deletes photo files after their records are gone.
@@ -489,14 +508,14 @@ func (s *Server) handleBuildDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := parseID(r.PathValue("id"))
-	editPath := fmt.Sprintf("/builds/%d/edit", id)
+	editPath := buildEdit(id)
 	if r.FormValue("confirm") != "on" {
-		flashRedirect(w, r, editPath, "", "Tick the box to confirm")
+		flashRedirect(w, r, editPath, "", "Tick the box to confirm.")
 		return
 	}
 	photos, err := s.store.DeleteBuild(id, user.ID)
 	if errors.Is(err, store.ErrInUse) {
-		flashRedirect(w, r, editPath, "", "This build is entered in a competition and cannot be deleted")
+		flashRedirect(w, r, editPath, "", "This build is entered in a competition and cannot be deleted.")
 		return
 	}
 	if err != nil {
@@ -504,7 +523,7 @@ func (s *Server) handleBuildDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.removePhotoFiles(id, photos)
-	flashRedirect(w, r, "/u/"+user.Slug, "Build deleted", "")
+	flashRedirect(w, r, "/u/"+user.Slug, "Build deleted.", "")
 }
 
 var photoNamePattern = regexp.MustCompile(`^[0-9a-f]{24}\.jpg$`)

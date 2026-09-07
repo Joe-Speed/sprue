@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -17,9 +17,13 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	id := parseID(r.PathValue("id"))
-	page := fmt.Sprintf("/builds/%d", id)
-	if err := s.store.ReportBuild(id, user.ID, r.FormValue("reason")); err != nil {
+	build, err := s.store.BuildByID(parseID(r.PathValue("id")))
+	if err != nil || !visibleTo(build, &user) || build.Private {
+		s.renderError(w, r, http.StatusNotFound, "No such build.")
+		return
+	}
+	page := buildPage(build.ID)
+	if err := s.store.ReportBuild(build.ID, user.ID, r.FormValue("reason")); err != nil {
 		flashRedirect(w, r, page, "", "Could not report that build.")
 		return
 	}
@@ -41,11 +45,11 @@ func (s *Server) handleAdminModerate(w http.ResponseWriter, r *http.Request) {
 	case "dismiss":
 		err = s.store.DismissReports(id)
 	default:
-		s.renderError(w, r, http.StatusNotFound, "Nothing at this address.")
+		s.renderError(w, r, http.StatusNotFound, "Page not found.")
 		return
 	}
 	if err != nil {
-		flashRedirect(w, r, "/admin", "", "That did not save.")
+		flashRedirect(w, r, "/admin", "", "Could not save.")
 		return
 	}
 	flashRedirect(w, r, "/admin", "Saved.", "")
@@ -90,7 +94,7 @@ func (s *Server) screenPhoto(jpeg []byte) error {
 			} `json:"safeSearchAnnotation"`
 		} `json:"responses"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(nil, res.Body, 64*1024)).Decode(&reply); err != nil || len(reply.Responses) == 0 {
+	if err := json.NewDecoder(io.LimitReader(res.Body, 64*1024)).Decode(&reply); err != nil || len(reply.Responses) == 0 {
 		return errScreenUnavailable
 	}
 	verdict := reply.Responses[0].SafeSearch

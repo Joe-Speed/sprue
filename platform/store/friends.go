@@ -20,11 +20,13 @@ type Member struct {
 	ID          int64
 	DisplayName string
 	Slug        string
+	Flair       string
+	Avatar      string
 	CreatedAt   string
 	BuildCount  int // public builds only
 }
 
-const memberColumns = `u.id, u.display_name, u.slug, u.created_at,
+const memberColumns = `u.id, u.display_name, u.slug, u.flair, u.avatar, u.created_at,
 	(select count(*) from builds b where b.user_id = u.id and b.private = 0 and b.hidden = 0)`
 
 func scanMembers(rows *sql.Rows) ([]Member, error) {
@@ -32,7 +34,7 @@ func scanMembers(rows *sql.Rows) ([]Member, error) {
 	var list []Member
 	for rows.Next() {
 		var m Member
-		if err := rows.Scan(&m.ID, &m.DisplayName, &m.Slug, &m.CreatedAt, &m.BuildCount); err != nil {
+		if err := rows.Scan(&m.ID, &m.DisplayName, &m.Slug, &m.Flair, &m.Avatar, &m.CreatedAt, &m.BuildCount); err != nil {
 			return nil, err
 		}
 		list = append(list, m)

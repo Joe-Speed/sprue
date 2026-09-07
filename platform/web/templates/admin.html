@@ -1,8 +1,8 @@
 {{define "content"}}
-<h1>admin</h1>
+<h1>Admin</h1>
 <p class="meta">Competitions open, vote, and close on their own dates. Here you can act on reported builds, end a vote early, and give a winner another trophy download.</p>
 <section class="nes-container with-title">
-<h2 class="title">reports</h2>
+<h2 class="title">Reports</h2>
 {{if not .Data.Reports}}<p class="quiet">Nothing reported.</p>{{end}}
 <ul class="rows">
 {{range .Data.Reports}}
@@ -10,13 +10,13 @@
 <a href="/builds/{{.BuildID}}">{{.BuildTitle}}</a>{{if .Hidden}}<span class="tag">hidden</span>{{end}}
 <span class="meta">by {{.OwnerName}} · {{.Count}} report{{if ne .Count 1}}s{{end}} · latest {{niceDate .LatestAt}}{{if .Reason}} · "{{.Reason}}"{{end}}</span>
 <form method="post" action="/admin/builds/{{.BuildID}}/{{if .Hidden}}unhide{{else}}hide{{end}}"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="nes-btn{{if not .Hidden}} is-error{{end}}">{{if .Hidden}}unhide{{else}}hide{{end}}</button></form>
-<form method="post" action="/admin/builds/{{.BuildID}}/dismiss"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="nes-btn">dismiss</button></form>
+<form method="post" action="/admin/builds/{{.BuildID}}/dismiss"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="nes-btn">Dismiss</button></form>
 </li>
 {{end}}
 </ul>
 </section>
 <section class="nes-container with-title">
-<h2 class="title">competitions</h2>
+<h2 class="title">Competitions</h2>
 {{if not .Data.Competitions}}<p class="quiet">None yet.</p>{{end}}
 <ul class="rows">
 {{range .Data.Competitions}}
@@ -24,7 +24,7 @@
 <a href="/competitions/{{.Slug}}">{{.Title}}</a>{{template "status_tag" .Status}}<span class="meta">{{template "competition_dates" .}} · by {{.CreatorName}}</span>
 {{if eq .Status "voting"}}<form method="post" action="/admin/competitions/{{.Slug}}/decide">
 <input type="hidden" name="csrf" value="{{$.CSRF}}">
-<button class="nes-btn">decide now</button>
+<button class="nes-btn">Decide now</button>
 </form>{{end}}
 </li>
 {{end}}
@@ -32,7 +32,7 @@
 </section>
 {{if .Data.Trophies}}
 <section class="nes-container with-title">
-<h2 class="title">trophy downloads</h2>
+<h2 class="title">Trophy downloads</h2>
 <ul class="rows">
 {{range .Data.Trophies}}
 <li>
@@ -40,7 +40,7 @@
 <span class="meta">{{.CompetitionTitle}} · {{.BuildTitle}} · downloads left: {{.DownloadsLeft}}</span>
 <form method="post" action="/admin/trophies/{{.ID}}/rearm">
 <input type="hidden" name="csrf" value="{{$.CSRF}}">
-<button class="nes-btn">re-arm</button>
+<button class="nes-btn">Re-arm</button>
 </form>
 </li>
 {{end}}

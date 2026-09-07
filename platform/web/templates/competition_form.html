@@ -1,10 +1,16 @@
 {{define "content"}}
 <p class="back"><a href="/competitions">&larr; competitions</a></p>
-<h1>start a competition</h1>
+<h1>Start a competition</h1>
 <p>Pick a theme, set when entries close and when voting closes. The competition runs itself from there. Winners get placement badges and a printable trophy.</p>
 <form method="post" action="/competitions/new">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="nes-field"><label for="title">Title</label><input class="nes-input" id="title" type="text" name="title" value="{{.Data.Competition.Title}}" required maxlength="200"></div>
+<div class="nes-field"><label for="category">Category</label>
+<div class="nes-select"><select id="category" name="category" required>
+<option value="">Choose one</option>
+{{range .Data.Categories}}<option value="{{.}}"{{if eq . $.Data.Competition.Category}} selected{{end}}>{{.}}</option>{{end}}
+</select></div>
+<p class="meta">What members filter by when looking for something to enter.</p></div>
 <div class="nes-field"><label for="description">Brief</label><textarea class="nes-textarea" id="description" name="description" maxlength="2000" rows="5">{{.Data.Competition.Description}}</textarea>
 <p class="meta">What counts as an entry: subject, scale, brand, anything the builders should know.</p></div>
 <div class="nes-field"><label for="entries_close">Entries close</label><input class="nes-input" id="entries_close" type="date" name="entries_close" min="{{.Data.Tomorrow}}" required>

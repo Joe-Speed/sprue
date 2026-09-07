@@ -20,11 +20,13 @@ func TestEveryPageRenders(t *testing.T) {
 	}
 	user := store.User{ID: 1, DisplayName: "Joe", Slug: "joe", IsAdmin: true, CreatedAt: "2026-01-01"}
 	build := store.Build{ID: 7, UserID: 1, Title: "Spitfire Mk.I", Kit: "Airfix 1/72", OwnerName: "Joe", OwnerSlug: "joe", CoverPhoto: "abc.jpg", TrophyPlace: 1, BuiltOn: "2026-05-01", Votes: 2}
-	comp := store.Competition{ID: 3, Slug: "summer", Title: "Summer sprint", Description: "Anything with wings.", CreatorID: 1, CreatorName: "Joe", CreatorSlug: "joe", EntriesClose: "2026-07-01", VotingCloses: "2026-08-01", Status: "voting"}
-	trophy := store.Trophy{ID: 9, CompetitionSlug: "summer", CompetitionTitle: "Summer sprint", Place: 1, UserID: 1, BuildID: 7, BuildTitle: "Spitfire Mk.I", DownloadsLeft: 1}
+	comp := store.Competition{ID: 3, Slug: "summer", Title: "Summer sprint", Description: "Anything with wings.", CreatorID: 1, CreatorName: "Joe", CreatorSlug: "joe", EntriesClose: "2026-07-01", VotingCloses: "2026-08-01", Status: "voting", Category: "fighter"}
+	trophy := store.Trophy{ID: 9, CompetitionSlug: "summer", CompetitionTitle: "Summer sprint", Place: 1, UserID: 1, OwnerName: "Joe", OwnerSlug: "joe", BuildID: 7, BuildTitle: "Spitfire Mk.I", CoverPhoto: "abc.jpg", DownloadsLeft: 1}
 	entry := store.Entry{ID: 4, Build: build, Votes: 2}
-	member := store.Member{ID: 2, DisplayName: "Sam", Slug: "sam", CreatedAt: "2026-03-01T00:00:00Z", BuildCount: 4}
+	member := store.Member{ID: 2, DisplayName: "Sam", Slug: "sam", Flair: "bomb-1", Avatar: "0123456789abcdef01234567.jpg", CreatedAt: "2026-03-01T00:00:00Z", BuildCount: 4}
 	kit := store.StashItem{ID: 5, UserID: 1, Title: "Lancaster", Brand: "Airfix", Scale: "1/72", CostPence: 1299, Status: "building", Next: true, AddedAt: "2026-04-01T10:00:00Z"}
+	user.Flair = "plane-red-2"
+	user.Avatar = "0123456789abcdef01234567.jpg"
 	user.GoalCount = 3
 	user.GoalBy = "2026-06-01"
 	user.Nudge = "weekly"
@@ -33,12 +35,17 @@ func TestEveryPageRenders(t *testing.T) {
 		"home":             homeData{Featured: []store.Build{build}, Builds: []store.Build{build}, Older: 7},
 		"login":            nil,
 		"check_email":      "joe@example.com",
-		"settings":         user,
+		"settings":         settingsData{User: user, Won: [4]bool{false, true, false, false}},
+		"builds":           []store.Build{build},
 		"profile":          profileData{Owner: user, Builds: []store.Build{build}, Pinned: []store.Build{build}, Trophies: []store.Trophy{trophy}, Friendship: "incoming"},
 		"build":            buildPageData{Build: build, Photos: []string{"abc.jpg"}, CanVote: true, Voted: true},
 		"build_form":       buildFormData{Build: build, Photos: []string{"abc.jpg", "def.jpg"}, CanDelete: true},
-		"competitions":     competitionsData{Competitions: []store.Competition{comp}},
-		"competition_form": competitionFormData{Tomorrow: "2026-06-02"},
+		"competitions":     competitionsData{Competitions: []store.Competition{comp}, Categories: store.Categories, Category: "fighter"},
+		"past":             []pastCompetition{{Competition: comp, Trophies: []store.Trophy{trophy}}},
+		"terms":            "2026-09-07",
+		"privacy":          "2026-09-07",
+		"feedback":         nil,
+		"competition_form": competitionFormData{Tomorrow: "2026-06-02", Categories: store.Categories},
 		"stash": stashData{Items: []store.StashItem{kit}, Tomorrow: "2026-06-02",
 			Summary: stashSummary{Waiting: 1, DebtPence: 1299, Oldest: "Lancaster", OldestDays: 40, Next: &kit, GoalDone: 1, GoalDaysLeft: -3}},
 		"members":     membersData{Query: "jo", Members: []store.Member{member}},
@@ -54,7 +61,7 @@ func TestEveryPageRenders(t *testing.T) {
 	}
 	for name, data := range pages {
 		var out bytes.Buffer
-		p := page{Title: name, Path: "/competitions", Mark: "green", User: &user, CSRF: "token", Data: data, Config: &Config{}, Requests: 2}
+		p := page{Title: name, Path: "/competitions", Mark: "green", User: &user, CSRF: "token", Data: data, Site: site{Currency: "£", Year: 2026, DiscordURL: "https://discord.gg/x", Feedback: true, SupportEmail: "help@example.com"}, Requests: 2, Note: "Saved."}
 		if err := templates[name].Execute(&out, p); err != nil {
 			t.Errorf("%s: %v", name, err)
 			continue
@@ -72,6 +79,12 @@ func TestEveryPageRenders(t *testing.T) {
 		if !strings.Contains(html, "mark-green.svg") {
 			t.Errorf("%s: mark colour from the page is not used", name)
 		}
+		if !strings.Contains(html, `class="toast note"`) || !strings.Contains(html, "tick.svg") {
+			t.Errorf("%s: note did not render as a toast", name)
+		}
+		if !strings.Contains(html, "&copy; 2026 sprue") || !strings.Contains(html, `href="https://discord.gg/x">Discord`) || !strings.Contains(html, `href="/feedback">Feedback`) {
+			t.Errorf("%s: footer missing the year, Discord, or feedback link", name)
+		}
 	}
 }
 
@@ -87,6 +100,57 @@ func TestDateHelpers(t *testing.T) {
 	}
 	if !under("/competitions/summer", "/competitions") || under("/competitionsx", "/competitions") {
 		t.Error("under: prefix must end at a path boundary")
+	}
+}
+
+func TestFlair(t *testing.T) {
+	for _, name := range flairs {
+		if _, err := fs.Stat(staticFiles, "static/flair/"+name+".png"); err != nil {
+			t.Errorf("no picture for %s", name)
+		}
+	}
+	if !strings.Contains(flairPath("bomb-2", 7), "flair/bomb-2.png") {
+		t.Error("chosen flair not used")
+	}
+	if flairPath("", 5) != flairPath("nonsense", 5) || !strings.Contains(flairPath("", 5), "plane-") {
+		t.Error("unknown flair should fall back to a plane chosen by id")
+	}
+	if flairPath("", 1) == flairPath("", 2) {
+		t.Error("different members should get different default planes")
+	}
+	if validFlair("../secret") {
+		t.Error("path pieces are not flairs")
+	}
+	if !validFlair("first-place") || trophyPlace("second-place") != 2 || trophyPlace("plane-red-1") != 0 {
+		t.Error("trophy flairs should be known and map to their place")
+	}
+	if !strings.Contains(flairPath("third-place", 1), "trophies/third-place.svg") {
+		t.Error("trophy flair should show the badge")
+	}
+}
+
+func TestDueThemes(t *testing.T) {
+	// September 2026: the 1st is a Tuesday, the 4th a Friday, the 5th a
+	// Saturday, the 7th a Monday, the 8th the second Tuesday.
+	cases := map[string]string{
+		"2026-09-01": "tanktastic",
+		"2026-09-04": "fighting-friday",
+		"2026-09-05": "big-bomber",
+		"2026-09-07": "moderate-mitchell",
+		"2026-09-08": "",
+		"2026-09-11": "",
+		"2026-09-02": "",
+	}
+	for day, want := range cases {
+		date, _ := time.Parse("2006-01-02", day)
+		due := dueThemes(date)
+		got := ""
+		if len(due) == 1 {
+			got = due[0].Key
+		}
+		if got != want || len(due) > 1 {
+			t.Errorf("%s: due %v, want %q", day, due, want)
+		}
 	}
 }
 
@@ -192,7 +256,7 @@ func TestSignedOutPagesRender(t *testing.T) {
 	comp := store.Competition{ID: 3, Slug: "summer", Title: "Summer sprint", CreatorName: "Joe", CreatorSlug: "joe", EntriesClose: "2026-07-01", VotingCloses: "2026-08-01", Status: "open"}
 	var out bytes.Buffer
 	data := competitionData{Competition: comp}
-	if err := templates["competition"].Execute(&out, page{Title: "x", Data: data, Config: &Config{}, Requests: 2}); err != nil {
+	if err := templates["competition"].Execute(&out, page{Title: "x", Data: data, Site: site{Currency: "£", Year: 2026, DiscordURL: "https://discord.gg/x", Feedback: true, SupportEmail: "help@example.com"}, Requests: 2, Note: "Saved."}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "/login") {

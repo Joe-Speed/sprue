@@ -15,47 +15,58 @@
 <meta property="og:image" content="{{.Image}}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#4f9fe0">
-{{if .Config.SiteVerification}}<meta name="google-site-verification" content="{{.Config.SiteVerification}}">{{end}}
+{{if .Site.SiteVerification}}<meta name="google-site-verification" content="{{.Site.SiteVerification}}">{{end}}
 <link rel="icon" type="image/svg+xml" href="{{markPath .Mark}}">
 <link rel="apple-touch-icon" href="{{static "apple-touch-icon.png"}}">
 <link rel="stylesheet" href="{{static "vendor/nes-core.min.css"}}">
 <link rel="stylesheet" href="{{static "style.css"}}">
-<script src="{{static "preview.js"}}" defer></script>
-{{if .Config.AnalyticsID}}<script async src="https://www.googletagmanager.com/gtag/js?id={{.Config.AnalyticsID}}"></script>
-<script src="{{static "analytics.js"}}" data-id="{{.Config.AnalyticsID}}"></script>{{end}}
+<script src="{{static "site.js"}}" defer></script>
+{{if .Site.AnalyticsID}}<script async src="https://www.googletagmanager.com/gtag/js?id={{.Site.AnalyticsID}}"></script>
+<script src="{{static "analytics.js"}}" data-id="{{.Site.AnalyticsID}}"></script>{{end}}
 </head>
 <body>
 <header class="site">
 <span class="brand"><a class="mark-link" href="/mark/next" title="Change the plane's colour"><img class="mark" src="{{markPath .Mark}}" alt="Change the plane's colour" width="61" height="40"></a><a href="/">sprue</a></span>
 <nav class="primary" aria-label="Site">
-<a href="/"{{if eq .Path "/"}} aria-current="page"{{end}}>workbench</a>
-<a href="/competitions"{{if under .Path "/competitions"}} aria-current="page"{{end}}>competitions</a>
-<a href="/members"{{if under .Path "/members"}} aria-current="page"{{end}}>members</a>
+<a href="/"{{if eq .Path "/"}} aria-current="page"{{end}}>Home</a>
+<a href="/competitions"{{if under .Path "/competitions"}} aria-current="page"{{end}}>Competitions</a>
+<a href="/members"{{if under .Path "/members"}} aria-current="page"{{end}}>Members</a>
 </nav>
 <nav class="account" aria-label="Account">
 {{if .User}}
-<a class="nes-btn is-primary" href="/builds/new">add a build</a>
+<a class="nes-btn is-primary" href="/builds/new">Add a build</a>
 <details class="menu">
-<summary>{{.User.DisplayName}}{{if .Requests}} <span class="tag next">{{.Requests}}</span>{{end}}</summary>
+<summary>{{if .User.Avatar}}<img class="avatar tiny" src="/avatars/{{.User.Avatar}}" alt="" width="24" height="24">{{end}}{{.User.DisplayName}}<img class="flair" src="{{flairPath .User.Flair .User.ID}}" alt="" width="16" height="16">{{if .Requests}} <span class="tag next">{{.Requests}}</span>{{end}}</summary>
 <div class="menu-list">
-<a href="/u/{{.User.Slug}}"{{if eq .Path (print "/u/" .User.Slug)}} aria-current="page"{{end}}>my bench</a>
-<a href="/stash"{{if under .Path "/stash"}} aria-current="page"{{end}}>stash</a>
-<a href="/friends"{{if under .Path "/friends"}} aria-current="page"{{end}}>friends{{if .Requests}} <span class="tag next">{{.Requests}}</span>{{end}}</a>
-<a href="/settings"{{if eq .Path "/settings"}} aria-current="page"{{end}}>settings</a>
-{{if .User.IsAdmin}}<a href="/admin"{{if under .Path "/admin"}} aria-current="page"{{end}}>admin</a>{{end}}
-<form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="linkish">sign out</button></form>
+<a href="/builds"{{if eq .Path "/builds"}} aria-current="page"{{end}}>Builds</a>
+<a href="/stash"{{if under .Path "/stash"}} aria-current="page"{{end}}>Stash</a>
+<a href="/friends"{{if under .Path "/friends"}} aria-current="page"{{end}}>Friends{{if .Requests}} <span class="tag next">{{.Requests}}</span>{{end}}</a>
+<a href="/settings"{{if eq .Path "/settings"}} aria-current="page"{{end}}>Settings</a>
+{{if .User.IsAdmin}}<a href="/admin"{{if under .Path "/admin"}} aria-current="page"{{end}}>Admin</a>{{end}}
+<form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="linkish">Sign out</button></form>
 </div>
 </details>
 {{else}}
-<a class="nes-btn is-primary" href="/login">sign in</a>
+<a class="nes-btn is-primary" href="/login">Sign in</a>
 {{end}}
 </nav>
 </header>
 <main class="panel">
-{{if .Error}}<p class="flash error">{{.Error}}</p>{{end}}
-{{if .Note}}<p class="flash note">{{.Note}}</p>{{end}}
+{{if .Error}}<div class="toast error" role="alert"><img src="{{static "cross.svg"}}" alt="" width="16" height="16">{{.Error}}</div>{{end}}
+{{if .Note}}<div class="toast note" role="status"><img src="{{static "tick.svg"}}" alt="" width="16" height="16">{{.Note}}</div>{{end}}
 {{block "content" .}}{{end}}
 </main>
-<footer class="site">Scale model builds and competitions. <a href="https://github.com/Joe-Speed/sprue">Source</a>.</footer>
+<footer class="site">
+<nav aria-label="Site information">
+<a href="/terms">Terms</a>
+<a href="/privacy">Privacy</a>
+<a href="https://github.com/Joe-Speed/sprue/blob/main/LICENSE">Licence</a>
+<a href="https://github.com/Joe-Speed/sprue">Source</a>
+{{if .Site.SupportEmail}}<a href="mailto:{{.Site.SupportEmail}}">Support</a>{{end}}
+{{if .Site.Feedback}}<a href="/feedback">Feedback</a>{{end}}
+{{if .Site.DiscordURL}}<a href="{{.Site.DiscordURL}}">Discord</a>{{end}}
+</nav>
+<p>&copy; {{.Site.Year}} sprue. Scale model builds and competitions.</p>
+</footer>
 </body>
 </html>

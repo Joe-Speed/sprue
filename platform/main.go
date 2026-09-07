@@ -34,7 +34,7 @@ func main() {
 		log.Fatal("sprue: SPRUE_SMTP_HOST is required unless SPRUE_URL is a localhost address; without it sign-in links would only be logged")
 	}
 
-	for _, sub := range []string{"photos", "stl"} {
+	for _, sub := range []string{"photos", "avatars", "stl"} {
 		if err := os.MkdirAll(filepath.Join(dataDir, sub), 0o755); err != nil {
 			log.Fatalf("sprue: cannot create %s directory: %v", sub, err)
 		}
@@ -60,6 +60,9 @@ func main() {
 		SiteVerification: os.Getenv("SPRUE_SITE_VERIFICATION"),
 		Currency:         os.Getenv("SPRUE_CURRENCY"),
 		VisionKey:        os.Getenv("SPRUE_VISION_KEY"),
+		DiscordURL:       os.Getenv("SPRUE_DISCORD_URL"),
+		DiscordWebhook:   os.Getenv("SPRUE_DISCORD_WEBHOOK"),
+		SupportEmail:     os.Getenv("SPRUE_SUPPORT_EMAIL"),
 	})
 	if err != nil {
 		log.Fatalf("sprue: %v", err)

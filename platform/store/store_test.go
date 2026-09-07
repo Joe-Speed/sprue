@@ -12,7 +12,7 @@ var testToday = time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 func testCompetition(t *testing.T, s *Store, creator int64, title string) Competition {
 	t.Helper()
 	comp, err := s.CreateCompetition(Competition{
-		Title: title, CreatorID: creator, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20",
+		Title: title, CreatorID: creator, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20", Category: "fighter",
 	}, testToday)
 	if err != nil {
 		t.Fatal(err)
@@ -209,11 +209,97 @@ func TestCompetitionLifecycle(t *testing.T) {
 	if trophies[1].Place != 2 || trophies[1].UserID != alice.ID {
 		t.Fatalf("second place wrong: %+v", trophies[1])
 	}
+	if trophies[0].OwnerName != bob.DisplayName || trophies[0].BuildTitle != "Hurricane" {
+		t.Fatalf("trophy owner and build: %+v", trophies[0])
+	}
+	unseen, err := s.UnseenTrophy(bob.ID)
+	if err != nil || unseen.Place != 1 {
+		t.Fatalf("bob's unseen trophy: %+v %v", unseen, err)
+	}
+	if _, err := s.UnseenTrophy(bob.ID); !errors.Is(err, ErrNotFound) {
+		t.Error("trophy congratulated twice")
+	}
+	if _, err := s.UnseenTrophy(cara.ID); !errors.Is(err, ErrNotFound) {
+		t.Error("cara has no trophy")
+	}
+	if past, _ := s.DecidedCompetitions(10); len(past) != 1 || past[0].ID != comp.ID {
+		t.Errorf("decided list: %+v", past)
+	}
 	if err := s.Decide(comp.ID); err != nil {
 		t.Fatalf("deciding twice should be harmless: %v", err)
 	}
 	if again, _ := s.TrophiesForCompetition(comp.ID); len(again) != 2 {
 		t.Fatalf("second decide changed trophies: %d", len(again))
+	}
+}
+
+func TestScheduledThemes(t *testing.T) {
+	s := testStore(t)
+	if _, err := s.AdminUser(); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("no admin yet: %v", err)
+	}
+	testUser(t, s, "member@example.com")
+	admin, err := s.FindOrCreateUser("admin@example.com", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found, _ := s.AdminUser(); found.ID != admin.ID {
+		t.Fatal("admin lookup")
+	}
+	month := time.Now().UTC().Format("2006-01")
+	if started, _ := s.ThemeStartedInMonth("fighting-friday", month); started {
+		t.Fatal("theme reported before it exists")
+	}
+	if _, err := s.CreateCompetition(Competition{Title: "Fighting Friday", CreatorID: admin.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20", Official: true, Theme: "fighting-friday", Category: "fighter"}, testToday); err != nil {
+		t.Fatal(err)
+	}
+	if started, _ := s.ThemeStartedInMonth("fighting-friday", month); !started {
+		t.Fatal("theme not found for this month")
+	}
+	if started, _ := s.ThemeStartedInMonth("tanktastic", month); started {
+		t.Fatal("other theme reported")
+	}
+}
+
+func TestRemoveEntry(t *testing.T) {
+	s := testStore(t)
+	alice := testUser(t, s, "alice@example.com")
+	bob := testUser(t, s, "bob@example.com")
+	comp, err := s.CreateCompetition(Competition{Title: "Scramble", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20", Official: true, Category: "fighter"}, testToday)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !comp.Official {
+		t.Fatal("official flag lost")
+	}
+	build := testBuild(t, s, bob.ID, "Tank")
+	if err := s.EnterCompetition(comp.ID, build, bob.ID); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := s.EntriesWithVotes(comp.ID)
+	if err := s.Advance(time.Date(2026, 6, 11, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Vote(comp.ID, alice.ID, entries[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RemoveEntry(comp.ID, entries[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if left, _ := s.EntriesWithVotes(comp.ID); len(left) != 0 {
+		t.Error("entry still there")
+	}
+	if voted, _ := s.HasVoted(comp.ID, alice.ID); voted {
+		t.Error("vote for a removed entry survived")
+	}
+	if err := s.RemoveEntry(comp.ID, entries[0].ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("removing twice: %v", err)
+	}
+	if err := s.Advance(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RemoveEntry(comp.ID, 999); !errors.Is(err, ErrInUse) {
+		t.Errorf("decided competitions must keep their entries: %v", err)
 	}
 }
 
@@ -227,7 +313,9 @@ func TestCompetitionRules(t *testing.T) {
 		{Title: "Voting first", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-10"},
 		{Title: "Too long", CreatorID: alice.ID, EntriesClose: "2027-06-10", VotingCloses: "2027-06-20"},
 		{Title: "Voting too long", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-09-10"},
-		{Title: "", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20"},
+		{Title: "", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20", Category: "tank"},
+		{Title: "No category", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20"},
+		{Title: "Odd category", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20", Category: "boats"},
 	}
 	for _, c := range bad {
 		if _, err := s.CreateCompetition(c, testToday); err == nil {
@@ -237,7 +325,7 @@ func TestCompetitionRules(t *testing.T) {
 	for i := 0; i < MaxOpenPerCreator; i++ {
 		testCompetition(t, s, alice.ID, "Running")
 	}
-	_, err := s.CreateCompetition(Competition{Title: "One more", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20"}, testToday)
+	_, err := s.CreateCompetition(Competition{Title: "One more", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20", Category: "tank"}, testToday)
 	if !errors.Is(err, ErrLimit) {
 		t.Errorf("creator cap: %v", err)
 	}
@@ -245,7 +333,7 @@ func TestCompetitionRules(t *testing.T) {
 	if err := s.Advance(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	list, _ := s.Competitions()
+	list, _ := s.Competitions("")
 	for _, c := range list {
 		if c.Status != "decided" {
 			t.Errorf("%s still %s", c.Slug, c.Status)
@@ -254,7 +342,7 @@ func TestCompetitionRules(t *testing.T) {
 			t.Errorf("%s has trophies without votes", c.Slug)
 		}
 	}
-	if _, err := s.CreateCompetition(Competition{Title: "After", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20"}, testToday); err != nil {
+	if _, err := s.CreateCompetition(Competition{Title: "After", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20", Category: "tank"}, testToday); err != nil {
 		t.Errorf("decided competitions should not count toward the cap: %v", err)
 	}
 }
@@ -475,6 +563,27 @@ func TestSweep(t *testing.T) {
 	s.db.QueryRow(`select count(*) from magic_tokens`).Scan(&tokens)
 	if sessions != 1 || tokens != 1 {
 		t.Errorf("after sweep: %d sessions, %d tokens", sessions, tokens)
+	}
+}
+
+func TestRenameUserAndAvatar(t *testing.T) {
+	s := testStore(t)
+	alice := testUser(t, s, "alice@example.com")
+	if err := s.RenameUser(alice.ID, "Alice B", "bomb-2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetAvatar(alice.ID, "0123456789abcdef01234567.jpg"); err != nil {
+		t.Fatal(err)
+	}
+	user, _ := s.UserBySlug(alice.Slug)
+	if user.DisplayName != "Alice B" || user.Flair != "bomb-2" || user.Avatar == "" {
+		t.Fatalf("profile fields: %+v", user)
+	}
+	if err := s.RenameUser(alice.ID, "  ", "bomb-2"); err == nil {
+		t.Fatal("empty name accepted")
+	}
+	if err := s.SetAvatar(999, "x.jpg"); !errors.Is(err, ErrNotFound) {
+		t.Fatal("avatar set on a missing member")
 	}
 }
 

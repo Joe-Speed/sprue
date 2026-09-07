@@ -1,16 +1,41 @@
 {{define "content"}}
-<h1>settings</h1>
+<h1>Settings</h1>
+<section class="nes-container with-title">
+<h2 class="title">Profile</h2>
 <form method="post" action="/settings">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
-<div class="nes-field"><label for="display_name">Display name</label><input class="nes-input" id="display_name" type="text" name="display_name" value="{{.Data.DisplayName}}" required maxlength="100"></div>
-<p class="meta">Your page stays at /u/{{.Data.Slug}}</p>
+<div class="nes-field"><label for="display_name">Display name</label><input class="nes-input" id="display_name" type="text" name="display_name" value="{{.Data.DisplayName}}" required maxlength="100">
+<p class="meta">Your page stays at /u/{{.Data.Slug}}</p></div>
+<div class="nes-field"><span class="label">Flair, shown beside your name</span>
+<div class="flair-picker">
+{{range flairs}}<label><input type="radio" name="flair" value="{{.}}"{{if eq (flairPath $.Data.Flair $.Data.ID) (flairPath . 0)}} checked{{end}}><img class="flair" src="{{flairPath . 0}}" alt="{{.}}" width="32" height="32"></label>{{end}}
+{{range trophyFlairs}}{{if index $.Data.Won (trophyPlace .)}}<label><input type="radio" name="flair" value="{{.}}"{{if eq $.Data.Flair .}} checked{{end}}><img class="flair" src="{{flairPath . 0}}" alt="{{.}}" width="32" height="32"></label>{{else}}<span class="locked" data-tip="Place {{placeName (trophyPlace .) | lower}} in a competition to unlock" tabindex="0"><img class="flair" src="{{flairPath . 0}}" alt="" width="32" height="32"></span>{{end}}{{end}}
+</div></div>
+<button class="nes-btn is-primary" type="submit">Save</button>
+</form>
+<form class="avatar-form" method="post" action="/settings/avatar" enctype="multipart/form-data">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+{{if .Data.Avatar}}<img class="avatar" src="/avatars/{{.Data.Avatar}}" alt="" width="96" height="96">{{end}}
+<div class="nes-field"><label for="avatar">Profile picture</label><input id="avatar" type="file" name="avatar" accept="image/jpeg,image/png,image/gif" required>
+<p class="meta">Cropped to a square. Shown on your profile and in member lists.</p></div>
+<button class="nes-btn" type="submit">Upload</button>
+</form>
+{{if .Data.Avatar}}<form method="post" action="/settings/avatar/remove"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="linkish danger" type="submit">Remove picture</button></form>{{end}}
+</section>
+<section class="nes-container with-title">
+<h2 class="title">Reminders</h2>
+<form method="post" action="/settings">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<input type="hidden" name="display_name" value="{{.Data.DisplayName}}">
+<input type="hidden" name="flair" value="{{.Data.Flair}}">
 <div class="nes-field"><label for="nudge">Stash reminders by email</label>
 <div class="nes-select"><select id="nudge" name="nudge">
 <option value="off"{{if eq .Data.Nudge "off"}} selected{{end}}>off</option>
 <option value="weekly"{{if eq .Data.Nudge "weekly"}} selected{{end}}>weekly</option>
 <option value="monthly"{{if eq .Data.Nudge "monthly"}} selected{{end}}>monthly</option>
 </select></div>
-<p class="meta">A short note on what is waiting in your stash and how your goal stands. Nothing else is ever sent.</p></div>
+<p class="meta">A short email about your unbuilt kits and your goal. Nothing else is sent.</p></div>
 <button class="nes-btn is-primary" type="submit">Save</button>
 </form>
+</section>
 {{end}}

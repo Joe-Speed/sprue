@@ -1,15 +1,15 @@
 {{define "content"}}
-<h1>friends</h1>
-<p class="meta">Only you see this page. Find people on the <a href="/members">members</a> page and ask from their bench.</p>
+<h1>Friends</h1>
+<p class="meta">Only you can see this page. Find people on the <a href="/members">members</a> page and send a request from their profile.</p>
 {{if .Data.Requests}}
 <section class="nes-container with-title">
-<h2 class="title">waiting on you</h2>
+<h2 class="title">Waiting on you</h2>
 <ul class="rows">
 {{range .Data.Requests}}
 <li>
-<a href="/u/{{.Slug}}">{{.DisplayName}}</a><span class="meta">{{.BuildCount}} build{{if ne .BuildCount 1}}s{{end}}</span>
-<form method="post" action="/friends/{{.Slug}}/accept"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="/friends"><button class="nes-btn is-primary">accept</button></form>
-<form method="post" action="/friends/{{.Slug}}/remove"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="/friends"><button class="nes-btn">decline</button></form>
+{{template "member_name" .}}<span class="meta">{{.BuildCount}} build{{if ne .BuildCount 1}}s{{end}}</span>
+<form method="post" action="/friends/{{.Slug}}/accept"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="/friends"><button class="nes-btn is-success">Accept</button></form>
+<form method="post" action="/friends/{{.Slug}}/remove"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="/friends"><button class="nes-btn">Decline</button></form>
 </li>
 {{end}}
 </ul>
@@ -17,25 +17,25 @@
 {{end}}
 {{if .Data.Sent}}
 <section class="nes-container with-title">
-<h2 class="title">sent</h2>
+<h2 class="title">Sent</h2>
 <ul class="rows">
 {{range .Data.Sent}}
 <li>
-<a href="/u/{{.Slug}}">{{.DisplayName}}</a><span class="meta">waiting for an answer</span>
-<form method="post" action="/friends/{{.Slug}}/remove"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="/friends"><button class="nes-btn">cancel</button></form>
+{{template "member_name" .}}<span class="meta">waiting for an answer</span>
+<form method="post" action="/friends/{{.Slug}}/remove"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="/friends"><button class="nes-btn">Cancel</button></form>
 </li>
 {{end}}
 </ul>
 </section>
 {{end}}
 <section class="nes-container with-title">
-<h2 class="title">friends</h2>
+<h2 class="title">Friends</h2>
 {{if not .Data.Friends}}<p class="quiet">No friends yet.</p>{{end}}
 <ul class="rows">
 {{range .Data.Friends}}
 <li>
-<a href="/u/{{.Slug}}">{{.DisplayName}}</a><span class="meta">{{.BuildCount}} build{{if ne .BuildCount 1}}s{{end}} · since {{monthYear .CreatedAt}}</span>
-<form method="post" action="/friends/{{.Slug}}/remove"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="/friends"><button class="linkish danger">remove</button></form>
+{{template "member_name" .}}<span class="meta">{{.BuildCount}} build{{if ne .BuildCount 1}}s{{end}} · since {{monthYear .CreatedAt}}</span>
+<form method="post" action="/friends/{{.Slug}}/remove"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="/friends"><button class="linkish danger">Remove</button></form>
 </li>
 {{end}}
 </ul>

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"image/png"
 	"testing"
 )
@@ -56,5 +57,40 @@ func TestProcessRejectsGarbage(t *testing.T) {
 	}
 	if _, err := Process(nil); err == nil {
 		t.Fatal("expected error for empty input")
+	}
+}
+
+func TestProcessSquare(t *testing.T) {
+	source := image.NewRGBA(image.Rect(0, 0, 300, 100))
+	for x := 0; x < 300; x++ {
+		for y := 0; y < 100; y++ {
+			c := color.RGBA{0, 0, 0, 255}
+			if x >= 100 && x < 200 {
+				c = color.RGBA{255, 255, 255, 255}
+			}
+			source.Set(x, y, c)
+		}
+	}
+	var in bytes.Buffer
+	if err := png.Encode(&in, source); err != nil {
+		t.Fatal(err)
+	}
+	out, err := ProcessSquare(in.Bytes(), 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := jpeg.Decode(bytes.NewReader(out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Bounds().Dx() != 50 || result.Bounds().Dy() != 50 {
+		t.Fatalf("size %v", result.Bounds())
+	}
+	r, _, _, _ := result.At(25, 25).RGBA()
+	if r < 0xf000 {
+		t.Errorf("centre crop should keep the white middle band, got %d", r>>8)
+	}
+	if _, err := ProcessSquare(in.Bytes(), 8); err == nil {
+		t.Error("tiny sizes should be refused")
 	}
 }

@@ -34,7 +34,9 @@
   --red: #c8312b;
   --red-deep: #8a1f1a;
   --green: #4a8a3a;
+  --green-deep: #2f5c25;
   --amber: #d9a520;
+  --purple: #6b3fa0;
   --shadow: rgba(30, 42, 58, 0.35);
   --display: "Press Start 2P", "Courier New", monospace;
   --body: "Pixelify Sans", "Trebuchet MS", sans-serif;
@@ -87,8 +89,84 @@ img {
 }
 
 img.badge,
-img.mark {
+img.mark,
+img.flair {
   image-rendering: pixelated;
+}
+
+/* Member pictures: the photo sits left of the name, the flair small on its
+   right, everywhere a name appears. */
+img.flair {
+  vertical-align: middle;
+  margin-left: 0.35rem;
+}
+
+.flair-picker img.flair {
+  margin: 0;
+}
+
+img.avatar.tiny {
+  margin-right: 0.35rem;
+  border-width: 2px;
+}
+
+.byline {
+  display: flex;
+  align-items: center;
+}
+
+.who {
+  display: inline-flex;
+  align-items: center;
+}
+
+img.avatar {
+  vertical-align: middle;
+  margin-right: 0.6rem;
+  border: 4px solid var(--ink);
+  object-fit: cover;
+}
+
+.flair-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0;
+}
+
+.flair-picker label {
+  display: inline-flex;
+  padding: 0.5rem;
+  background: var(--paper-deep);
+  border: 4px solid transparent;
+}
+
+.flair-picker input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.flair-picker input:checked + img {
+  outline: 4px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.flair-picker img {
+  margin: 0;
+}
+
+.nes-field > .label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-weight: 700;
+}
+
+form.avatar-form {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 4px dotted var(--paper-deep);
 }
 
 a {
@@ -116,7 +194,6 @@ nav,
 h1 {
   margin: 0 0 0.6rem;
   font-size: 1.25rem;
-  text-transform: lowercase;
 }
 
 h1 img.badge {
@@ -228,13 +305,20 @@ header.site nav form {
   border-top-color: var(--ink);
   border-bottom: 0;
   vertical-align: 2px;
+  transform: rotate(90deg);
+  transition: transform 0.2s steps(3, end);
 }
 
 .menu[open] summary {
   border-bottom-color: var(--ink);
 }
 
+.menu[open] summary::after {
+  transform: rotate(0);
+}
+
 .menu-list {
+  animation: rise 0.2s steps(3, end);
   position: absolute;
   right: 0;
   top: calc(100% + 0.8rem);
@@ -276,6 +360,50 @@ header.site .menu-list form {
   border-top: 4px dotted var(--paper-deep);
 }
 
+/* Motion: a few stepped frames, the way a pixel game moves. Anything that
+   appears rises into place; anything you press or hover shifts a pixel or
+   two. All of it is off for people who asked their system for less motion. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+main.panel,
+.toast,
+.previews img {
+  animation: rise 0.3s steps(4, end);
+}
+
+li.card,
+.brand .mark,
+.nes-btn {
+  transition: transform 0.15s steps(2, end), box-shadow 0.15s steps(2, end);
+}
+
+li.card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--shadow);
+}
+
+.nes-btn:active {
+  transform: translate(2px, 2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
 /* The paper panel every page sits on */
 
 main.panel {
@@ -300,6 +428,29 @@ footer.site {
   padding: 0 1rem 2rem;
   font-size: 0.9rem;
   color: var(--ink);
+}
+
+footer.site nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.4rem;
+  margin-bottom: 0.5rem;
+  font-family: var(--display);
+  font-size: 0.55rem;
+}
+
+footer.site nav a {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+footer.site nav a:hover {
+  border-bottom-color: var(--ink);
+}
+
+footer.site p {
+  margin: 0;
 }
 
 /* Sections: NES containers with the title sitting in the border line. */
@@ -346,23 +497,51 @@ section.nes-container > :last-child {
   text-decoration: none;
 }
 
-/* Flash messages and prompts */
+/* Toasts: one message after an action, top right, gone after a few seconds
+   or a click. Green with a tick for success, red with a cross for errors. */
+.toast {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  max-width: min(90vw, 26rem);
+  padding: 0.7rem 1rem;
+  color: #fff;
+  background: var(--green);
+  border: 4px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--shadow);
+  cursor: url("cursor-hand.png") 14 0, pointer;
+}
 
-.flash {
+.toast.error {
+  background: var(--red);
+}
+
+.toast img {
+  flex: none;
+  image-rendering: pixelated;
+}
+
+.toast.gone {
+  animation: sink 0.3s steps(4, end) forwards;
+}
+
+@keyframes sink {
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+/* Inline notice that stays on the page, unlike a toast. */
+.notice {
   padding: 0.6rem 1rem;
   margin: 0 0 1.2rem;
-  border: 4px solid var(--ink);
-  background: var(--paper-deep);
-}
-
-.flash.error {
-  border-color: var(--red);
+  border: 4px solid var(--red);
   background: #f6d9d5;
-}
-
-.flash.note {
-  border-color: var(--green);
-  background: #dcebd3;
 }
 
 .prompt {
@@ -375,6 +554,7 @@ section.nes-container > :last-child {
 /* Status tag on competitions, coloured by state. */
 .tag {
   display: inline-block;
+  text-transform: capitalize;
   padding: 0.25rem 0.5rem 0.15rem;
   font-size: 0.55rem;
   color: #fff;
@@ -414,6 +594,177 @@ section.nes-container > :last-child {
 
 .tag.private {
   background: var(--ink-soft);
+}
+
+.tag.official {
+  background: var(--purple);
+}
+
+.tag.category {
+  background: var(--paper);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  padding-top: 0.15rem;
+  padding-bottom: 0.05rem;
+}
+
+/* Category filter row on the competitions page. */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+}
+
+.filters a {
+  padding: 0.35rem 0.7rem;
+  font-family: var(--display);
+  font-size: 0.55rem;
+  color: var(--ink);
+  text-decoration: none;
+  background: var(--paper-deep);
+  border: 3px solid transparent;
+}
+
+.filters a:hover {
+  border-color: var(--ink-soft);
+}
+
+.filters a[aria-current="page"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* Legend for the competition tags, top right, open on hover or click. */
+.legend {
+  position: relative;
+}
+
+.legend summary {
+  list-style: none;
+  font-family: var(--display);
+  font-size: 0.6rem;
+  color: var(--ink-soft);
+  border-bottom: 3px dotted var(--ink-soft);
+}
+
+.legend summary::-webkit-details-marker {
+  display: none;
+}
+
+.legend-list {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.6rem);
+  z-index: 10;
+  width: 22rem;
+  max-width: 90vw;
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  list-style: none;
+  font-size: 1rem;
+  background: var(--paper);
+  border: 4px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--shadow);
+  animation: rise 0.2s steps(3, end);
+}
+
+.legend[open] .legend-list,
+.legend:hover .legend-list {
+  display: block;
+}
+
+.legend-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.3rem 0;
+}
+
+.legend-list .tag {
+  flex: none;
+  min-width: 4.2rem;
+  text-align: center;
+}
+
+.page-head .actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Bench head: picture left, name with a small flair, details under it. */
+.bench-head .avatar {
+  margin: 0;
+}
+
+.bench-head .who {
+  flex: 1 1 auto;
+}
+
+.bench-head h1 {
+  margin-bottom: 0.2rem;
+}
+
+.bench-head h1 .flair {
+  margin: 0 0 0 0.6rem;
+  vertical-align: -2px;
+}
+
+.bench-head .meta {
+  margin: 0;
+}
+
+.brief {
+  padding: 0.6rem 1rem;
+  border-left: 6px solid var(--red);
+  background: var(--paper-deep);
+}
+
+.flair-picker .locked {
+  display: inline-flex;
+  padding: 0.5rem;
+  border: 4px dotted var(--ink-soft);
+}
+
+.flair-picker .locked img {
+  opacity: 0.45;
+}
+
+/* Tooltips: any element with a data-tip shows it above itself on hover, on
+   keyboard focus, or after a tap, which toggles it. */
+[data-tip] {
+  position: relative;
+}
+
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 0.6rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: none;
+  width: max-content;
+  max-width: 16rem;
+  padding: 0.4rem 0.7rem;
+  font-family: var(--body);
+  font-size: 0.95rem;
+  line-height: 1.3;
+  color: var(--paper);
+  background: var(--ink);
+  border: 4px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--shadow);
+  white-space: normal;
+  text-align: center;
+  animation: rise 0.2s steps(3, end);
+}
+
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after,
+[data-tip].show::after {
+  display: block;
 }
 
 /* Cards */
@@ -553,7 +904,7 @@ li.card .cardlink {
   margin: 0;
 }
 
-/* Quick post form on the workbench: fields in a row on wide screens. */
+/* Quick post form on the community page: fields in a row on wide screens. */
 form.post .post-fields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -749,6 +1100,100 @@ ul.rows form {
   display: inline;
 }
 
+ul.rows .nes-btn {
+  margin: 0;
+}
+
+/* Podium: three winning builds, first raised in the middle. */
+.podium {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  align-items: end;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.podium li {
+  padding: 0.6rem;
+  text-align: center;
+  background: var(--paper-deep);
+  border: 4px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+
+.podium .place-1 {
+  order: 2;
+  padding-bottom: 2rem;
+}
+
+.podium .place-2 {
+  order: 1;
+}
+
+.podium .place-3 {
+  order: 3;
+}
+
+.podium a {
+  display: block;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.podium .cover {
+  display: block;
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  margin-bottom: 0.5rem;
+  border: 4px solid var(--ink);
+}
+
+.podium .place-1 .cover {
+  height: 170px;
+}
+
+.podium .badge {
+  display: block;
+  margin: 0 auto 0.3rem;
+}
+
+.podium strong {
+  display: block;
+  font-size: 1.1rem;
+}
+
+.podium .byline {
+  justify-content: center;
+  margin-top: 0.2rem;
+}
+
+@media (max-width: 600px) {
+  .podium {
+    grid-template-columns: 1fr;
+  }
+
+  .podium .place-1,
+  .podium .place-2,
+  .podium .place-3 {
+    order: 0;
+    padding-bottom: 0.6rem;
+  }
+}
+
+.filters .past {
+  margin-left: auto;
+  background: var(--paper);
+  border-color: var(--ink);
+}
+
+section.nes-container.with-title > .title a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
 /* Trophy case */
 
 ul.trophies {
@@ -856,6 +1301,28 @@ label.choice {
 
 .nes-btn.is-primary:focus {
   box-shadow: 0 0 0 6px rgba(31, 63, 138, 0.3);
+}
+
+.nes-btn.is-success {
+  color: #fff;
+  background: var(--green);
+}
+
+.nes-btn.is-success:hover {
+  color: #fff;
+  background: #559a43;
+}
+
+.nes-btn.is-success::after {
+  box-shadow: inset -4px -4px var(--green-deep);
+}
+
+.nes-btn.is-success:hover::after {
+  box-shadow: inset -6px -6px var(--green-deep);
+}
+
+.nes-btn.is-success:focus {
+  box-shadow: 0 0 0 6px rgba(74, 138, 58, 0.3);
 }
 
 .nes-btn.is-error {

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Joe-Speed/sprue/platform/store"
 )
@@ -40,6 +41,9 @@ type Config struct {
 	SiteVerification string // Google Search Console meta tag value, empty for none
 	Currency         string // symbol shown before stash costs
 	VisionKey        string // Google Cloud Vision API key for photo screening, empty to skip
+	DiscordURL       string // invite link shown in the footer, empty to hide
+	DiscordWebhook   string // webhook the feedback form posts to, empty to hide the form
+	SupportEmail     string // address shown in the footer for support
 }
 
 type Server struct {
@@ -82,10 +86,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("GET /settings", s.handleSettingsPage)
 	mux.HandleFunc("POST /settings", s.handleSettingsSave)
+	mux.HandleFunc("POST /settings/avatar", s.handleAvatarUpload)
+	mux.HandleFunc("POST /settings/avatar/remove", s.handleAvatarRemove)
+	mux.HandleFunc("GET /avatars/{name}", s.handleAvatar)
 	mux.HandleFunc("GET /u/{slug}", s.handleProfile)
 	mux.HandleFunc("GET /members", s.handleMembers)
 	mux.HandleFunc("GET /friends", s.handleFriends)
 	mux.HandleFunc("POST /friends/{slug}/{action}", s.handleFriendAction)
+	mux.HandleFunc("GET /builds", s.handleMyBuilds)
 	mux.HandleFunc("GET /builds/new", s.handleBuildForm)
 	mux.HandleFunc("POST /builds/new", s.handleBuildCreate)
 	mux.HandleFunc("GET /builds/{id}", s.handleBuildPage)
@@ -105,6 +113,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /goal", s.handleGoal)
 	mux.HandleFunc("GET /competitions", s.handleCompetitions)
 	mux.HandleFunc("GET /competitions/new", s.handleCompetitionForm)
+	mux.HandleFunc("GET /competitions/past", s.handlePastCompetitions)
 	mux.HandleFunc("POST /competitions/new", s.handleCompetitionCreate)
 	mux.HandleFunc("GET /competitions/{slug}", s.handleCompetition)
 	mux.HandleFunc("POST /competitions/{slug}/enter", s.handleEnter)
@@ -112,8 +121,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /trophies/{id}/download", s.handleTrophyDownload)
 	mux.HandleFunc("GET /admin", s.handleAdmin)
 	mux.HandleFunc("POST /admin/competitions/{slug}/decide", s.handleAdminDecide)
+	mux.HandleFunc("POST /admin/competitions/{slug}/entries/{id}/remove", s.handleAdminRemoveEntry)
 	mux.HandleFunc("POST /admin/trophies/{id}/rearm", s.handleAdminRearm)
 	mux.HandleFunc("POST /admin/builds/{id}/{action}", s.handleAdminModerate)
+	mux.HandleFunc("GET /terms", s.handleTerms)
+	mux.HandleFunc("GET /privacy", s.handlePrivacy)
+	mux.HandleFunc("GET /feedback", s.handleFeedbackForm)
+	mux.HandleFunc("POST /feedback", s.handleFeedback)
 	mux.HandleFunc("GET /mark/next", s.handleMarkNext)
 	mux.HandleFunc("GET /robots.txt", s.handleRobots)
 	mux.HandleFunc("GET /sitemap.xml", s.handleSitemap)
@@ -127,7 +141,7 @@ func (s *Server) Handler() http.Handler {
 const maxFormBytes = 64 * 1024
 
 func carriesPhotos(path string) bool {
-	return path == "/builds/new" || strings.HasSuffix(path, "/photos")
+	return path == "/builds/new" || path == "/settings/avatar" || strings.HasSuffix(path, "/photos")
 }
 
 func withBodyLimit(next http.Handler) http.Handler {
@@ -192,6 +206,17 @@ func localReferer(r *http.Request) string {
 	return back
 }
 
+// policyUpdated is the date the terms and privacy text last changed.
+const policyUpdated = "2026-09-07"
+
+func (s *Server) handleTerms(w http.ResponseWriter, r *http.Request) {
+	s.render(w, r, "terms", "Terms", policyUpdated)
+}
+
+func (s *Server) handlePrivacy(w http.ResponseWriter, r *http.Request) {
+	s.render(w, r, "privacy", "Privacy", policyUpdated)
+}
+
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.Ping(); err != nil {
 		http.Error(w, "database unavailable", http.StatusServiceUnavailable)
@@ -218,6 +243,18 @@ func (s *Server) withRequestLog(next http.Handler) http.Handler {
 	})
 }
 
+// site is the part of the configuration templates may see. The rest, SMTP
+// credentials included, never reaches a template.
+type site struct {
+	AnalyticsID      string
+	SiteVerification string
+	Currency         string
+	DiscordURL       string
+	SupportEmail     string
+	Feedback         bool // the feedback form is available
+	Year             int
+}
+
 // page is the data every template receives.
 type page struct {
 	Title       string // full document title
@@ -232,7 +269,7 @@ type page struct {
 	Data        any
 	Error       string
 	Note        string
-	Config      *Config
+	Site        site
 	Requests    int // friend requests waiting on the signed-in member
 }
 
@@ -258,7 +295,11 @@ func (s *Server) renderMeta(w http.ResponseWriter, r *http.Request, status int, 
 		Canonical: s.absolute(r.URL.Path), NoIndex: noIndexPages[name],
 		Path: r.URL.Path, Mark: readMark(r), Data: data,
 		Error: clipMessage(query.Get("error")), Note: clipMessage(query.Get("note")),
-		Config: &s.config,
+		Site: site{
+			AnalyticsID: s.config.AnalyticsID, SiteVerification: s.config.SiteVerification, Currency: s.config.Currency,
+			DiscordURL: s.config.DiscordURL, SupportEmail: s.config.SupportEmail,
+			Feedback: s.config.DiscordWebhook != "", Year: time.Now().UTC().Year(),
+		},
 	}
 	if name == "home" {
 		p.Title = "sprue · " + title
@@ -269,6 +310,11 @@ func (s *Server) renderMeta(w http.ResponseWriter, r *http.Request, status int, 
 		if count, err := s.store.PendingRequestCount(user.ID); err == nil {
 			p.Requests = count
 		}
+		if p.Note == "" && p.Error == "" {
+			if trophy, err := s.store.UnseenTrophy(user.ID); err == nil {
+				p.Note = fmt.Sprintf("You placed %s in %s. Your trophy is on your profile.", strings.ToLower(placeName(trophy.Place)), trophy.CompetitionTitle)
+			}
+		}
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
@@ -278,7 +324,7 @@ func (s *Server) renderMeta(w http.ResponseWriter, r *http.Request, status int, 
 }
 
 func (s *Server) handleNotFound(w http.ResponseWriter, r *http.Request) {
-	s.renderError(w, r, http.StatusNotFound, "Nothing at this address.")
+	s.renderError(w, r, http.StatusNotFound, "Page not found.")
 }
 
 func (s *Server) renderError(w http.ResponseWriter, r *http.Request, status int, message string) {
@@ -290,11 +336,18 @@ func (s *Server) renderError(w http.ResponseWriter, r *http.Request, status int,
 const maxMessageLength = 200
 
 func clipMessage(text string) string {
-	if len(text) > maxMessageLength {
-		return text[:maxMessageLength]
+	if len(text) <= maxMessageLength {
+		return text
 	}
-	return text
+	cut := maxMessageLength
+	for cut > 0 && !utf8.RuneStart(text[cut]) {
+		cut--
+	}
+	return text[:cut]
 }
+
+func buildPage(id int64) string { return fmt.Sprintf("/builds/%d", id) }
+func buildEdit(id int64) string { return fmt.Sprintf("/builds/%d/edit", id) }
 
 // flashRedirect sends the reader to path with one message: an error if
 // errorText is set, otherwise a note.

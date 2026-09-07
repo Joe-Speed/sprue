@@ -1,30 +1,29 @@
 {{define "content"}}
 <p class="back"><a href="/competitions">&larr; competitions</a></p>
-<h1>{{.Data.Competition.Title}}</h1>
+<div class="page-head">
+<h1>{{.Data.Competition.Title}}{{if .Data.Competition.Official}} <span class="tag official">sprue</span>{{end}} <span class="tag category">{{.Data.Competition.Category}}</span></h1>
+{{template "legend"}}
+</div>
 <p class="meta">{{template "status_tag" .Data.Competition.Status}} {{template "competition_dates" .Data.Competition}} · started by <a href="/u/{{.Data.Competition.CreatorSlug}}">{{.Data.Competition.CreatorName}}</a></p>
-{{if .Data.Competition.Description}}<p>{{.Data.Competition.Description}}</p>{{end}}
+{{if .Data.Competition.Description}}<p class="brief">{{.Data.Competition.Description}}</p>{{end}}
 
 {{if eq .Data.Competition.Status "decided"}}
 <section class="nes-container with-title">
-<h2 class="title">results</h2>
-{{if not .Data.Trophies}}<p class="quiet">No votes were cast, so there are no placings.</p>{{end}}
-<ul class="trophies">
-{{range .Data.Trophies}}
-<li><img class="badge" src="{{placeBadge .Place}}" alt="{{placeName .Place}} place" width="40" height="40"><span>{{placeName .Place}} place: <a href="/builds/{{.BuildID}}">{{.BuildTitle}}</a></span></li>
-{{end}}
-</ul>
+<h2 class="title">Results</h2>
+{{if not .Data.Trophies}}<p class="quiet">No votes were cast, so there are no placings.</p>{{else}}{{template "podium" .Data.Trophies}}{{end}}
 </section>
 {{end}}
 
 {{if .Data.CanEnter}}
 <section class="nes-container with-title">
-<h2 class="title">enter</h2>
+<h2 class="title">Enter</h2>
 <form method="post" action="/competitions/{{.Data.Competition.Slug}}/enter">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="nes-field"><label for="build">Pick one of your builds</label>
 <div class="nes-select"><select id="build" name="build">
 {{range .Data.MyBuilds}}<option value="{{.ID}}">{{.Title}} ({{.Kit}})</option>{{end}}
 </select></div></div>
+<div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="confirm" required><span>This build meets the brief above.</span></label></div>
 <button class="nes-btn is-primary" type="submit">Enter</button>
 </form>
 </section>
@@ -35,7 +34,7 @@
 {{if .Data.HasVoted}}<p class="prompt">Your vote is in.</p>{{end}}
 
 <section class="nes-container with-title">
-<h2 class="title">entries</h2>
+<h2 class="title">Entries</h2>
 {{if not .Data.Entries}}<p class="quiet">No entries yet.</p>{{end}}
 {{if .Data.CanVote}}<form class="wide" method="post" action="/competitions/{{.Data.Competition.Slug}}/vote"><input type="hidden" name="csrf" value="{{.CSRF}}">{{end}}
 <ul class="cards">
@@ -43,6 +42,7 @@
 <li class="card">
 {{if $.Data.CanVote}}{{if ne .Build.UserID $.User.ID}}<label class="votebox choice"><input class="nes-radio" type="radio" name="entry" value="{{.ID}}"><span>vote for this one</span></label>{{else}}<span class="votebox meta">your entry</span>{{end}}{{end}}
 {{if $.Data.ShowVotes}}<span class="votebox meta">{{.Votes}} vote{{if ne .Votes 1}}s{{end}}</span>{{end}}
+{{if $.Data.CanModerate}}<form class="votebox" method="post" action="/admin/competitions/{{$.Data.Competition.Slug}}/entries/{{.ID}}/remove"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish danger" type="submit">Remove entry</button></form>{{end}}
 {{template "build_card_body" (card .Build true)}}
 </li>
 {{end}}

@@ -7,6 +7,8 @@ import (
 	"net/mail"
 	"strings"
 	"time"
+
+	"github.com/Joe-Speed/sprue/platform/store"
 )
 
 const magicLinkMinGap = 30 * time.Second
@@ -113,12 +115,23 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
+// settingsData is the member plus which trophy flairs they have unlocked.
+type settingsData struct {
+	store.User
+	Won [4]bool
+}
+
 func (s *Server) handleSettingsPage(w http.ResponseWriter, r *http.Request) {
 	user, ok := s.requireUser(w, r)
 	if !ok {
 		return
 	}
-	s.render(w, r, "settings", "Settings", user)
+	won, err := s.wonPlaces(user.ID)
+	if err != nil {
+		s.renderError(w, r, http.StatusInternalServerError, "Could not load your settings.")
+		return
+	}
+	s.render(w, r, "settings", "Settings", settingsData{User: user, Won: won})
 }
 
 func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
@@ -131,11 +144,23 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		flashRedirect(w, r, "/settings", "", "Pick a name under 100 characters.")
 		return
 	}
-	if err := s.store.RenameUser(user.ID, name); err != nil {
+	flair := r.FormValue("flair")
+	if flair != "" && !validFlair(flair) {
+		flashRedirect(w, r, "/settings", "", "Pick one of the pictures shown.")
+		return
+	}
+	if place := trophyPlace(flair); place != 0 {
+		won, err := s.wonPlaces(user.ID)
+		if err != nil || !won[place] {
+			flashRedirect(w, r, "/settings", "", "That flair is for members who have placed there.")
+			return
+		}
+	}
+	if err := s.store.RenameUser(user.ID, name, flair); err != nil {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not save your settings.")
 		return
 	}
-	if nudge := r.FormValue("nudge"); nudge != user.Nudge {
+	if nudge := r.FormValue("nudge"); nudge != "" && nudge != user.Nudge {
 		if err := s.store.SetNudge(user.ID, nudge); err != nil {
 			flashRedirect(w, r, "/settings", "", "Pick off, weekly, or monthly for reminders.")
 			return

@@ -14,6 +14,81 @@ import (
 
 const voteMinGap = 5 * time.Second
 
+// theme is a fixed brief for a sprue competition. Members run their own
+// competitions freely; these are the site's own. Each starts on the first
+// day of its kind every month, runs three weeks of entries and one of voting,
+// and every entrant confirms their build meets the brief.
+type theme struct {
+	Key      string
+	Title    string
+	Brief    string
+	Category string
+	Weekday  time.Weekday
+}
+
+var themes = []theme{
+	{"big-bomber", "Big Bomber", "A Second World War heavy bomber: four engines, any air force, any scale. Lancaster, Halifax, B-17, B-24, Stirling, He 177 and their kind.", "heavy bomber", time.Saturday},
+	{"moderate-mitchell", "Moderate Mitchell", "A Second World War medium or light bomber: twin engines, any air force, any scale. Mitchell, Mosquito, Ju 88, Blenheim, A-20, Wellington and their kind.", "medium bomber", time.Monday},
+	{"fighting-friday", "Fighting Friday", "A Second World War fighter: single seat, any air force, any scale. Spitfire, Hurricane, Bf 109, P-51, Zero, Yak and their kind.", "fighter", time.Friday},
+	{"tanktastic", "Tanktastic", "A Second World War tank or self-propelled gun, any army, any scale. Sherman, Tiger, T-34, Churchill, Panther, Cromwell and their kind.", "tank", time.Tuesday},
+}
+
+const (
+	themeEntryDays  = 21
+	themeVotingDays = 7
+)
+
+// dueThemes lists the briefs whose competition starts today: the first
+// occurrence of their weekday in the month.
+func dueThemes(today time.Time) []theme {
+	var due []theme
+	if today.Day() > 7 {
+		return due
+	}
+	for _, t := range themes {
+		if t.Weekday == today.Weekday() {
+			due = append(due, t)
+		}
+	}
+	return due
+}
+
+// startScheduledCompetitions opens today's sprue competitions if they have
+// not been started this month. Without an admin account nothing starts.
+func (s *Server) startScheduledCompetitions(today time.Time) {
+	today = today.UTC()
+	due := dueThemes(today)
+	if len(due) == 0 {
+		return
+	}
+	admin, err := s.store.AdminUser()
+	if err != nil {
+		return
+	}
+	for _, t := range due {
+		started, err := s.store.ThemeStartedInMonth(t.Key, today.Format("2006-01"))
+		if err != nil || started {
+			continue
+		}
+		comp := store.Competition{
+			Title:        t.Title + ", " + today.Format("January 2006"),
+			Description:  t.Brief,
+			CreatorID:    admin.ID,
+			EntriesClose: today.AddDate(0, 0, themeEntryDays).Format("2006-01-02"),
+			VotingCloses: today.AddDate(0, 0, themeEntryDays+themeVotingDays).Format("2006-01-02"),
+			Official:     true,
+			Theme:        t.Key,
+			Category:     t.Category,
+		}
+		if _, err := s.store.CreateCompetition(comp, today); err != nil {
+			log.Printf("web: scheduled %s: %v", t.Key, err)
+		}
+	}
+}
+
+// trophyFiles maps a placing to the STL file in the data directory.
+var trophyFiles = [...]string{1: "first-place.stl", 2: "second-place.stl", 3: "third-place.stl"}
+
 // advanceCompetitions moves competitions along by date before they are shown
 // or acted on. A failure is logged and the stored state is shown as is.
 func (s *Server) advanceCompetitions() {
@@ -24,29 +99,66 @@ func (s *Server) advanceCompetitions() {
 
 type competitionsData struct {
 	Competitions []store.Competition
+	Categories   []string
+	Category     string // the filter in force, empty for all
 }
 
 func (s *Server) handleCompetitions(w http.ResponseWriter, r *http.Request) {
 	s.advanceCompetitions()
-	list, err := s.store.Competitions()
+	category := r.URL.Query().Get("category")
+	list, err := s.store.Competitions(category)
 	if err != nil {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not load competitions.")
 		return
 	}
-	s.render(w, r, "competitions", "Competitions", competitionsData{Competitions: list})
+	data := competitionsData{Competitions: list, Categories: store.Categories}
+	for _, known := range store.Categories {
+		if category == known {
+			data.Category = category
+		}
+	}
+	s.render(w, r, "competitions", "Competitions", data)
+}
+
+// pastCompetition is a decided competition with its podium.
+type pastCompetition struct {
+	Competition store.Competition
+	Trophies    []store.Trophy
+}
+
+const pastPageSize = 24
+
+func (s *Server) handlePastCompetitions(w http.ResponseWriter, r *http.Request) {
+	s.advanceCompetitions()
+	decided, err := s.store.DecidedCompetitions(pastPageSize)
+	if err != nil {
+		s.renderError(w, r, http.StatusInternalServerError, "Could not load past competitions.")
+		return
+	}
+	past := make([]pastCompetition, 0, len(decided))
+	for _, comp := range decided {
+		trophies, err := s.store.TrophiesForCompetition(comp.ID)
+		if err != nil {
+			s.renderError(w, r, http.StatusInternalServerError, "Could not load past competitions.")
+			return
+		}
+		past = append(past, pastCompetition{Competition: comp, Trophies: trophies})
+	}
+	s.render(w, r, "past", "Past winners", past)
 }
 
 type competitionFormData struct {
 	Competition store.Competition
 	Tomorrow    string // earliest day entries may close
+	Categories  []string
 }
 
 func (s *Server) handleCompetitionForm(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.requireUser(w, r); !ok {
 		return
 	}
-	tomorrow := time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02")
-	s.render(w, r, "competition_form", "Start a competition", competitionFormData{Tomorrow: tomorrow})
+	data := competitionFormData{Tomorrow: time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02"), Categories: store.Categories}
+	s.render(w, r, "competition_form", "Start a competition", data)
 }
 
 func (s *Server) handleCompetitionCreate(w http.ResponseWriter, r *http.Request) {
@@ -60,6 +172,7 @@ func (s *Server) handleCompetitionCreate(w http.ResponseWriter, r *http.Request)
 		CreatorID:    user.ID,
 		EntriesClose: r.FormValue("entries_close"),
 		VotingCloses: r.FormValue("voting_closes"),
+		Category:     r.FormValue("category"),
 	}
 	created, err := s.store.CreateCompetition(comp, time.Now())
 	switch {
@@ -72,7 +185,7 @@ func (s *Server) handleCompetitionCreate(w http.ResponseWriter, r *http.Request)
 		flashRedirect(w, r, "/competitions/new", "", fmt.Sprintf("You can have %d competitions running at once.", store.MaxOpenPerCreator))
 		return
 	case err != nil:
-		flashRedirect(w, r, "/competitions/new", "", "A competition needs a title and both dates.")
+		flashRedirect(w, r, "/competitions/new", "", "A competition needs a title, a category, and both dates.")
 		return
 	}
 	flashRedirect(w, r, "/competitions/"+created.Slug, "Competition created. Entries are open.", "")
@@ -87,6 +200,7 @@ type competitionData struct {
 	CanVote     bool
 	HasVoted    bool
 	ShowVotes   bool
+	CanModerate bool // admin, while the competition is still running
 }
 
 func (s *Server) handleCompetition(w http.ResponseWriter, r *http.Request) {
@@ -112,6 +226,7 @@ func (s *Server) handleCompetition(w http.ResponseWriter, r *http.Request) {
 	}
 	if user, _, err := s.sessionUser(r); err == nil {
 		s.fillViewerState(&data, user)
+		data.CanModerate = user.IsAdmin && comp.Status != "decided"
 	}
 	description := comp.Description
 	if description == "" {
@@ -132,10 +247,15 @@ func (s *Server) fillViewerState(data *competitionData, user store.User) {
 	case "open":
 		if !entered {
 			builds, err := s.store.BuildsForUser(user.ID)
-			if err == nil && len(builds) > 0 {
-				data.MyBuilds = builds
-				data.CanEnter = true
+			if err != nil {
+				return
 			}
+			for _, build := range builds {
+				if !build.Private && !build.Hidden {
+					data.MyBuilds = append(data.MyBuilds, build)
+				}
+			}
+			data.CanEnter = len(data.MyBuilds) > 0
 		}
 	case "voting":
 		voted, err := s.store.HasVoted(data.Competition.ID, user.ID)
@@ -160,6 +280,10 @@ func (s *Server) handleEnter(w http.ResponseWriter, r *http.Request) {
 	page := "/competitions/" + comp.Slug
 	if comp.Status != "open" {
 		flashRedirect(w, r, page, "", "Entries are closed.")
+		return
+	}
+	if r.FormValue("confirm") != "on" {
+		flashRedirect(w, r, page, "", "Tick the box to confirm your build meets the brief.")
 		return
 	}
 	buildID := parseID(r.FormValue("build"))
@@ -208,8 +332,10 @@ func (s *Server) handleTrophyDownload(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusNotFound, "That trophy is not yours to download.")
 		return
 	}
-	stlNames := map[int]string{1: "first-place.stl", 2: "second-place.stl", 3: "third-place.stl"}
-	stlName := stlNames[trophy.Place]
+	stlName := ""
+	if trophy.Place >= 1 && trophy.Place < len(trophyFiles) {
+		stlName = trophyFiles[trophy.Place]
+	}
 	if stlName == "" {
 		s.renderError(w, r, http.StatusInternalServerError, "Bad trophy record.")
 		return
@@ -242,7 +368,7 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.advanceCompetitions()
-	comps, err := s.store.Competitions()
+	comps, err := s.store.Competitions("")
 	if err != nil {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not load competitions.")
 		return
@@ -285,6 +411,28 @@ func (s *Server) handleAdminDecide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	flashRedirect(w, r, "/admin", "Decided.", "")
+}
+
+// handleAdminRemoveEntry takes an entry out of a running competition when it
+// does not meet the brief.
+func (s *Server) handleAdminRemoveEntry(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.requireAdmin(w, r); !ok {
+		return
+	}
+	comp, err := s.store.CompetitionBySlug(r.PathValue("slug"))
+	if err != nil {
+		s.renderError(w, r, http.StatusNotFound, "No such competition.")
+		return
+	}
+	page := "/competitions/" + comp.Slug
+	switch err := s.store.RemoveEntry(comp.ID, parseID(r.PathValue("id"))); {
+	case errors.Is(err, store.ErrInUse):
+		flashRedirect(w, r, page, "", "The competition has been decided, so entries cannot be removed.")
+	case err != nil:
+		flashRedirect(w, r, page, "", "No such entry.")
+	default:
+		flashRedirect(w, r, page, "Entry removed.", "")
+	}
 }
 
 func (s *Server) handleAdminRearm(w http.ResponseWriter, r *http.Request) {

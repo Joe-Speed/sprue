@@ -1,24 +1,24 @@
 {{define "content"}}
-<h1>my stash</h1>
-<p class="meta">Kits you own and have not built. Private to you.</p>
+<h1>My stash</h1>
+<p class="meta">Kits you own and have not built yet. Only you can see this page.</p>
 {{with .Data.Summary}}
 <section class="nes-container with-title">
-<h2 class="title">model debt</h2>
+<h2 class="title">Model debt</h2>
 {{if eq .Waiting 0}}
 <p>Nothing waiting. Every kit you own is built.</p>
 {{else}}
-<p class="debt"><strong>{{.Waiting}} kit{{if ne .Waiting 1}}s{{end}}</strong> waiting, about <strong>{{$.Config.Currency}}{{money .DebtPence}}</strong> sitting on the shelf.{{if .Oldest}} The oldest, {{.Oldest}}, has waited {{.OldestDays}} days.{{end}}</p>
-{{if .Next}}<p class="prompt">Next up: <a href="/stash/{{.Next.ID}}">{{.Next.Title}}</a>.{{if eq .Next.Status "building"}} On the bench.{{end}}</p>
-{{else}}<p class="prompt">No kit is marked next. Picking one is what gets a box open.</p>{{end}}
+<p class="debt"><strong>{{.Waiting}} kit{{if ne .Waiting 1}}s{{end}}</strong> waiting, about <strong>{{$.Site.Currency}}{{money .DebtPence}}</strong> in total.{{if .Oldest}} The oldest, {{.Oldest}}, has waited {{.OldestDays}} days.{{end}}</p>
+{{if .Next}}<p class="prompt">Next up: <a href="/stash/{{.Next.ID}}">{{.Next.Title}}</a>.{{if eq .Next.Status "building"}} Being built.{{end}}</p>
+{{else}}<p class="prompt">No kit is marked as next. Pick one to start with.</p>{{end}}
 {{end}}
 </section>
 {{end}}
 <section class="nes-container with-title">
-<h2 class="title">goal</h2>
+<h2 class="title">Goal</h2>
 {{if .User.GoalCount}}
 <p>Finish <strong>{{.User.GoalCount}}</strong> by {{niceDate .User.GoalBy}}. <strong>{{.Data.Summary.GoalDone}} done</strong>,
 {{if lt .Data.Summary.GoalDaysLeft 0}}{{printf "%d" (neg .Data.Summary.GoalDaysLeft)}} days past the date.{{else}}{{.Data.Summary.GoalDaysLeft}} days left.{{end}}</p>
-<form method="post" action="/goal"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="count" value="0"><button class="nes-btn" type="submit">clear goal</button></form>
+<form method="post" action="/goal"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="count" value="0"><button class="nes-btn" type="submit">Clear goal</button></form>
 {{else}}
 <form class="wide inline-fields" method="post" action="/goal">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
@@ -30,7 +30,7 @@
 {{end}}
 </section>
 <section class="nes-container with-title">
-<h2 class="title">add a kit</h2>
+<h2 class="title">Add a kit</h2>
 <form class="wide inline-fields" method="post" action="/stash">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="nes-field"><label for="title">Kit</label><input class="nes-input" id="title" type="text" name="title" required maxlength="200"></div>
@@ -41,13 +41,13 @@
 </form>
 </section>
 <section class="nes-container with-title">
-<h2 class="title">kits</h2>
-{{if not .Data.Items}}<p class="quiet">Nothing here yet. Add the kits on your shelf above.</p>{{end}}
+<h2 class="title">Kits</h2>
+{{if not .Data.Items}}<p class="quiet">Nothing here yet. Add your unbuilt kits above.</p>{{end}}
 <ul class="rows">
 {{range .Data.Items}}
 <li>
 <a href="/stash/{{.ID}}">{{.Title}}</a><span class="tag {{.Status}}">{{.Status}}</span>{{if .Next}}<span class="tag next">next</span>{{end}}
-<span class="meta">{{if .Brand}}{{.Brand}} · {{end}}{{if .Scale}}{{.Scale}} · {{end}}{{if .CostPence}}{{$.Config.Currency}}{{money .CostPence}} · {{end}}{{if eq .Status "built"}}finished {{niceDate .FinishedAt}}{{else}}waiting {{daysSince .AddedAt}} days{{end}}</span>
+<span class="meta">{{if .Brand}}{{.Brand}} · {{end}}{{if .Scale}}{{.Scale}} · {{end}}{{if .CostPence}}{{$.Site.Currency}}{{money .CostPence}} · {{end}}{{if eq .Status "built"}}finished {{niceDate .FinishedAt}}{{else}}waiting {{daysSince .AddedAt}} days{{end}}</span>
 </li>
 {{end}}
 </ul>

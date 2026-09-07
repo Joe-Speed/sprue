@@ -1,0 +1,23 @@
+{{define "content"}}
+<div class="page-head">
+<h1>My builds</h1>
+<div class="actions">
+<a class="nes-btn" href="/u/{{.User.Slug}}">Public profile</a>
+<a class="nes-btn is-primary" href="/builds/new">Add a build</a>
+</div>
+</div>
+<p class="meta">Everything you have added, public and private. Only you can see this page. Your public profile is what other members see.</p>
+<section class="nes-container with-title">
+<h2 class="title">Builds</h2>
+{{if not .Data}}<p class="quiet">Nothing here yet.</p>{{end}}
+<ul class="rows">
+{{range .Data}}
+<li>
+<a href="/builds/{{.ID}}">{{.Title}}</a>{{if .Pinned}}<span class="tag next">pinned</span>{{end}}{{if .Private}}<span class="tag private">private</span>{{end}}{{if .Hidden}}<span class="tag">hidden</span>{{end}}{{template "place_badge" .TrophyPlace}}
+<span class="meta">{{.Kit}}{{if .BuiltOn}} · built {{niceDate .BuiltOn}}{{end}} · {{.Votes}} vote{{if ne .Votes 1}}s{{end}}</span>
+<a class="nes-btn" href="/builds/{{.ID}}/edit">Edit</a>
+</li>
+{{end}}
+</ul>
+</section>
+{{end}}

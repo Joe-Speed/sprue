@@ -12,11 +12,12 @@ Built as a single Go binary with SQLite. No framework, no JavaScript build step,
 ## Features
 
 - **Passwordless sign-in.** Email magic links, single use, fifteen minute expiry. No passwords stored, ever.
-- **Your bench, your page.** Every builder gets a profile at `/u/name` with a trophy case, pinned builds up top, and the rest ordered by build date. A build can be kept private: it sits on your bench for you alone and never reaches the workbench.
+- **Your bench, your page.** Every builder gets a profile at `/u/name` with a trophy case, pinned builds up top, and the rest ordered by build date. A build can be kept private: it sits on your bench for you alone and never reaches the community page.
 - **Members and friends.** Search members by name. Ask someone to be friends from their bench; they accept or decline. Friend lists are private to each member.
-- **Community featured spot.** Members vote for builds they like, one vote per build each and never for their own. The most voted builds of the last 30 days sit at the top of the workbench.
+- **Community featured spot.** Members vote for builds they like, one vote per build each and never for their own. The most voted builds of the last 30 days sit at the top of the community page.
 - **Builds with photos.** Upload up to six at a time, pick the cover, remove the ones you do not want. Uploads are decoded and re-encoded server side, stripped of metadata, and capped at 1600 pixels on the long edge. Nothing a browser sends is stored verbatim.
 - **Your stash and your model debt.** A private list of the kits you own and have not built, what they cost, and how long the oldest has waited. Mark one kit as next, set a goal of kits to finish by a date, keep a short journal per kit, and turn a finished kit into a posted build in one click. Optional weekly or monthly email reminders. No points, streaks, or badges.
+- **Sprue competitions.** The site's own four, all Second World War, each starting itself once a month: Moderate Mitchell on the first Monday, Tanktastic on the first Tuesday, Fighting Friday on the first Friday, Big Bomber on the first Saturday. Entrants confirm their build meets the brief, and the admin can remove an entry that does not.
 - **Competitions, run by members.** Anyone can start one with a brief, an entry close date and a voting close date. Entries open, then voting, then results, all by date. Enter one of your own builds, one entry per builder. One vote per account, no voting for yourself, and vote counts stay hidden until the result is decided.
 - **Deterministic results.** Ties break to the earlier entry, entries with zero votes never place, and the tally is reproducible from the database.
 - **Printable trophies.** First, second, and third get placement badges on their builds and profile, plus a single-use download of their trophy STL. The STL files live only on the server and are released only to their winner. Recommended paints: gold DB0016, silver DB0011, antique bronze DB0171.
@@ -37,16 +38,18 @@ platform/            the whole application, one Go module
   web/
     server.go        routing, sessions, security headers, rate limiting
     auth.go          magic link sign-in and settings
-    builds.go        workbench, profiles, builds, photos, build votes
+    builds.go        community page, profiles, builds, photos, build votes
     competitions.go  competitions, entries, voting, trophies, admin
     stash.go         stash, model debt summary, goals, journal
     friends.go       member search, friend requests
+    profile.go       flair and profile pictures
     housekeeping.go  hourly jobs and outbound email
     moderation.go    reports, hiding, photo screening
     seo.go           robots.txt, sitemap.xml, page metadata, CSP
+    feedback.go      feedback form posting to a Discord webhook
     templates.go     template parsing and helpers
     templates/       one HTML file per page, base.html shell, partials.html fragments
-    static/          stylesheet, fonts, pixel art, vendored NES.css
+    static/          stylesheet, one small script, fonts, pixel art, vendored NES.css
 Dockerfile           two stage build to a small Alpine image
 LAUNCH.md            taking the site live, step by step
 MAINTAINING.md       running, deploying, and operating the site

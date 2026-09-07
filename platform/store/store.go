@@ -51,7 +51,9 @@ create table if not exists users (
 	goal_by text not null default '',
 	goal_set_at text not null default '',
 	nudge text not null default 'off',
-	nudged_at text not null default ''
+	nudged_at text not null default '',
+	flair text not null default '',
+	avatar text not null default ''
 );
 create table if not exists stash (
 	id integer primary key autoincrement,
@@ -127,6 +129,9 @@ create table if not exists competitions (
 	entries_close text not null,
 	voting_closes text not null,
 	status text not null default 'open',
+	official integer not null default 0,
+	theme text not null default '',
+	category text not null default '',
 	created_at text not null
 );
 create table if not exists entries (
@@ -159,6 +164,7 @@ create table if not exists trophies (
 	user_id integer not null references users(id),
 	build_id integer not null references builds(id),
 	downloads_left integer not null default 1,
+	seen integer not null default 0,
 	unique(competition_id, place)
 );
 `
@@ -229,9 +235,11 @@ type User struct {
 	GoalSetAt   string // finished kits from this stamp count toward the goal
 	Nudge       string // off, weekly, monthly
 	NudgedAt    string
+	Flair       string // small picture beside the name, empty for the default
+	Avatar      string // file name of the profile picture, empty for none
 }
 
-const userColumns = `id, email, display_name, slug, is_admin, created_at, goal_count, goal_by, goal_set_at, nudge, nudged_at`
+const userColumns = `id, email, display_name, slug, is_admin, created_at, goal_count, goal_by, goal_set_at, nudge, nudged_at, flair, avatar`
 
 func scanUsers(rows *sql.Rows) ([]User, error) {
 	defer rows.Close()
@@ -240,7 +248,7 @@ func scanUsers(rows *sql.Rows) ([]User, error) {
 		var u User
 		var admin int
 		err := rows.Scan(&u.ID, &u.Email, &u.DisplayName, &u.Slug, &admin, &u.CreatedAt,
-			&u.GoalCount, &u.GoalBy, &u.GoalSetAt, &u.Nudge, &u.NudgedAt)
+			&u.GoalCount, &u.GoalBy, &u.GoalSetAt, &u.Nudge, &u.NudgedAt, &u.Flair, &u.Avatar)
 		if err != nil {
 			return nil, err
 		}
@@ -346,13 +354,20 @@ func (s *Store) userBy(where string, arg any) (User, error) {
 
 func (s *Store) UserBySlug(slug string) (User, error) { return s.userBy("slug = ?", slug) }
 
-func (s *Store) RenameUser(id int64, displayName string) error {
+// RenameUser saves the display name and flair. The caller validates the
+// flair against the pictures it can show.
+func (s *Store) RenameUser(id int64, displayName, flair string) error {
 	displayName = clip(displayName, maxShortField)
 	if displayName == "" {
 		return errors.New("store: empty display name")
 	}
-	_, err := s.db.Exec(`update users set display_name = ? where id = ?`, displayName, id)
+	_, err := s.db.Exec(`update users set display_name = ?, flair = ? where id = ?`, displayName, clip(flair, maxShortField), id)
 	return err
+}
+
+// SetAvatar records the profile picture's file name, or clears it with "".
+func (s *Store) SetAvatar(id int64, fileName string) error {
+	return s.updateOwned(`update users set avatar = ? where id = ?`, clip(fileName, maxShortField), id)
 }
 
 func (s *Store) CreateSession(tokenHash string, userID int64) error {
@@ -407,6 +422,8 @@ type Build struct {
 	// Filled by list queries for display.
 	OwnerName   string
 	OwnerSlug   string
+	OwnerFlair  string
+	OwnerAvatar string
 	CoverPhoto  string
 	TrophyPlace int // 0 = none, else 1..3 best placing this build has won
 	Votes       int // community votes toward the featured spot
@@ -468,7 +485,7 @@ func boolInt(b bool) int {
 
 const buildColumns = `
 	b.id, b.user_id, b.title, b.kit, b.brand, b.scale, b.description, b.built_on, b.pinned, b.private, b.hidden, b.created_at,
-	u.display_name, u.slug,
+	u.display_name, u.slug, u.flair, u.avatar,
 	coalesce((select p.file_name from photos p where p.build_id = b.id order by p.position limit 1), ''),
 	coalesce((select min(t.place) from trophies t where t.build_id = b.id), 0),
 	(select count(*) from build_votes v where v.build_id = b.id)
@@ -481,7 +498,7 @@ func (s *Store) scanBuilds(rows *sql.Rows) ([]Build, error) {
 		var b Build
 		var pinned, private, hidden int
 		err := rows.Scan(&b.ID, &b.UserID, &b.Title, &b.Kit, &b.Brand, &b.Scale, &b.Description,
-			&b.BuiltOn, &pinned, &private, &hidden, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.CoverPhoto, &b.TrophyPlace, &b.Votes)
+			&b.BuiltOn, &pinned, &private, &hidden, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.OwnerFlair, &b.OwnerAvatar, &b.CoverPhoto, &b.TrophyPlace, &b.Votes)
 		if err != nil {
 			return nil, err
 		}
@@ -778,11 +795,26 @@ type Competition struct {
 	EntriesClose string // last day entries are accepted, YYYY-MM-DD
 	VotingCloses string // last day votes are accepted, YYYY-MM-DD
 	Status       string // open, voting, decided
+	Official     bool   // a sprue competition with a fixed brief
+	Theme        string // which sprue brief, empty for a community competition
+	Category     string // one of Categories, the subject members filter by
 	CreatedAt    string
 }
 
+// Categories are the subjects a competition can be filed under.
+var Categories = []string{"fighter", "heavy bomber", "medium bomber", "tank", "other"}
+
+func validCategory(category string) bool {
+	for _, known := range Categories {
+		if category == known {
+			return true
+		}
+	}
+	return false
+}
+
 const competitionColumns = `c.id, c.slug, c.title, c.description, c.creator_id, u.display_name, u.slug,
-	c.entries_close, c.voting_closes, c.status, c.created_at
+	c.entries_close, c.voting_closes, c.status, c.official, c.theme, c.category, c.created_at
 	from competitions c join users u on u.id = c.creator_id`
 
 const dayLayout = "2006-01-02"
@@ -795,6 +827,9 @@ func (s *Store) CreateCompetition(c Competition, today time.Time) (Competition, 
 	c.Description = clip(c.Description, maxTextField)
 	if c.Title == "" || c.CreatorID <= 0 {
 		return Competition{}, errors.New("store: competition needs a title and a creator")
+	}
+	if !validCategory(c.Category) {
+		return Competition{}, errors.New("store: competition needs a category")
 	}
 	if err := checkCompetitionDates(c.EntriesClose, c.VotingCloses, today); err != nil {
 		return Competition{}, err
@@ -817,9 +852,9 @@ func (s *Store) CreateCompetition(c Competition, today time.Time) (Competition, 
 	if err != nil {
 		return Competition{}, err
 	}
-	_, err = s.db.Exec(`insert into competitions (slug, title, description, creator_id, entries_close, voting_closes, status, created_at)
-		values (?, ?, ?, ?, ?, ?, 'open', ?)`,
-		slug, c.Title, c.Description, c.CreatorID, c.EntriesClose, c.VotingCloses, now())
+	_, err = s.db.Exec(`insert into competitions (slug, title, description, creator_id, entries_close, voting_closes, status, official, theme, category, created_at)
+		values (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)`,
+		slug, c.Title, c.Description, c.CreatorID, c.EntriesClose, c.VotingCloses, boolInt(c.Official), clip(c.Theme, maxShortField), c.Category, now())
 	if err != nil {
 		return Competition{}, err
 	}
@@ -862,8 +897,13 @@ func (s *Store) CompetitionBySlug(slug string) (Competition, error) {
 	return list[0], nil
 }
 
-func (s *Store) Competitions() ([]Competition, error) {
-	rows, err := s.db.Query(`select `+competitionColumns+` order by c.id desc limit ?`, MaxCompetitions)
+// Competitions lists newest first, all of them or one category.
+func (s *Store) Competitions(category string) ([]Competition, error) {
+	if !validCategory(category) {
+		category = ""
+	}
+	rows, err := s.db.Query(`select `+competitionColumns+` where c.category = ? or ? = '' order by c.id desc limit ?`,
+		category, category, MaxCompetitions)
 	if err != nil {
 		return nil, err
 	}
@@ -875,14 +915,40 @@ func scanCompetitions(rows *sql.Rows) ([]Competition, error) {
 	var list []Competition
 	for rows.Next() {
 		var c Competition
+		var official int
 		err := rows.Scan(&c.ID, &c.Slug, &c.Title, &c.Description, &c.CreatorID, &c.CreatorName, &c.CreatorSlug,
-			&c.EntriesClose, &c.VotingCloses, &c.Status, &c.CreatedAt)
+			&c.EntriesClose, &c.VotingCloses, &c.Status, &official, &c.Theme, &c.Category, &c.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
+		c.Official = official != 0
 		list = append(list, c)
 	}
 	return list, rows.Err()
+}
+
+// ThemeStartedInMonth reports whether a sprue competition with this theme was
+// already created in the month, given as YYYY-MM.
+func (s *Store) ThemeStartedInMonth(theme, month string) (bool, error) {
+	var count int
+	err := s.db.QueryRow(`select count(*) from competitions where theme = ? and created_at like ?`, theme, month+"%").Scan(&count)
+	return count > 0, err
+}
+
+// AdminUser returns the first admin account, which owns scheduled competitions.
+func (s *Store) AdminUser() (User, error) {
+	rows, err := s.db.Query(`select ` + userColumns + ` from users where is_admin = 1 order by id limit 1`)
+	if err != nil {
+		return User{}, err
+	}
+	users, err := scanUsers(rows)
+	if err != nil {
+		return User{}, err
+	}
+	if len(users) == 0 {
+		return User{}, ErrNotFound
+	}
+	return users[0], nil
 }
 
 // Advance moves competitions along by date: open ones whose entry day has
@@ -956,6 +1022,38 @@ func (s *Store) EnterCompetition(competitionID, buildID, userID int64) error {
 	return err
 }
 
+// RemoveEntry takes an entry and its votes out of a competition that has not
+// been decided, for entries that miss the brief.
+func (s *Store) RemoveEntry(competitionID, entryID int64) error {
+	var status string
+	err := s.db.QueryRow(`select status from competitions where id = ?`, competitionID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if status == "decided" {
+		return ErrInUse
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`delete from votes where competition_id = ? and entry_id = ?`, competitionID, entryID); err != nil {
+		return err
+	}
+	result, err := tx.Exec(`delete from entries where id = ? and competition_id = ?`, entryID, competitionID)
+	if err != nil {
+		return err
+	}
+	if changed, err := result.RowsAffected(); err != nil || changed == 0 {
+		return ErrNotFound
+	}
+	return tx.Commit()
+}
+
 // EntriesWithVotes lists a competition's entries in entry order with counts.
 func (s *Store) EntriesWithVotes(competitionID int64) ([]Entry, error) {
 	rows, err := s.db.Query(`select e.id, `+buildColumns+`,
@@ -972,7 +1070,7 @@ func (s *Store) EntriesWithVotes(competitionID int64) ([]Entry, error) {
 		var pinned, private, hidden int
 		b := &entry.Build
 		err := rows.Scan(&entry.ID, &b.ID, &b.UserID, &b.Title, &b.Kit, &b.Brand, &b.Scale, &b.Description,
-			&b.BuiltOn, &pinned, &private, &hidden, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.CoverPhoto, &b.TrophyPlace, &b.Votes, &entry.Votes)
+			&b.BuiltOn, &pinned, &private, &hidden, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.OwnerFlair, &b.OwnerAvatar, &b.CoverPhoto, &b.TrophyPlace, &b.Votes, &entry.Votes)
 		if err != nil {
 			return nil, err
 		}
@@ -1077,13 +1175,20 @@ type Trophy struct {
 	CompetitionTitle string
 	Place            int
 	UserID           int64
+	OwnerName        string
+	OwnerSlug        string
+	OwnerFlair       string
 	BuildID          int64
 	BuildTitle       string
+	CoverPhoto       string
 	DownloadsLeft    int
 }
 
-const trophyColumns = `t.id, t.competition_id, c.slug, c.title, t.place, t.user_id, t.build_id, b.title, t.downloads_left
-	from trophies t join competitions c on c.id = t.competition_id join builds b on b.id = t.build_id`
+const trophyColumns = `t.id, t.competition_id, c.slug, c.title, t.place, t.user_id, u.display_name, u.slug, u.flair,
+	t.build_id, b.title,
+	coalesce((select p.file_name from photos p where p.build_id = b.id order by p.position limit 1), ''),
+	t.downloads_left
+	from trophies t join competitions c on c.id = t.competition_id join builds b on b.id = t.build_id join users u on u.id = t.user_id`
 
 func (s *Store) scanTrophies(rows *sql.Rows) ([]Trophy, error) {
 	defer rows.Close()
@@ -1091,13 +1196,43 @@ func (s *Store) scanTrophies(rows *sql.Rows) ([]Trophy, error) {
 	for rows.Next() {
 		var t Trophy
 		err := rows.Scan(&t.ID, &t.CompetitionID, &t.CompetitionSlug, &t.CompetitionTitle,
-			&t.Place, &t.UserID, &t.BuildID, &t.BuildTitle, &t.DownloadsLeft)
+			&t.Place, &t.UserID, &t.OwnerName, &t.OwnerSlug, &t.OwnerFlair, &t.BuildID, &t.BuildTitle, &t.CoverPhoto, &t.DownloadsLeft)
 		if err != nil {
 			return nil, err
 		}
 		list = append(list, t)
 	}
 	return list, rows.Err()
+}
+
+// UnseenTrophy returns one trophy the member has not been told about yet and
+// marks it seen, so the site congratulates them once.
+func (s *Store) UnseenTrophy(userID int64) (Trophy, error) {
+	rows, err := s.db.Query(`select `+trophyColumns+` where t.user_id = ? and t.seen = 0 order by t.id limit 1`, userID)
+	if err != nil {
+		return Trophy{}, err
+	}
+	list, err := s.scanTrophies(rows)
+	if err != nil {
+		return Trophy{}, err
+	}
+	if len(list) == 0 {
+		return Trophy{}, ErrNotFound
+	}
+	_, err = s.db.Exec(`update trophies set seen = 1 where id = ?`, list[0].ID)
+	return list[0], err
+}
+
+// DecidedCompetitions lists finished competitions, newest first.
+func (s *Store) DecidedCompetitions(limit int) ([]Competition, error) {
+	if limit <= 0 || limit > MaxCompetitions {
+		limit = MaxCompetitions
+	}
+	rows, err := s.db.Query(`select `+competitionColumns+` where c.status = 'decided' order by c.voting_closes desc, c.id desc limit ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	return scanCompetitions(rows)
 }
 
 func (s *Store) TrophiesForUser(userID int64) ([]Trophy, error) {

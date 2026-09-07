@@ -1,25 +1,30 @@
 {{define "content"}}
-<div class="page-head">
-<h1>{{.Data.Owner.DisplayName}}</h1>
+<div class="page-head bench-head">
+{{if .Data.Owner.Avatar}}<img class="avatar" src="/avatars/{{.Data.Owner.Avatar}}" alt="" width="72" height="72">{{end}}
+<div class="who">
+<h1>{{.Data.Owner.DisplayName}}<img class="flair" src="{{flairPath .Data.Owner.Flair .Data.Owner.ID}}" alt="" width="24" height="24"></h1>
+<p class="meta">{{.Data.BuildCount}} build{{if ne .Data.BuildCount 1}}s{{end}} · joined {{monthYear .Data.Owner.CreatedAt}}</p>
+</div>
 {{if and .User (not .Data.IsSelf)}}
 <div class="actions">
-{{if eq .Data.Friendship "friends"}}<span class="tag built">friends</span><form method="post" action="/friends/{{.Data.Owner.Slug}}/remove"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn">remove friend</button></form>
-{{else if eq .Data.Friendship "requested"}}<span class="meta">request sent</span><form method="post" action="/friends/{{.Data.Owner.Slug}}/remove"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn">cancel</button></form>
-{{else if eq .Data.Friendship "incoming"}}<form method="post" action="/friends/{{.Data.Owner.Slug}}/accept"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn is-primary">accept friend request</button></form><form method="post" action="/friends/{{.Data.Owner.Slug}}/remove"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn">decline</button></form>
-{{else}}<form method="post" action="/friends/{{.Data.Owner.Slug}}/request"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn is-primary">add friend</button></form>{{end}}
+{{if eq .Data.Friendship "friends"}}<span class="tag built">friends</span><form method="post" action="/friends/{{.Data.Owner.Slug}}/remove"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn">Remove friend</button></form>
+{{else if eq .Data.Friendship "requested"}}<span class="meta">request sent</span><form method="post" action="/friends/{{.Data.Owner.Slug}}/remove"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn">Cancel</button></form>
+{{else if eq .Data.Friendship "incoming"}}<form method="post" action="/friends/{{.Data.Owner.Slug}}/accept"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn is-success">Accept friend request</button></form><form method="post" action="/friends/{{.Data.Owner.Slug}}/remove"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn">Decline</button></form>
+{{else}}<form method="post" action="/friends/{{.Data.Owner.Slug}}/request"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn is-success">Add friend</button></form>{{end}}
 </div>
+{{else if not .User}}
+<span class="meta"><a href="/login">Sign in</a> to add as a friend.</span>
 {{end}}
 </div>
-<p class="meta">{{.Data.BuildCount}} build{{if ne .Data.BuildCount 1}}s{{end}} · on the bench since {{monthYear .Data.Owner.CreatedAt}}</p>
 {{if .Data.Trophies}}
 <section class="nes-container with-title">
-<h2 class="title">trophy case</h2>
+<h2 class="title">Trophy case</h2>
 <ul class="trophies">
 {{range .Data.Trophies}}
 <li>
 <img class="badge" src="{{placeBadge .Place}}" alt="{{placeName .Place}} place" width="40" height="40">
 <span>{{placeName .Place}} place, <a href="/competitions/{{.CompetitionSlug}}">{{.CompetitionTitle}}</a>, with <a href="/builds/{{.BuildID}}">{{.BuildTitle}}</a></span>
-{{if and $.Data.IsSelf (gt .DownloadsLeft 0)}}<a class="nes-btn" href="/trophies/{{.ID}}/download">download trophy STL</a>{{end}}
+{{if and $.Data.IsSelf (gt .DownloadsLeft 0)}}<a class="nes-btn" href="/trophies/{{.ID}}/download">Download trophy STL</a>{{end}}
 </li>
 {{end}}
 </ul>
@@ -27,17 +32,17 @@
 {{end}}
 {{if .Data.Pinned}}
 <section class="nes-container with-title">
-<h2 class="title">pinned</h2>
+<h2 class="title">Pinned</h2>
 <ul class="cards featured">
-{{range .Data.Pinned}}<li class="card">{{template "build_card_body" (card . false)}}{{if $.Data.IsSelf}}<a class="cardlink" href="/builds/{{.ID}}/edit">edit</a>{{end}}</li>{{end}}
+{{range .Data.Pinned}}<li class="card">{{template "build_card_body" (card . false)}}{{if $.Data.IsSelf}}<a class="cardlink" href="/builds/{{.ID}}/edit">Edit</a>{{end}}</li>{{end}}
 </ul>
 </section>
 {{end}}
 <section class="nes-container with-title">
-<h2 class="title">{{if .Data.Pinned}}more builds{{else}}builds{{end}}</h2>
+<h2 class="title">{{if .Data.Pinned}}More builds{{else}}Builds{{end}}</h2>
 {{if not .Data.Builds}}<p class="quiet">{{if .Data.IsSelf}}{{if .Data.Pinned}}Everything you have built is pinned above.{{else}}Nothing here yet. <a href="/builds/new">Add your first build.</a>{{end}}{{else}}Nothing here yet.{{end}}</p>{{end}}
 <ul class="cards">
-{{range .Data.Builds}}<li class="card">{{template "build_card_body" (card . false)}}{{if $.Data.IsSelf}}<a class="cardlink" href="/builds/{{.ID}}/edit">edit</a>{{end}}</li>{{end}}
+{{range .Data.Builds}}<li class="card">{{template "build_card_body" (card . false)}}{{if $.Data.IsSelf}}<a class="cardlink" href="/builds/{{.ID}}/edit">Edit</a>{{end}}</li>{{end}}
 </ul>
 </section>
 {{end}}

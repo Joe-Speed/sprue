@@ -188,7 +188,7 @@ func (s *Server) handleStashAction(w http.ResponseWriter, r *http.Request) {
 	case "finish":
 		var buildID int64
 		if buildID, err = s.store.FinishStashItem(id, user.ID); err == nil {
-			flashRedirect(w, r, fmt.Sprintf("/builds/%d/edit", buildID), "Finished. Add photos below.", "")
+			flashRedirect(w, r, buildEdit(buildID), "Finished. Add photos below.", "")
 			return
 		}
 	case "delete":
@@ -197,7 +197,7 @@ func (s *Server) handleStashAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	default:
-		s.renderError(w, r, http.StatusNotFound, "Nothing at this address.")
+		s.renderError(w, r, http.StatusNotFound, "Page not found.")
 		return
 	}
 	if errors.Is(err, store.ErrNotFound) {
@@ -205,7 +205,7 @@ func (s *Server) handleStashAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		flashRedirect(w, r, itemPath, "", "That did not save.")
+		flashRedirect(w, r, itemPath, "", "Could not save.")
 		return
 	}
 	flashRedirect(w, r, itemPath, "Saved.", "")

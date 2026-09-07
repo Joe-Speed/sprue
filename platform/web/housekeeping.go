@@ -38,6 +38,7 @@ func (s *Server) housekeep() {
 	if err := s.store.Advance(time.Now()); err != nil {
 		log.Printf("web: %v", err)
 	}
+	s.startScheduledCompetitions(time.Now())
 	s.sendNudges()
 }
 
@@ -83,7 +84,7 @@ func (s *Server) nudgeBody(user store.User, summary stashSummary) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Hello %s,\n\n", user.DisplayName)
 	if summary.Waiting > 0 {
-		fmt.Fprintf(&b, "%d kit%s are sitting unbuilt in your stash, about %s%s of shelf.", summary.Waiting, plural(summary.Waiting), s.config.Currency, money(summary.DebtPence))
+		fmt.Fprintf(&b, "%d kit%s in your stash are unbuilt, about %s%s in total.", summary.Waiting, plural(summary.Waiting), s.config.Currency, money(summary.DebtPence))
 		if summary.Oldest != "" {
 			fmt.Fprintf(&b, " The oldest, %s, has waited %d days.", summary.Oldest, summary.OldestDays)
 		}
@@ -91,7 +92,7 @@ func (s *Server) nudgeBody(user store.User, summary stashSummary) string {
 		if summary.Next != nil {
 			fmt.Fprintf(&b, "Next up: %s.\n\n", summary.Next.Title)
 		} else {
-			b.WriteString("No kit is marked next. Picking one is what gets a box open.\n\n")
+			b.WriteString("No kit is marked as next. Pick one to start with.\n\n")
 		}
 	}
 	if user.GoalCount > 0 {

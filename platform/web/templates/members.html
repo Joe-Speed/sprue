@@ -1,11 +1,11 @@
 {{define "content"}}
-<h1>members</h1>
+<h1>Members</h1>
 <form class="wide inline-fields" method="get" action="/members">
 <div class="nes-field"><label for="q">Find a member</label><input class="nes-input" id="q" type="search" name="q" value="{{.Data.Query}}" maxlength="200" autocomplete="off"></div>
 <button class="nes-btn is-primary" type="submit">Search</button>
 </form>
 <section class="nes-container with-title">
-<h2 class="title">{{if .Data.Query}}matching "{{.Data.Query}}"{{else}}newest members{{end}}</h2>
+<h2 class="title">{{if .Data.Query}}Matching "{{.Data.Query}}"{{else}}Newest members{{end}}</h2>
 {{if not .Data.Members}}<p class="quiet">No members found.</p>{{end}}
 <ul class="rows">
 {{range .Data.Members}}{{template "member_row" .}}{{end}}

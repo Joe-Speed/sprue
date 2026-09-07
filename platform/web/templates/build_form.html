@@ -1,6 +1,6 @@
 {{define "content"}}
 {{if not .Data.IsNew}}<p class="back"><a href="/builds/{{.Data.Build.ID}}">&larr; {{.Data.Build.Title}}</a></p>{{end}}
-<h1>{{if .Data.IsNew}}add a build{{else}}edit build{{end}}</h1>
+<h1>{{if .Data.IsNew}}Add a build{{else}}edit build{{end}}</h1>
 <form method="post" action="{{if .Data.IsNew}}/builds/new{{else}}/builds/{{.Data.Build.ID}}/edit{{end}}"{{if .Data.IsNew}} enctype="multipart/form-data"{{end}}>
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="nes-field"><label for="title">Title</label><input class="nes-input" id="title" type="text" name="title" value="{{.Data.Build.Title}}" required maxlength="200"></div>
@@ -9,22 +9,22 @@
 <div class="nes-field"><label for="scale">Scale</label><input class="nes-input" id="scale" type="text" name="scale" value="{{.Data.Build.Scale}}" maxlength="200"></div>
 <div class="nes-field"><label for="built_on">Finished on</label><input class="nes-input" id="built_on" type="date" name="built_on" value="{{.Data.Build.BuiltOn}}"></div>
 <div class="nes-field"><label for="description">Notes</label><textarea class="nes-textarea" id="description" name="description" maxlength="2000" rows="6">{{.Data.Build.Description}}</textarea></div>
-<div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="pinned" {{if .Data.Build.Pinned}}checked{{end}}><span>Pin this build to the top of my bench</span></label></div>
-<div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="private" {{if .Data.Build.Private}}checked{{end}}><span>Keep this private. Only I see it, on my bench.</span></label></div>
+<div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="pinned" {{if .Data.Build.Pinned}}checked{{end}}><span>Pin this build to the top of my profile</span></label></div>
+<div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="private" {{if .Data.Build.Private}}checked{{end}}><span>Keep this private. Only I can see it.</span></label></div>
 {{if .Data.IsNew}}<div class="nes-field"><label for="photos">Photos</label><input id="photos" type="file" name="photos" accept="image/jpeg,image/png,image/gif" multiple>
-<p class="meta">Up to six now, twelve per build. The first is the cover. More can be added after posting.</p></div>{{end}}
+<p class="meta">Up to six now, JPEG or PNG, twelve per build. The first is the cover. More can be added after posting.</p></div>{{end}}
 <button class="nes-btn is-primary" type="submit">Save</button>
 </form>
 {{if not .Data.IsNew}}
 <section class="nes-container with-title">
-<h2 class="title">photos</h2>
+<h2 class="title">Photos</h2>
 {{if .Data.Photos}}
 <ul class="thumbs">
 {{range $index, $name := .Data.Photos}}<li>
 <img src="/photos/{{$.Data.Build.ID}}/{{$name}}" alt="">
 <span class="thumb-actions">
-{{if eq $index 0}}<span class="tag">cover</span>{{else}}<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/cover"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish">make cover</button></form>{{end}}
-<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/delete"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish danger">remove</button></form>
+{{if eq $index 0}}<span class="tag">cover</span>{{else}}<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/cover"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish">Make cover</button></form>{{end}}
+<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/delete"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish danger">Remove</button></form>
 </span>
 </li>{{end}}
 </ul>
@@ -34,12 +34,12 @@
 <form method="post" action="/builds/{{.Data.Build.ID}}/photos" enctype="multipart/form-data">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="nes-field"><label for="photos">Add photos</label><input id="photos" type="file" name="photos" accept="image/jpeg,image/png,image/gif" multiple required>
-<p class="meta">Up to six at a time, 8MB each, twelve per build.</p></div>
+<p class="meta">Up to six at a time, JPEG or PNG, 15MB each, twelve per build.</p></div>
 <button class="nes-btn is-primary" type="submit">Upload</button>
 </form>
 </section>
 <section class="nes-container with-title danger">
-<h2 class="title">delete</h2>
+<h2 class="title">Delete</h2>
 {{if .Data.CanDelete}}
 <form method="post" action="/builds/{{.Data.Build.ID}}/delete">
 <input type="hidden" name="csrf" value="{{.CSRF}}">

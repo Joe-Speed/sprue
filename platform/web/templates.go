@@ -15,8 +15,9 @@ import (
 // pageNames are the templates that render a whole page. Each is parsed with
 // base.html and partials.html so every page shares the same shell and cards.
 var pageNames = []string{
-	"home", "login", "check_email", "settings", "profile", "build", "build_form",
-	"competitions", "competition", "competition_form", "stash", "stash_item", "members", "friends", "admin", "error",
+	"home", "login", "check_email", "settings", "profile", "builds", "build", "build_form",
+	"competitions", "competition", "competition_form", "past", "stash", "stash_item", "members", "friends",
+	"terms", "privacy", "feedback", "admin", "error",
 }
 
 // assetVersion is a short hash of every embedded static file, appended to
@@ -46,17 +47,22 @@ func hashStaticFiles() string {
 
 func parseTemplates() (map[string]*template.Template, error) {
 	helpers := template.FuncMap{
-		"placeBadge": placeBadge,
-		"placeName":  placeName,
-		"static":     staticPath,
-		"markPath":   markPath,
-		"card":       newCardView,
-		"under":      under,
-		"niceDate":   niceDate,
-		"monthYear":  monthYear,
-		"daysSince":  daysSince,
-		"money":      money,
-		"neg":        func(n int) int { return -n },
+		"placeBadge":   placeBadge,
+		"placeName":    placeName,
+		"static":       staticPath,
+		"markPath":     markPath,
+		"flairPath":    flairPath,
+		"flairs":       func() []string { return flairs },
+		"trophyFlairs": func() []string { return trophyFlairs[1:] },
+		"trophyPlace":  trophyPlace,
+		"lower":        strings.ToLower,
+		"card":         newCardView,
+		"under":        under,
+		"niceDate":     niceDate,
+		"monthYear":    monthYear,
+		"daysSince":    daysSince,
+		"money":        money,
+		"neg":          func(n int) int { return -n },
 	}
 	templates := make(map[string]*template.Template, len(pageNames))
 	for _, name := range pageNames {

@@ -34,7 +34,7 @@ func testServer(t *testing.T, analyticsID string) *httptest.Server {
 		t.Fatal(err)
 	}
 	if _, err := st.CreateCompetition(store.Competition{
-		Title: "Summer sprint", CreatorID: user.ID, EntriesClose: "2999-01-10", VotingCloses: "2999-01-20",
+		Title: "Summer sprint", CreatorID: user.ID, EntriesClose: "2999-01-10", VotingCloses: "2999-01-20", Category: "fighter",
 	}, time.Date(2999, 1, 1, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestPageMeta(t *testing.T) {
 	ts := testServer(t, "")
 	_, home := get(t, ts, "/")
 	for _, want := range []string{
-		"<title>sprue · the community workbench</title>",
+		"<title>sprue · The community</title>",
 		`<link rel="canonical" href="https://sprue.test/">`,
 		`<meta property="og:image" content="https://sprue.test/static/apple-touch-icon.png?v=`,
 		`<meta name="google-site-verification" content="verify-me">`,

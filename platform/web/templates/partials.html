@@ -11,7 +11,7 @@
 {{if .Build.CoverPhoto}}<img class="cover" src="/photos/{{.Build.ID}}/{{.Build.CoverPhoto}}" alt="" loading="lazy">{{end}}
 <strong>{{.Build.Title}}{{template "place_badge" .Build.TrophyPlace}}{{if .Build.Private}} <span class="tag private">private</span>{{end}}{{if .Build.Hidden}} <span class="tag">hidden</span>{{end}}</strong>
 <em>{{.Build.Kit}}</em>
-{{if .ShowOwner}}<span class="meta">by {{.Build.OwnerName}}</span>{{else if .Build.BuiltOn}}<span class="meta">built {{niceDate .Build.BuiltOn}}</span>{{end}}
+{{if .ShowOwner}}<span class="meta byline">{{if .Build.OwnerAvatar}}<img class="avatar tiny" src="/avatars/{{.Build.OwnerAvatar}}" alt="" width="20" height="20">{{end}}{{.Build.OwnerName}}<img class="flair" src="{{flairPath .Build.OwnerFlair .Build.UserID}}" alt="" width="16" height="16"></span>{{else if .Build.BuiltOn}}<span class="meta">built {{niceDate .Build.BuiltOn}}</span>{{end}}
 </a>{{end}}
 
 {{/* place_badge shows the pixel trophy for a placing, or nothing for zero. */}}
@@ -21,7 +21,35 @@
 {{define "status_tag"}}<span class="tag {{.}}">{{.}}</span>{{end}}
 
 {{/* member_row is one member in a list: name, public build count, join month. */}}
-{{define "member_row"}}<li><a href="/u/{{.Slug}}">{{.DisplayName}}</a><span class="meta">{{.BuildCount}} build{{if ne .BuildCount 1}}s{{end}} · since {{monthYear .CreatedAt}}</span></li>{{end}}
+{{define "member_row"}}<li>{{template "member_name" .}}<span class="meta">{{.BuildCount}} build{{if ne .BuildCount 1}}s{{end}} · since {{monthYear .CreatedAt}}</span></li>{{end}}
+
+{{/* member_name is a member's picture, flair, and linked name, for lists. */}}
+{{define "member_name"}}<span class="who">{{if .Avatar}}<img class="avatar small" src="/avatars/{{.Avatar}}" alt="" width="32" height="32">{{end}}<a href="/u/{{.Slug}}">{{.DisplayName}}</a><img class="flair" src="{{flairPath .Flair .ID}}" alt="" width="20" height="20"></span>{{end}}
+
+{{/* podium shows a decided competition's placings, first in the middle. */}}
+{{define "podium"}}<ol class="podium">
+{{range .}}<li class="place-{{.Place}}">
+<a href="/builds/{{.BuildID}}">{{if .CoverPhoto}}<img class="cover" src="/photos/{{.BuildID}}/{{.CoverPhoto}}" alt="" loading="lazy">{{end}}
+<img class="badge" src="{{placeBadge .Place}}" alt="{{placeName .Place}} place" width="40" height="40">
+<strong>{{.BuildTitle}}</strong></a>
+<span class="meta byline">{{.OwnerName}}<img class="flair" src="{{flairPath .OwnerFlair .UserID}}" alt="" width="16" height="16"></span>
+</li>{{end}}
+</ol>{{end}}
+
+{{/* contact names the way to reach the admin, whichever is configured. */}}
+{{define "contact"}}{{if .Site.Feedback}}through the <a href="/feedback">feedback</a> page{{else if .Site.SupportEmail}}by email to <a href="mailto:{{.Site.SupportEmail}}">{{.Site.SupportEmail}}</a>{{else if .Site.DiscordURL}}on the <a href="{{.Site.DiscordURL}}">Discord server</a>{{else}}by contacting the admin{{end}}{{end}}
+
+{{/* legend explains the competition tags. Opens on hover or click. */}}
+{{define "legend"}}<details class="legend">
+<summary>Legend</summary>
+<ul class="legend-list">
+<li><span class="tag official">sprue</span>A sprue competition with a fixed brief, started by the site.</li>
+<li><span class="tag category">tank</span>The subject. Filter the list by it to find one to enter.</li>
+<li><span class="tag open">open</span>Taking entries. Member made unless tagged sprue.</li>
+<li><span class="tag voting">voting</span>Entries closed, members are voting.</li>
+<li><span class="tag decided">decided</span>Results are in. Placings won trophies.</li>
+</ul>
+</details>{{end}}
 
 {{/* competition_dates states the date that matters for the current status. */}}
 {{define "competition_dates"}}{{if eq .Status "open"}}entries close {{niceDate .EntriesClose}}, voting closes {{niceDate .VotingCloses}}{{else if eq .Status "voting"}}voting closes {{niceDate .VotingCloses}}{{else}}decided {{niceDate .VotingCloses}}{{end}}{{end}}

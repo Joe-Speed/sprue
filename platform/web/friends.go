@@ -72,7 +72,7 @@ func (s *Server) handleFriendAction(w http.ResponseWriter, r *http.Request) {
 	case "remove":
 		err = s.store.RemoveFriend(user.ID, other.ID)
 	default:
-		s.renderError(w, r, http.StatusNotFound, "Nothing at this address.")
+		s.renderError(w, r, http.StatusNotFound, "Page not found.")
 		return
 	}
 	switch {
@@ -81,7 +81,7 @@ func (s *Server) handleFriendAction(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, store.ErrInUse):
 		flashRedirect(w, r, back, "", "There is already a request between you.")
 	case err != nil:
-		flashRedirect(w, r, back, "", "That did not save.")
+		flashRedirect(w, r, back, "", "Could not save.")
 	default:
 		flashRedirect(w, r, back, "Saved.", "")
 	}

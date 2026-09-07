@@ -6,14 +6,17 @@ import (
 	"bytes"
 	"errors"
 	"image"
+	"image/color"
 	_ "image/gif"
 	"image/jpeg"
 	_ "image/png"
 )
 
+// Limits sized for phone cameras: a 48 megapixel iPhone frame is about
+// 8064 by 6048 pixels and up to 15 megabytes as a JPEG.
 const (
-	MaxUploadBytes  = 8 << 20
-	MaxSourcePixels = 24_000_000
+	MaxUploadBytes  = 15 << 20
+	MaxSourcePixels = 50_000_000
 	MaxEdge         = 1600
 	jpegQuality     = 85
 )
@@ -44,6 +47,70 @@ func Process(data []byte) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
+// ProcessSquare decodes an upload, crops it to a centred square, scales it to
+// size pixels on each side, and returns a fresh JPEG. Used for profile pictures.
+func ProcessSquare(data []byte, size int) ([]byte, error) {
+	if len(data) == 0 || len(data) > MaxUploadBytes || size < 16 || size > MaxEdge {
+		return nil, ErrTooLarge
+	}
+	source, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, ErrBadImage
+	}
+	bounds := source.Bounds()
+	width, height := bounds.Dx(), bounds.Dy()
+	if width <= 0 || height <= 0 || width*height > MaxSourcePixels {
+		return nil, ErrBadImage
+	}
+	side := min(width, height)
+	square := image.Rect(0, 0, side, side).Add(image.Pt(bounds.Min.X+(width-side)/2, bounds.Min.Y+(height-side)/2))
+	scaled := Downscale(crop{source, square}, size)
+	var out bytes.Buffer
+	if err := jpeg.Encode(&out, scaled, &jpeg.Options{Quality: jpegQuality}); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
+}
+
+// pixelReader returns a function giving 8 bit red, green, and blue at a point.
+// JPEGs decode to YCbCr and PNGs to RGBA or NRGBA; reading those directly is
+// several times faster than going through the colour interface, which
+// matters for a 48 megapixel phone photo. Anything else takes the slow path.
+func pixelReader(source image.Image) func(x, y int) (uint8, uint8, uint8) {
+	switch img := source.(type) {
+	case *image.YCbCr:
+		return func(x, y int) (uint8, uint8, uint8) {
+			c := img.YCbCrAt(x, y)
+			return color.YCbCrToRGB(c.Y, c.Cb, c.Cr)
+		}
+	case *image.RGBA:
+		return func(x, y int) (uint8, uint8, uint8) {
+			i := img.PixOffset(x, y)
+			return img.Pix[i], img.Pix[i+1], img.Pix[i+2]
+		}
+	case *image.NRGBA:
+		return func(x, y int) (uint8, uint8, uint8) {
+			i := img.PixOffset(x, y)
+			return img.Pix[i], img.Pix[i+1], img.Pix[i+2]
+		}
+	case crop:
+		inner := pixelReader(img.Image)
+		return inner
+	}
+	return func(x, y int) (uint8, uint8, uint8) {
+		r, g, b, _ := source.At(x, y).RGBA()
+		return uint8(r >> 8), uint8(g >> 8), uint8(b >> 8)
+	}
+}
+
+// crop presents a window of another image without copying pixels.
+type crop struct {
+	image.Image
+	window image.Rectangle
+}
+
+func (c crop) Bounds() image.Rectangle { return c.window }
+
 // Downscale box-filters an image so its longest edge is at most maxEdge.
 // Images already small enough come back untouched.
 func Downscale(source image.Image, maxEdge int) image.Image {
@@ -54,6 +121,7 @@ func Downscale(source image.Image, maxEdge int) image.Image {
 	}
 	scale := (max(width, height) + maxEdge - 1) / maxEdge
 	outWidth, outHeight := max(width/scale, 1), max(height/scale, 1)
+	pixel := pixelReader(source)
 	out := image.NewRGBA(image.Rect(0, 0, outWidth, outHeight))
 	for y := 0; y < outHeight; y++ {
 		for x := 0; x < outWidth; x++ {
@@ -64,10 +132,10 @@ func Downscale(source image.Image, maxEdge int) image.Image {
 					if sourceX >= bounds.Max.X || sourceY >= bounds.Max.Y {
 						continue
 					}
-					r, g, b, _ := source.At(sourceX, sourceY).RGBA()
-					sumRed += uint64(r >> 8)
-					sumGreen += uint64(g >> 8)
-					sumBlue += uint64(b >> 8)
+					r, g, b := pixel(sourceX, sourceY)
+					sumRed += uint64(r)
+					sumGreen += uint64(g)
+					sumBlue += uint64(b)
 					samples++
 				}
 			}

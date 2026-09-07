@@ -10,7 +10,7 @@
 <span class="meta"><a href="/login">Sign in</a> to vote.</span>
 {{end}}
 </div>
-{{if .Data.Build.Hidden}}<p class="flash error">Hidden after a report. Only you{{if .User.IsAdmin}} and the admin{{end}} can see this page.</p>
+{{if .Data.Build.Hidden}}<p class="notice">Hidden after a report. Only you{{if .User.IsAdmin}} and the admin{{end}} can see this page.</p>
 {{else if .Data.Build.Private}}<p class="prompt">Private. Only you can see this build. <a href="/builds/{{.Data.Build.ID}}/edit">Edit</a> to post it.</p>{{end}}
 {{if .Data.Build.Description}}<p>{{.Data.Build.Description}}</p>{{end}}
 {{if .Data.Photos}}
@@ -22,7 +22,7 @@
 {{end}}
 {{if .Data.CanVote}}
 <details class="report">
-<summary>report this build</summary>
+<summary>Report this build</summary>
 <form method="post" action="/builds/{{.Data.Build.ID}}/report">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="nes-field"><label for="reason">What is wrong with it</label><textarea class="nes-textarea" id="reason" name="reason" rows="2" maxlength="500"></textarea></div>

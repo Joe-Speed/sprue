@@ -1,0 +1,9 @@
+{{define "content"}}
+<h1>Feedback</h1>
+<p>Found a bug, want something changed, or have an idea? Say it here and it goes straight to the team's Discord channel. Your name and a link to your profile go with it so we can reply.</p>
+<form method="post" action="/feedback">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<div class="nes-field"><label for="message">Message</label><textarea class="nes-textarea" id="message" name="message" rows="6" maxlength="2000" required></textarea></div>
+<button class="nes-btn is-primary" type="submit">Send</button>
+</form>
+{{end}}

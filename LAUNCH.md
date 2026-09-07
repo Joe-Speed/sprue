@@ -46,7 +46,10 @@ SPRUE_SMTP_PASS=...
 SPRUE_SMTP_FROM=...
 SPRUE_ANALYTICS_ID=G-XXXXXXXX        optional
 SPRUE_SITE_VERIFICATION=...          optional, see step 6
-SPRUE_VISION_KEY=...                  optional, see step 7
+SPRUE_VISION_KEY=...                  optional, see step 8
+SPRUE_DISCORD_URL=...                 optional, see step 7
+SPRUE_DISCORD_WEBHOOK=...             optional, see step 7
+SPRUE_SUPPORT_EMAIL=...               optional
 SPRUE_CURRENCY=£                      optional, default £
 ```
 
@@ -90,29 +93,37 @@ The names must match exactly. TROPHIES.md covers designing them.
 
 ## 6. Google
 
-Analytics: paste the measurement ID into `SPRUE_ANALYTICS_ID` and redeploy. Without the variable the site serves only its own small photo preview script; with it, Google's tag is allowed too and nothing else. Real-time reports in GA4 show your own visit within a minute.
+Analytics: paste the measurement ID into `SPRUE_ANALYTICS_ID` and redeploy. Without the variable the site serves only its own small site script; with it, Google's tag is allowed too and nothing else. Real-time reports in GA4 show your own visit within a minute.
 
 Search Console: add the domain as a property. The DNS method is simplest: Google gives you a TXT record, you add it in Cloudflare, done. The alternative is the HTML tag method: put the content value into `SPRUE_SITE_VERIFICATION` and redeploy. Once verified, open Sitemaps and submit `https://yourdomain/sitemap.xml`. The sitemap is built from the database on every request, so it never needs resubmitting.
 
-## 7. Photo screening
+## 7. Discord and feedback
+
+Create a Discord server for the community and make an invite link that does not expire. Put it in `SPRUE_DISCORD_URL` and it appears in the footer.
+
+For feedback, make a channel for it, open its settings, Integrations, Webhooks, create one, and copy its URL into `SPRUE_DISCORD_WEBHOOK`. Signed-in members then get a feedback page, and each message lands in that channel with their name and a link to their profile. Mentions are switched off in the post so nobody can ping the server through it, and one message a minute per member is the limit. Treat the webhook URL as a secret; anyone holding it can post to the channel.
+
+Set `SPRUE_SUPPORT_EMAIL` to an address you read and a support link joins the footer.
+
+## 8. Photo screening
 
 Members can report any build and you can hide it from the admin page, which is the part that matters for a small site. Automatic screening on top of that is optional and uses Google Cloud Vision's SafeSearch: the first thousand images a month are free, then about a dollar fifty per thousand.
 
 In Google Cloud console, create a project, enable the Cloud Vision API, then under Credentials create an API key and restrict it to the Cloud Vision API only. Put it in `SPRUE_VISION_KEY` and redeploy. Every uploaded photo is then checked before it is saved; anything rated likely adult or violent is refused with a plain message, and if the check cannot be reached the photo is refused rather than let through. Without the key nothing is checked and nothing changes.
 
-## 8. First run
+## 9. First run
 
 Open `https://yourdomain/healthz` and expect `ok`.
 
 Sign in with the address in `SPRUE_ADMIN_EMAIL`. The email should arrive from Brevo within a minute; that account becomes the admin.
 
-Post a build with a photo from the workbench. Then trigger a redeploy in Railway and check the photo and your account are still there. This proves the volume is mounted and used.
+Post a build with a photo from the community page. Then trigger a redeploy in Railway and check the photo and your account are still there. This proves the volume is mounted and used.
 
 Start a competition, enter the build, and check the competition page. Voting opens the day after the entry date and results follow the day after the voting date, both automatically.
 
 Add a kit to your stash, set a goal, and switch reminders to weekly in settings. The first reminder arrives a week later.
 
-## 9. Backups
+## 10. Backups
 
 Railway volumes are durable but not versioned on the free and Hobby plans. Take your own copies. From `railway ssh`:
 
@@ -123,7 +134,7 @@ sqlite3 /data/sprue.db ".backup /data/backup.db"
 
 Then copy `/data/backup.db` and the `/data/photos` folder somewhere else. Doing this monthly by hand is fine at first. The database is one file and photos are plain JPEGs, so restoring means putting them back on the volume.
 
-## 10. Money
+## 11. Money
 
 Railway: free trial credit, then the Hobby plan at five dollars a month. Cloudflare, Brevo, Google Analytics, Search Console, and Vision at under a thousand photos a month: free. A domain is the only other cost if you need to buy one.
 

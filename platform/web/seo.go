@@ -11,7 +11,7 @@ import (
 
 // siteDescription is the default page description and the one search engines
 // see for the front page.
-const siteDescription = "A community workbench for scale modellers. Post your builds, vote for the ones you like, run competitions, and win printable trophies."
+const siteDescription = "A community for scale modellers. Post your builds, vote for the ones you like, run competitions, and win printable trophies."
 
 // meta is what a page hands to the head: a description and, when it has one,
 // an absolute image URL for link previews.
@@ -23,7 +23,7 @@ type meta struct {
 // noIndexPages are pages search engines should not list: forms, account
 // pages, and error pages.
 var noIndexPages = map[string]bool{
-	"login": true, "check_email": true, "settings": true, "build_form": true,
+	"login": true, "check_email": true, "settings": true, "builds": true, "build_form": true, "feedback": true,
 	"competition_form": true, "admin": true, "error": true,
 }
 
@@ -57,6 +57,7 @@ Disallow: /settings
 Disallow: /login
 Disallow: /auth/
 Disallow: /mark/
+Disallow: /builds$
 Disallow: /builds/new
 Disallow: /builds/*/edit
 Disallow: /competitions/new
@@ -91,13 +92,15 @@ func (s *Server) handleSitemap(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	comps, err := s.store.Competitions()
+	comps, err := s.store.Competitions("")
 	if err != nil {
 		http.Error(w, "unavailable", http.StatusServiceUnavailable)
 		return
 	}
 	urls := make([]sitemapURL, 0, 2+len(builds)+len(slugs)+len(comps))
-	urls = append(urls, sitemapURL{Loc: s.absolute("/")}, sitemapURL{Loc: s.absolute("/competitions")})
+	for _, path := range []string{"/", "/competitions", "/competitions/past", "/members", "/terms", "/privacy"} {
+		urls = append(urls, sitemapURL{Loc: s.absolute(path)})
+	}
 	for _, comp := range comps {
 		urls = append(urls, sitemapURL{Loc: s.absolute("/competitions/" + comp.Slug)})
 	}
