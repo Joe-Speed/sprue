@@ -1,9 +1,9 @@
 {{define "content"}}
-<h1>Settings</h1>
+<h1>settings</h1>
 <form method="post" action="/settings">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
-<label>Display name <input type="text" name="display_name" value="{{.Data.DisplayName}}" required maxlength="100"></label>
+<div class="nes-field"><label for="display_name">Display name</label><input class="nes-input" id="display_name" type="text" name="display_name" value="{{.Data.DisplayName}}" required maxlength="100"></div>
 <p class="meta">Your page stays at /u/{{.Data.Slug}}</p>
-<button type="submit">Save</button>
+<button class="nes-btn is-primary" type="submit">Save</button>
 </form>
 {{end}}

@@ -1,24 +1,53 @@
 {{define "content"}}
-<h1>{{if .Data.IsNew}}Add a build{{else}}Edit build{{end}}</h1>
-<form method="post" action="{{if .Data.IsNew}}/builds/new{{else}}/builds/{{.Data.Build.ID}}/edit{{end}}">
+{{if not .Data.IsNew}}<p class="back"><a href="/builds/{{.Data.Build.ID}}">&larr; {{.Data.Build.Title}}</a></p>{{end}}
+<h1>{{if .Data.IsNew}}post a build{{else}}edit build{{end}}</h1>
+<form method="post" action="{{if .Data.IsNew}}/builds/new{{else}}/builds/{{.Data.Build.ID}}/edit{{end}}"{{if .Data.IsNew}} enctype="multipart/form-data"{{end}}>
 <input type="hidden" name="csrf" value="{{.CSRF}}">
-<label>Title <input type="text" name="title" value="{{.Data.Build.Title}}" required maxlength="200"></label>
-<label>Kit <input type="text" name="kit" value="{{.Data.Build.Kit}}" required maxlength="200" placeholder="Airfix 1/72 Spitfire Mk.I"></label>
-<label>Brand <input type="text" name="brand" value="{{.Data.Build.Brand}}" maxlength="200" placeholder="Airfix"></label>
-<label>Scale <input type="text" name="scale" value="{{.Data.Build.Scale}}" maxlength="200" placeholder="1/72"></label>
-<label>Finished on <input type="date" name="built_on" value="{{.Data.Build.BuiltOn}}"></label>
-<label>Notes <textarea name="description" maxlength="2000" rows="6">{{.Data.Build.Description}}</textarea></label>
-<label class="checkbox"><input type="checkbox" name="featured" {{if .Data.Build.Featured}}checked{{end}}> Feature this build at the top of my page</label>
-<button type="submit">Save</button>
+<div class="nes-field"><label for="title">Title</label><input class="nes-input" id="title" type="text" name="title" value="{{.Data.Build.Title}}" required maxlength="200"></div>
+<div class="nes-field"><label for="kit">Kit</label><input class="nes-input" id="kit" type="text" name="kit" value="{{.Data.Build.Kit}}" required maxlength="200"></div>
+<div class="nes-field"><label for="brand">Brand</label><input class="nes-input" id="brand" type="text" name="brand" value="{{.Data.Build.Brand}}" maxlength="200"></div>
+<div class="nes-field"><label for="scale">Scale</label><input class="nes-input" id="scale" type="text" name="scale" value="{{.Data.Build.Scale}}" maxlength="200"></div>
+<div class="nes-field"><label for="built_on">Finished on</label><input class="nes-input" id="built_on" type="date" name="built_on" value="{{.Data.Build.BuiltOn}}"></div>
+<div class="nes-field"><label for="description">Notes</label><textarea class="nes-textarea" id="description" name="description" maxlength="2000" rows="6">{{.Data.Build.Description}}</textarea></div>
+<div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="pinned" {{if .Data.Build.Pinned}}checked{{end}}><span>Pin this build to the top of my bench</span></label></div>
+{{if .Data.IsNew}}<div class="nes-field"><label for="photos">Photos</label><input id="photos" type="file" name="photos" accept="image/jpeg,image/png,image/gif" multiple>
+<p class="meta">Up to six now, twelve per build. The first is the cover. More can be added after posting.</p></div>{{end}}
+<button class="nes-btn is-primary" type="submit">{{if .Data.IsNew}}Post{{else}}Save{{end}}</button>
 </form>
 {{if not .Data.IsNew}}
-<h2>Photos</h2>
-{{range .Data.Photos}}<img class="thumb" src="/photos/{{$.Data.Build.ID}}/{{.}}" alt="build photo">{{end}}
+<section class="nes-container with-title">
+<h2 class="title">photos</h2>
+{{if .Data.Photos}}
+<ul class="thumbs">
+{{range $index, $name := .Data.Photos}}<li>
+<img src="/photos/{{$.Data.Build.ID}}/{{$name}}" alt="">
+<span class="thumb-actions">
+{{if eq $index 0}}<span class="tag">cover</span>{{else}}<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/cover"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish">make cover</button></form>{{end}}
+<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/delete"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish danger">remove</button></form>
+</span>
+</li>{{end}}
+</ul>
+{{else}}
+<p class="quiet">No photos yet. The first one you add becomes the cover.</p>
+{{end}}
 <form method="post" action="/builds/{{.Data.Build.ID}}/photos" enctype="multipart/form-data">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
-<label>Add a photo <input type="file" name="photo" accept="image/jpeg,image/png,image/gif" required></label>
-<button type="submit">Upload</button>
+<div class="nes-field"><label for="photos">Add photos</label><input id="photos" type="file" name="photos" accept="image/jpeg,image/png,image/gif" multiple required>
+<p class="meta">Up to six at a time, 8MB each, twelve per build.</p></div>
+<button class="nes-btn is-primary" type="submit">Upload</button>
 </form>
-<p><a href="/builds/{{.Data.Build.ID}}">View the build page</a></p>
+</section>
+<section class="nes-container with-title danger">
+<h2 class="title">delete</h2>
+{{if .Data.CanDelete}}
+<form method="post" action="/builds/{{.Data.Build.ID}}/delete">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="confirm"><span>Delete this build and its photos. This cannot be undone.</span></label></div>
+<button class="nes-btn is-error" type="submit">Delete build</button>
+</form>
+{{else}}
+<p class="quiet">This build is entered in a competition and cannot be deleted.</p>
+{{end}}
+</section>
 {{end}}
 {{end}}

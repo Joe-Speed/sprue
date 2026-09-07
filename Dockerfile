@@ -6,6 +6,7 @@ COPY platform .
 RUN CGO_ENABLED=0 go build -o /sprue .
 
 FROM alpine:3.22
+RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=build /sprue ./sprue
 ENV SPRUE_DATA=/data

@@ -1,6 +1,6 @@
 # sprue
 
-A multi-user scale modelling platform reflecting Joe's passion for the hobby. Builders sign in with email magic links, share builds with photos, organise their profile (featured first, then by date), and enter mini competitions with an Airfix focus. Winners get placement badges and download their 3D-printable trophy STL, which is never in the repo and never public.
+A multi-user scale modelling platform reflecting Joe's passion for the hobby. Builders sign in with email magic links, post builds with photos from the community workbench, and organise their bench (pinned first, then by date). Members vote for builds they like and the most voted in the last 30 days are featured on the workbench. Any member can start a competition with an entry date and a voting date; status advances by date with no admin step. Winners get placement badges and download their 3D-printable trophy STL, which is never in the repo and never public. No gamification: votes curate, they never score people.
 
 ## Architecture
 
@@ -18,6 +18,14 @@ Before declaring any change done: `gofmt -l .` prints nothing, `go vet ./...` cl
 
 No em dashes anywhere. No tables in docs. Plain prose. Never commit or push; Joe runs git himself.
 
-## Trophies
+## Look
 
-Placement badges live in `assets/trophies/` (source) and `platform/web/static/trophies/` (embedded copies; keep in sync). Paints: gold DB0016 first, silver DB0011 second, antique bronze DB0171 third. Trophy STL files belong only in the data directory at `data/stl/`.
+Retro pixel game look. Sky gradient behind a cream paper panel, dark ink borders, RAF roundel blue and red as the only accents. NES.css core (vendored, MIT, in `platform/web/static/vendor/`) supplies the pixel borders, buttons, and form controls; `style.css` layers the palette, layout, fonts, and the few components NES.css lacks. Fonts are self-hosted latin subsets: Press Start 2P for headings, nav, buttons, tags; Pixelify Sans for body text. No external requests from the browser. Photos are never pixelated, only the UI is. No decorative elements without a function.
+
+## Pixel art
+
+The trophy badges (`platform/web/static/trophies/`) and the airplane marks (`platform/web/static/mark-<colour>.svg`) are hand-maintained SVGs: one path per colour on a pixel grid with `shape-rendering="crispEdges"`. The five mark colours must match `markColours` in `web/templates.go`, in the same order. Paints for the printed trophies: gold DB0016 first, silver DB0011 second, antique bronze DB0171 third. Trophy STL files belong only in the data directory at `data/stl/`, never in the repo.
+
+## Templates
+
+`base.html` is the shell, `partials.html` holds shared fragments (build cards, place badges, status tags), and each page template defines `content`. Static URLs go through the `static` template function so they carry the asset version and can be cached for a year. `templates_test.go` renders every page with realistic data; add new pages to both `pageNames` and that test.

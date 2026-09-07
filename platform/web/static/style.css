@@ -1,243 +1,702 @@
-:root {
-  color-scheme: light dark;
+/*
+ * sprue theme. Loaded after vendor/nes-core.min.css, which supplies the pixel
+ * borders, buttons, and form controls. This file supplies the palette, the two
+ * self-hosted fonts, the page layout, and the components NES.css lacks.
+ *
+ * Palette: sky blue, cream paper, dark ink, RAF roundel blue and red.
+ */
+
+@font-face {
+  font-family: "Press Start 2P";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/press-start-2p.woff2") format("woff2");
 }
 
-* {
-  box-sizing: border-box;
+@font-face {
+  font-family: "Pixelify Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("fonts/pixelify-sans.woff2") format("woff2");
+}
+
+:root {
+  --sky-top: #4f9fe0;
+  --sky-bottom: #bfe1f5;
+  --paper: #f7f1e1;
+  --paper-deep: #ece3cb;
+  --ink: #1e2a3a;
+  --ink-soft: #5c6b7c;
+  --blue: #1f3f8a;
+  --blue-deep: #12264f;
+  --red: #c8312b;
+  --red-deep: #8a1f1a;
+  --green: #4a8a3a;
+  --amber: #d9a520;
+  --shadow: rgba(30, 42, 58, 0.35);
+  --display: "Press Start 2P", "Courier New", monospace;
+  --body: "Pixelify Sans", "Trebuchet MS", sans-serif;
+  --width: 1040px;
+}
+
+/* Pixel cursors from NES.css, served as files. The arrow everywhere, the
+   hand on anything clickable, the text cursor where you type. */
+html {
+  cursor: url("cursor-arrow.png"), auto;
+}
+
+a,
+button,
+.nes-btn,
+.nes-select select,
+.nes-radio + span,
+.nes-checkbox + span,
+label.choice,
+input[type="file"] {
+  cursor: url("cursor-hand.png") 14 0, pointer;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="date"],
+textarea {
+  cursor: text;
+}
+
+html,
+body {
+  font-family: var(--body);
 }
 
 body {
+  min-height: 100vh;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 1.125rem;
+  line-height: 1.5;
+  color: var(--ink);
+  background: linear-gradient(var(--sky-top), var(--sky-bottom) 60vh, var(--sky-bottom));
+  -webkit-font-smoothing: auto;
+}
+
+/* Photos are not pixelated. Only the badges and the mark are. */
+img {
+  image-rendering: auto;
+}
+
+img.badge,
+img.mark {
+  image-rendering: pixelated;
+}
+
+a {
+  color: var(--blue);
+}
+
+a:hover {
+  color: var(--blue-deep);
+}
+
+/* Display type: headings, nav, buttons, tags. Sizes are small because the
+   font is wide. */
+h1,
+h2,
+h3,
+nav,
+.brand,
+.nes-btn,
+.tag,
+.nes-container.with-title > .title {
+  font-family: var(--display);
   line-height: 1.6;
-  background: Canvas;
-  color: CanvasText;
-}
-
-header.site {
-  border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
-}
-
-header.site nav {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 0.8rem 1rem;
-  display: flex;
-  gap: 1.2rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-header.site a {
-  text-decoration: none;
-  color: inherit;
-}
-
-header.site .brand {
-  font-weight: 700;
-}
-
-main {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 2rem 1rem 4rem;
 }
 
 h1 {
-  font-size: 1.8rem;
-  line-height: 1.2;
+  margin: 0 0 0.6rem;
+  font-size: 1.25rem;
+  text-transform: lowercase;
+}
+
+h1 img.badge {
+  width: 28px;
+  height: 28px;
+  margin-left: 0.4rem;
 }
 
 h2 {
-  font-size: 1.2rem;
-  margin-top: 2.5rem;
-  padding-bottom: 0.3rem;
-  border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+  font-size: 0.8rem;
+  margin: 0 0 1rem;
 }
 
+p {
+  margin: 0 0 1rem;
+}
+
+/* Header: brand, then the two site sections, then the account cluster
+   pushed to the right. Wraps to rows on narrow screens. */
+
+header.site {
+  max-width: var(--width);
+  margin: 0 auto;
+  padding: 1rem 1rem 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem 1.6rem;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.1rem;
+}
+
+.brand a {
+  color: var(--ink);
+  text-decoration: none;
+  text-shadow: 2px 2px 0 var(--paper);
+}
+
+.brand .mark-link {
+  display: inline-flex;
+  line-height: 0;
+}
+
+.brand .mark-link:hover .mark {
+  transform: translateY(-2px);
+}
+
+header.site nav {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem 1.2rem;
+  flex-wrap: wrap;
+  font-size: 0.65rem;
+}
+
+header.site nav.account {
+  margin-left: auto;
+}
+
+header.site nav a:not(.nes-btn),
+header.site nav button.linkish {
+  padding-bottom: 2px;
+  color: var(--ink);
+  text-decoration: none;
+  text-shadow: 2px 2px 0 var(--paper);
+  border-bottom: 3px solid transparent;
+}
+
+header.site nav a:not(.nes-btn):hover,
+header.site nav button.linkish:hover {
+  border-bottom-color: var(--blue);
+}
+
+header.site nav a[aria-current="page"] {
+  border-bottom-color: var(--ink);
+}
+
+header.site nav form {
+  display: inline;
+}
+
+@media (max-width: 720px) {
+  header.site nav.account {
+    margin-left: 0;
+  }
+}
+
+/* The paper panel every page sits on */
+
+main.panel {
+  max-width: var(--width);
+  margin: 0.6rem auto 2rem;
+  padding: 1.5rem 1.5rem 2rem;
+  background: var(--paper);
+  border: 4px solid var(--ink);
+  box-shadow: 8px 8px 0 var(--shadow);
+}
+
+@media (max-width: 720px) {
+  main.panel {
+    margin: 0.6rem 0.5rem 2rem;
+    padding: 1rem;
+  }
+}
+
+footer.site {
+  max-width: var(--width);
+  margin: 0 auto;
+  padding: 0 1rem 2rem;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+/* Sections: NES containers with the title sitting in the border line. */
+section.nes-container {
+  margin: 2rem 0 0;
+  padding: 1.5rem 1.25rem 1.25rem;
+  border-color: var(--ink);
+}
+
+section.nes-container.with-title > .title {
+  font-size: 0.7rem;
+  margin: -2.1rem 0 1rem;
+  padding: 0 0.5rem;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+section.nes-container > :last-child {
+  margin-bottom: 0;
+}
+
+/* Text helpers */
+
 .meta {
-  color: color-mix(in srgb, CanvasText 60%, transparent);
-  font-size: 0.95rem;
+  color: var(--ink-soft);
+  font-size: 1rem;
+}
+
+.lede {
+  font-size: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.quiet {
+  color: var(--ink-soft);
+}
+
+.back {
+  margin: 0 0 1rem;
+  font-size: 1rem;
 }
 
 .back a {
   text-decoration: none;
 }
 
-.stash {
-  color: color-mix(in srgb, CanvasText 60%, transparent);
-  font-size: 0.95rem;
-}
-
-.next {
-  border-left: 3px solid color-mix(in srgb, CanvasText 30%, transparent);
-  padding: 0.4rem 0.8rem;
-  background: color-mix(in srgb, CanvasText 6%, transparent);
-  border-radius: 0 6px 6px 0;
-}
+/* Flash messages and prompts */
 
 .flash {
-  padding: 0.5rem 0.8rem;
-  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  margin: 0 0 1.2rem;
+  border: 4px solid var(--ink);
+  background: var(--paper-deep);
 }
 
 .flash.error {
-  background: color-mix(in srgb, red 12%, transparent);
+  border-color: var(--red);
+  background: #f6d9d5;
 }
 
 .flash.note {
-  background: color-mix(in srgb, green 12%, transparent);
+  border-color: var(--green);
+  background: #dcebd3;
 }
 
-ul.builds {
-  list-style: none;
-  padding: 0;
+.prompt {
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+  border-left: 6px solid var(--blue);
+  background: var(--paper-deep);
 }
 
-ul.builds li {
-  margin: 0.8rem 0;
-  padding: 1rem;
-  border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
-  border-radius: 8px;
+/* Status tag on competitions, coloured by state. */
+.tag {
+  display: inline-block;
+  padding: 0.25rem 0.5rem 0.15rem;
+  font-size: 0.55rem;
+  color: #fff;
+  background: var(--ink);
+  vertical-align: middle;
 }
 
-ul.builds a {
-  text-decoration: none;
-  color: inherit;
+.tag.open {
+  background: var(--green);
 }
 
-ul.builds em,
-ul.cards em {
-  color: color-mix(in srgb, CanvasText 55%, transparent);
-  font-style: normal;
-  font-size: 0.9rem;
+.tag.voting {
+  background: var(--amber);
+  color: var(--ink);
 }
+
+.tag.decided {
+  background: var(--blue);
+}
+
+/* Cards */
 
 ul.cards {
   list-style: none;
+  margin: 0;
   padding: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
-ul.cards li {
-  border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
-  border-radius: 8px;
-  overflow: hidden;
+li.card {
+  position: relative;
+  border: 4px solid var(--ink);
+  background: var(--paper-deep);
+  box-shadow: 4px 4px 0 var(--shadow);
 }
 
-ul.cards a {
+li.card > a {
   display: block;
-  padding: 0.8rem;
+  padding: 0.6rem;
+  color: var(--ink);
   text-decoration: none;
-  color: inherit;
 }
 
-ul.cards img {
+li.card > a:hover {
+  background: var(--paper);
+}
+
+li.card .cover {
+  display: block;
   width: 100%;
   height: 150px;
   object-fit: cover;
-  border-radius: 6px;
-  margin-bottom: 0.4rem;
+  margin: 0 0 0.5rem;
+  border: 4px solid var(--ink);
+  background: var(--sky-bottom);
 }
 
-ul.cards img.badge {
+li.card strong {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+li.card em {
+  display: block;
+  font-style: normal;
+  color: var(--ink-soft);
+}
+
+li.card .meta {
+  display: block;
+  font-size: 0.95rem;
+}
+
+li.card .votebox {
+  display: block;
+  padding: 0.6rem 0.6rem 0;
+  font-size: 1rem;
+}
+
+li.card img.badge {
+  display: inline;
   width: 20px;
   height: 20px;
-  object-fit: contain;
-  margin: 0 0 -3px 0.2rem;
+  margin: 0 0 -3px 0.3rem;
+  border: 0;
+  vertical-align: baseline;
+}
+
+ul.cards.featured {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+ul.cards.featured li.card .cover {
+  height: 220px;
+}
+
+/* Owner-only edit link in a card's footer, outside the main link. */
+li.card .cardlink {
+  display: block;
+  padding: 0 0.6rem 0.5rem;
+  font-family: var(--display);
+  font-size: 0.55rem;
+  text-decoration: none;
+}
+
+/* Profile head: name and count on the left, owner actions on the right. */
+.profile-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.profile-head .actions {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.profile-head .actions .nes-btn {
+  margin: 0;
+}
+
+/* Vote row on a build page. */
+.votes {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 0 0 1rem;
+}
+
+.votes .count {
+  font-family: var(--display);
+  font-size: 0.65rem;
+}
+
+.votes form {
   display: inline;
 }
 
-ul.cards strong,
-ul.cards em,
-ul.cards .meta {
-  display: block;
+.votes .nes-btn {
+  margin: 0;
 }
 
-ul.cards .votebox {
-  display: block;
-  padding: 0.4rem 0.8rem 0;
+/* Quick post form on the workbench: fields in a row on wide screens. */
+form.post .post-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0 1rem;
 }
+
+form.post .meta {
+  display: inline-block;
+  margin-left: 0.5rem;
+}
+
+/* Build page photos */
+
+.gallery {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.gallery img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 4px solid var(--ink);
+  background: var(--paper-deep);
+}
+
+ul.thumbs {
+  list-style: none;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+
+ul.thumbs img {
+  display: block;
+  width: 140px;
+  height: 100px;
+  object-fit: cover;
+  border: 4px solid var(--ink);
+}
+
+ul.thumbs .thumb-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.3rem;
+  font-size: 0.9rem;
+}
+
+ul.thumbs .thumb-actions form {
+  display: inline;
+}
+
+ul.thumbs .thumb-actions button.linkish {
+  color: var(--blue);
+  text-decoration: underline;
+}
+
+button.linkish.danger {
+  color: var(--red);
+}
+
+.pager {
+  margin: 1.5rem 0 0;
+  text-align: center;
+}
+
+section.nes-container.danger {
+  border-color: var(--red);
+}
+
+section.nes-container.danger.with-title > .title {
+  color: var(--red);
+}
+
+/* Plain lists: competitions, admin rows */
+
+ul.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+ul.rows li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  flex-wrap: wrap;
+  padding: 0.8rem 0;
+  border-bottom: 4px dotted var(--paper-deep);
+}
+
+ul.rows li:last-child {
+  border-bottom: 0;
+}
+
+ul.rows a {
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+ul.rows .meta {
+  flex: 1 1 auto;
+}
+
+ul.rows form {
+  display: inline;
+}
+
+/* Trophy case */
 
 ul.trophies {
   list-style: none;
+  margin: 0;
   padding: 0;
 }
 
 ul.trophies li {
-  margin: 0.6rem 0;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.8rem;
   flex-wrap: wrap;
+  padding: 0.5rem 0;
 }
 
-img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 6px;
-  margin: 0.5rem 0;
+ul.trophies img.badge {
+  width: 40px;
+  height: 40px;
 }
 
-img.badge {
-  display: inline;
-  margin: 0 0 -4px 0.2rem;
+/* Forms */
+
+form {
+  max-width: 560px;
 }
 
-img.thumb {
-  width: 140px;
-  height: 100px;
-  object-fit: cover;
-  margin-right: 0.5rem;
+form.wide {
+  max-width: none;
 }
 
-form label {
-  display: block;
-  margin: 0.8rem 0;
+.nes-field {
+  margin: 0 0 1.1rem;
 }
 
-form input[type="text"],
-form input[type="email"],
-form input[type="date"],
-form select,
-form textarea {
-  display: block;
-  width: 100%;
-  max-width: 480px;
-  padding: 0.5rem;
-  margin-top: 0.2rem;
-  border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
-  border-radius: 6px;
-  background: Canvas;
-  color: CanvasText;
+.nes-field > label {
+  margin-bottom: 0.3rem;
+  font-weight: 700;
+}
+
+.nes-input,
+.nes-textarea,
+.nes-select select {
   font: inherit;
+  font-size: 1.05rem;
+  color: var(--ink);
+  background: #fffdf7;
 }
 
-form label.checkbox input {
-  display: inline;
-  width: auto;
+.nes-select select {
+  background-position: right 0.75rem center;
 }
 
-button {
-  font: inherit;
-  padding: 0.5rem 1.2rem;
-  border: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
-  border-radius: 6px;
-  background: color-mix(in srgb, CanvasText 8%, transparent);
-  color: inherit;
-  cursor: pointer;
+.nes-select::after {
+  border-color: var(--ink) transparent transparent;
 }
 
-form.inline {
-  display: inline;
+label.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* Buttons: NES.css shapes, sprue colours. Default is cream, primary is
+   roundel blue. */
+.nes-btn {
+  padding: 0.55rem 0.9rem 0.45rem;
+  margin: 4px 4px 4px 0;
+  font-size: 0.6rem;
+  color: var(--ink);
+  background: var(--paper-deep);
+  text-decoration: none;
+}
+
+.nes-btn:hover {
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.nes-btn::after {
+  box-shadow: inset -4px -4px var(--shadow);
+}
+
+.nes-btn:hover::after {
+  box-shadow: inset -6px -6px var(--shadow);
+}
+
+.nes-btn.is-primary {
+  color: #fff;
+  background: var(--blue);
+}
+
+.nes-btn.is-primary:hover {
+  color: #fff;
+  background: #27509f;
+}
+
+.nes-btn.is-primary::after {
+  box-shadow: inset -4px -4px var(--blue-deep);
+}
+
+.nes-btn.is-primary:hover::after {
+  box-shadow: inset -6px -6px var(--blue-deep);
+}
+
+.nes-btn.is-primary:focus {
+  box-shadow: 0 0 0 6px rgba(31, 63, 138, 0.3);
+}
+
+.nes-btn.is-error {
+  color: #fff;
+  background: var(--red);
+}
+
+.nes-btn.is-error::after {
+  box-shadow: inset -4px -4px var(--red-deep);
+}
+
+header.site .nes-btn {
+  margin: 0;
 }
 
 button.linkish {
-  border: none;
-  background: none;
+  font: inherit;
   padding: 0;
-  cursor: pointer;
+  border: 0;
+  background: none;
   color: inherit;
 }

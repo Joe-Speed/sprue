@@ -4,3 +4,6 @@ platform/sprue
 *.stl
 *.db
 .DS_Store
+plane.zip
+*_plane.zip
+*_plane/

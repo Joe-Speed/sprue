@@ -13,7 +13,7 @@ import (
 
 const (
 	MaxUploadBytes  = 8 << 20
-	MaxSourcePixels = 40_000_000
+	MaxSourcePixels = 24_000_000
 	MaxEdge         = 1600
 	jpegQuality     = 85
 )

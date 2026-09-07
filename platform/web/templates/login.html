@@ -1,8 +1,8 @@
 {{define "content"}}
-<h1>Sign in</h1>
+<h1>sign in</h1>
 <p>No passwords. Enter your email and we send a one-time sign-in link. First sign-in creates your bench.</p>
 <form method="post" action="/auth/start">
-<label>Email <input type="email" name="email" required maxlength="200" autocomplete="email"></label>
-<button type="submit">Send my link</button>
+<div class="nes-field"><label for="email">Email</label><input class="nes-input" id="email" type="email" name="email" required maxlength="200" autocomplete="email"></div>
+<button class="nes-btn is-primary" type="submit">Send my link</button>
 </form>
 {{end}}

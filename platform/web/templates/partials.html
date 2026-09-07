@@ -1,0 +1,24 @@
+{{/* Shared fragments. Parsed with every page alongside base.html. */}}
+
+{{/* build_card renders one build as a grid card. Expects a cardView from the
+     card template function. */}}
+{{define "build_card"}}<li class="card">{{template "build_card_body" .}}</li>{{end}}
+
+{{/* build_card_body is the linked part of a card, so pages that need extra
+     controls on the card (voting, editing) can wrap it themselves. A build
+     with no photos shows text only. */}}
+{{define "build_card_body"}}<a href="/builds/{{.Build.ID}}">
+{{if .Build.CoverPhoto}}<img class="cover" src="/photos/{{.Build.ID}}/{{.Build.CoverPhoto}}" alt="" loading="lazy">{{end}}
+<strong>{{.Build.Title}}{{template "place_badge" .Build.TrophyPlace}}</strong>
+<em>{{.Build.Kit}}</em>
+{{if .ShowOwner}}<span class="meta">by {{.Build.OwnerName}}</span>{{else if .Build.BuiltOn}}<span class="meta">built {{niceDate .Build.BuiltOn}}</span>{{end}}
+</a>{{end}}
+
+{{/* place_badge shows the pixel trophy for a placing, or nothing for zero. */}}
+{{define "place_badge"}}{{if .}} <img class="badge" src="{{placeBadge .}}" alt="{{placeName .}} place" width="20" height="20">{{end}}{{end}}
+
+{{/* status_tag colours a competition status. */}}
+{{define "status_tag"}}<span class="tag {{.}}">{{.}}</span>{{end}}
+
+{{/* competition_dates states the date that matters for the current status. */}}
+{{define "competition_dates"}}{{if eq .Status "open"}}entries close {{niceDate .EntriesClose}}, voting closes {{niceDate .VotingCloses}}{{else if eq .Status "voting"}}voting closes {{niceDate .VotingCloses}}{{else}}decided {{niceDate .VotingCloses}}{{end}}{{end}}

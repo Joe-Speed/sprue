@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -18,6 +19,11 @@ const (
 	MaxPhotosPerBuild  = 12
 	MaxEntriesPerComp  = 64
 	MaxCompetitions    = 256
+	MaxOpenPerCreator  = 3   // competitions one member may have running at once
+	MaxEntryDays       = 180 // how far ahead entries may stay open
+	MaxVotingDays      = 60  // how long voting may run after entries close
+	FeaturedWindowDays = 30  // votes this recent count toward the featured spot
+	MaxFeatured        = 3
 	MaxSlugAttempts    = 100
 	sessionLifetime    = 90 * 24 * time.Hour
 	magicTokenLifetime = 15 * time.Minute
@@ -27,6 +33,7 @@ const (
 
 var ErrNotFound = errors.New("not found")
 var ErrLimit = errors.New("limit reached")
+var ErrInUse = errors.New("in use")
 
 type Store struct {
 	db *sql.DB
@@ -53,7 +60,7 @@ create table if not exists sessions (
 	expires_at text not null
 );
 create table if not exists builds (
-	id integer primary key,
+	id integer primary key autoincrement,
 	user_id integer not null references users(id),
 	title text not null,
 	kit text not null,
@@ -61,8 +68,14 @@ create table if not exists builds (
 	scale text not null default '',
 	description text not null default '',
 	built_on text not null default '',
-	featured integer not null default 0,
+	pinned integer not null default 0,
 	created_at text not null
+);
+create table if not exists build_votes (
+	build_id integer not null references builds(id),
+	user_id integer not null references users(id),
+	created_at text not null,
+	primary key (build_id, user_id)
 );
 create table if not exists photos (
 	id integer primary key,
@@ -74,7 +87,10 @@ create table if not exists competitions (
 	id integer primary key,
 	slug text not null unique,
 	title text not null,
-	deadline text not null,
+	description text not null default '',
+	creator_id integer not null references users(id),
+	entries_close text not null,
+	voting_closes text not null,
 	status text not null default 'open',
 	created_at text not null
 );
@@ -120,6 +136,25 @@ func Open(path string) (*Store, error) {
 
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+// Ping reports whether the database answers, for health checks.
+func (s *Store) Ping() error {
+	var one int
+	return s.db.QueryRow(`select 1`).Scan(&one)
+}
+
+// Sweep removes expired sessions and spent or expired sign-in tokens. Run it
+// at startup and on a timer so the tables do not grow without bound.
+func (s *Store) Sweep() error {
+	current := now()
+	if _, err := s.db.Exec(`delete from sessions where expires_at < ?`, current); err != nil {
+		return fmt.Errorf("store: sweep sessions: %w", err)
+	}
+	if _, err := s.db.Exec(`delete from magic_tokens where used = 1 or expires_at < ?`, current); err != nil {
+		return fmt.Errorf("store: sweep tokens: %w", err)
+	}
+	return nil
 }
 
 func now() string {
@@ -242,7 +277,6 @@ func (s *Store) userBy(where string, arg any) (User, error) {
 }
 
 func (s *Store) UserBySlug(slug string) (User, error) { return s.userBy("slug = ?", slug) }
-func (s *Store) UserByID(id int64) (User, error)      { return s.userBy("id = ?", id) }
 
 func (s *Store) RenameUser(id int64, displayName string) error {
 	displayName = clip(displayName, maxShortField)
@@ -298,13 +332,14 @@ type Build struct {
 	Scale       string
 	Description string
 	BuiltOn     string
-	Featured    bool
+	Pinned      bool // owner keeps it at the top of their bench
 	CreatedAt   string
 	// Filled by list queries for display.
 	OwnerName   string
 	OwnerSlug   string
 	CoverPhoto  string
 	TrophyPlace int // 0 = none, else 1..3 best placing this build has won
+	Votes       int // community votes toward the featured spot
 }
 
 func (s *Store) CreateBuild(b Build) (int64, error) {
@@ -319,11 +354,11 @@ func (s *Store) CreateBuild(b Build) (int64, error) {
 		return 0, ErrLimit
 	}
 	result, err := s.db.Exec(
-		`insert into builds (user_id, title, kit, brand, scale, description, built_on, featured, created_at)
+		`insert into builds (user_id, title, kit, brand, scale, description, built_on, pinned, created_at)
 		 values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		b.UserID, clip(b.Title, maxShortField), clip(b.Kit, maxShortField), clip(b.Brand, maxShortField),
 		clip(b.Scale, maxShortField), clip(b.Description, maxTextField), clip(b.BuiltOn, maxShortField),
-		boolInt(b.Featured), now())
+		boolInt(b.Pinned), now())
 	if err != nil {
 		return 0, err
 	}
@@ -335,11 +370,11 @@ func (s *Store) UpdateBuild(b Build) error {
 		return errors.New("store: bad build update")
 	}
 	_, err := s.db.Exec(
-		`update builds set title = ?, kit = ?, brand = ?, scale = ?, description = ?, built_on = ?, featured = ?
+		`update builds set title = ?, kit = ?, brand = ?, scale = ?, description = ?, built_on = ?, pinned = ?
 		 where id = ? and user_id = ?`,
 		clip(b.Title, maxShortField), clip(b.Kit, maxShortField), clip(b.Brand, maxShortField),
 		clip(b.Scale, maxShortField), clip(b.Description, maxTextField), clip(b.BuiltOn, maxShortField),
-		boolInt(b.Featured), b.ID, b.UserID)
+		boolInt(b.Pinned), b.ID, b.UserID)
 	return err
 }
 
@@ -351,10 +386,11 @@ func boolInt(b bool) int {
 }
 
 const buildColumns = `
-	b.id, b.user_id, b.title, b.kit, b.brand, b.scale, b.description, b.built_on, b.featured, b.created_at,
+	b.id, b.user_id, b.title, b.kit, b.brand, b.scale, b.description, b.built_on, b.pinned, b.created_at,
 	u.display_name, u.slug,
 	coalesce((select p.file_name from photos p where p.build_id = b.id order by p.position limit 1), ''),
-	coalesce((select min(t.place) from trophies t where t.build_id = b.id), 0)
+	coalesce((select min(t.place) from trophies t where t.build_id = b.id), 0),
+	(select count(*) from build_votes v where v.build_id = b.id)
 `
 
 func (s *Store) scanBuilds(rows *sql.Rows) ([]Build, error) {
@@ -362,13 +398,13 @@ func (s *Store) scanBuilds(rows *sql.Rows) ([]Build, error) {
 	var builds []Build
 	for rows.Next() {
 		var b Build
-		var featured int
+		var pinned int
 		err := rows.Scan(&b.ID, &b.UserID, &b.Title, &b.Kit, &b.Brand, &b.Scale, &b.Description,
-			&b.BuiltOn, &featured, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.CoverPhoto, &b.TrophyPlace)
+			&b.BuiltOn, &pinned, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.CoverPhoto, &b.TrophyPlace, &b.Votes)
 		if err != nil {
 			return nil, err
 		}
-		b.Featured = featured != 0
+		b.Pinned = pinned != 0
 		builds = append(builds, b)
 	}
 	return builds, rows.Err()
@@ -389,11 +425,11 @@ func (s *Store) BuildByID(id int64) (Build, error) {
 	return builds[0], nil
 }
 
-// BuildsForUser returns featured builds first, then the rest, newest built first.
+// BuildsForUser returns pinned builds first, then the rest, newest built first.
 func (s *Store) BuildsForUser(userID int64) ([]Build, error) {
 	rows, err := s.db.Query(`select `+buildColumns+` from builds b join users u on u.id = b.user_id
 		where b.user_id = ?
-		order by b.featured desc, case when b.built_on = '' then b.created_at else b.built_on end desc, b.id desc
+		order by b.pinned desc, case when b.built_on = '' then b.created_at else b.built_on end desc, b.id desc
 		limit ?`, userID, MaxBuildsPerUser)
 	if err != nil {
 		return nil, err
@@ -401,16 +437,69 @@ func (s *Store) BuildsForUser(userID int64) ([]Build, error) {
 	return s.scanBuilds(rows)
 }
 
-func (s *Store) RecentBuilds(limit int) ([]Build, error) {
+// RecentBuilds pages newest first. beforeID of zero starts at the top; pass
+// the last ID of one page to get the next.
+func (s *Store) RecentBuilds(beforeID int64, limit int) ([]Build, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 24
 	}
+	if beforeID <= 0 {
+		beforeID = math.MaxInt64
+	}
 	rows, err := s.db.Query(`select `+buildColumns+` from builds b join users u on u.id = b.user_id
-		order by b.id desc limit ?`, limit)
+		where b.id < ? order by b.id desc limit ?`, beforeID, limit)
 	if err != nil {
 		return nil, err
 	}
 	return s.scanBuilds(rows)
+}
+
+// BuildHasEntries reports whether a build has ever entered a competition.
+func (s *Store) BuildHasEntries(id int64) (bool, error) {
+	var entries int
+	if err := s.db.QueryRow(`select count(*) from entries where build_id = ?`, id).Scan(&entries); err != nil {
+		return false, err
+	}
+	return entries > 0, nil
+}
+
+// DeleteBuild removes a build and its photo records, returning the photo file
+// names so the caller can remove the files. A build that has entered a
+// competition stays, because entries, votes, and trophies point at it.
+func (s *Store) DeleteBuild(id, userID int64) ([]string, error) {
+	build, err := s.BuildByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if build.UserID != userID {
+		return nil, ErrNotFound
+	}
+	entered, err := s.BuildHasEntries(id)
+	if err != nil {
+		return nil, err
+	}
+	if entered {
+		return nil, ErrInUse
+	}
+	photos, err := s.Photos(id)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`delete from photos where build_id = ?`, id); err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(`delete from build_votes where build_id = ?`, id); err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(`delete from builds where id = ?`, id); err != nil {
+		return nil, err
+	}
+	return photos, tx.Commit()
 }
 
 func (s *Store) AddPhoto(buildID int64, fileName string) error {
@@ -427,6 +516,110 @@ func (s *Store) AddPhoto(buildID int64, fileName string) error {
 	_, err := s.db.Exec(`insert into photos (build_id, position, file_name) values (?, ?, ?)`,
 		buildID, count, fileName)
 	return err
+}
+
+// VoteBuild records one member's vote for a build toward the featured spot.
+// Members cannot vote for their own build, and one vote per build each.
+func (s *Store) VoteBuild(buildID, userID int64) error {
+	build, err := s.BuildByID(buildID)
+	if err != nil {
+		return err
+	}
+	if build.UserID == userID {
+		return errors.New("store: no voting for your own build")
+	}
+	_, err = s.db.Exec(`insert or ignore into build_votes (build_id, user_id, created_at) values (?, ?, ?)`,
+		buildID, userID, now())
+	return err
+}
+
+func (s *Store) UnvoteBuild(buildID, userID int64) error {
+	_, err := s.db.Exec(`delete from build_votes where build_id = ? and user_id = ?`, buildID, userID)
+	return err
+}
+
+func (s *Store) HasVotedBuild(buildID, userID int64) (bool, error) {
+	var count int
+	err := s.db.QueryRow(`select count(*) from build_votes where build_id = ? and user_id = ?`, buildID, userID).Scan(&count)
+	return count > 0, err
+}
+
+// FeaturedBuilds returns the builds with the most votes cast since the given
+// time, most voted first. Builds with no recent votes never feature.
+func (s *Store) FeaturedBuilds(since time.Time, limit int) ([]Build, error) {
+	if limit <= 0 || limit > MaxFeatured {
+		limit = MaxFeatured
+	}
+	rows, err := s.db.Query(`with recent as (
+			select build_id, count(*) as votes from build_votes where created_at >= ? group by build_id
+		)
+		select `+buildColumns+` from builds b join users u on u.id = b.user_id join recent r on r.build_id = b.id
+		order by r.votes desc, b.id desc limit ?`, since.UTC().Format(time.RFC3339), limit)
+	if err != nil {
+		return nil, err
+	}
+	return s.scanBuilds(rows)
+}
+
+// RemovePhoto drops one photo and closes the gap in positions.
+func (s *Store) RemovePhoto(buildID int64, fileName string) error {
+	names, err := s.Photos(buildID)
+	if err != nil {
+		return err
+	}
+	kept := make([]string, 0, len(names))
+	for _, name := range names {
+		if name != fileName {
+			kept = append(kept, name)
+		}
+	}
+	if len(kept) == len(names) {
+		return ErrNotFound
+	}
+	return s.writePhotoOrder(buildID, kept)
+}
+
+// SetCoverPhoto moves one photo to the front; the first photo is the cover.
+func (s *Store) SetCoverPhoto(buildID int64, fileName string) error {
+	names, err := s.Photos(buildID)
+	if err != nil {
+		return err
+	}
+	ordered := make([]string, 0, len(names))
+	found := false
+	for _, name := range names {
+		if name == fileName {
+			found = true
+			continue
+		}
+		ordered = append(ordered, name)
+	}
+	if !found {
+		return ErrNotFound
+	}
+	return s.writePhotoOrder(buildID, append([]string{fileName}, ordered...))
+}
+
+// writePhotoOrder replaces a build's photo rows with names in the given order.
+func (s *Store) writePhotoOrder(buildID int64, names []string) error {
+	if len(names) > MaxPhotosPerBuild {
+		return ErrLimit
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`delete from photos where build_id = ?`, buildID); err != nil {
+		return err
+	}
+	for position, name := range names {
+		if _, err := tx.Exec(`insert into photos (build_id, position, file_name) values (?, ?, ?)`,
+			buildID, position, name); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *Store) Photos(buildID int64) ([]string, error) {
@@ -448,60 +641,116 @@ func (s *Store) Photos(buildID int64) ([]string, error) {
 }
 
 type Competition struct {
-	ID        int64
-	Slug      string
-	Title     string
-	Deadline  string
-	Status    string
-	CreatedAt string
+	ID           int64
+	Slug         string
+	Title        string
+	Description  string
+	CreatorID    int64
+	CreatorName  string
+	CreatorSlug  string
+	EntriesClose string // last day entries are accepted, YYYY-MM-DD
+	VotingCloses string // last day votes are accepted, YYYY-MM-DD
+	Status       string // open, voting, decided
+	CreatedAt    string
 }
 
-func (s *Store) CreateCompetition(title, deadline string) (Competition, error) {
-	title = clip(title, maxShortField)
-	deadline = clip(deadline, maxShortField)
-	if title == "" || deadline == "" {
-		return Competition{}, errors.New("store: competition needs a title and a deadline")
+const competitionColumns = `c.id, c.slug, c.title, c.description, c.creator_id, u.display_name, u.slug,
+	c.entries_close, c.voting_closes, c.status, c.created_at
+	from competitions c join users u on u.id = c.creator_id`
+
+const dayLayout = "2006-01-02"
+
+// CreateCompetition opens a competition on behalf of a member. Dates are
+// checked against today: entries must close in the future and within
+// MaxEntryDays, voting must close after entries and within MaxVotingDays.
+func (s *Store) CreateCompetition(c Competition, today time.Time) (Competition, error) {
+	c.Title = clip(c.Title, maxShortField)
+	c.Description = clip(c.Description, maxTextField)
+	if c.Title == "" || c.CreatorID <= 0 {
+		return Competition{}, errors.New("store: competition needs a title and a creator")
 	}
-	var count int
-	if err := s.db.QueryRow(`select count(*) from competitions`).Scan(&count); err != nil {
+	if err := checkCompetitionDates(c.EntriesClose, c.VotingCloses, today); err != nil {
 		return Competition{}, err
 	}
-	if count >= MaxCompetitions {
+	var total, running int
+	if err := s.db.QueryRow(`select count(*) from competitions`).Scan(&total); err != nil {
+		return Competition{}, err
+	}
+	if total >= MaxCompetitions {
 		return Competition{}, ErrLimit
 	}
-	slug, err := s.uniqueSlug("competitions", Slugify(title))
+	err := s.db.QueryRow(`select count(*) from competitions where creator_id = ? and status != 'decided'`, c.CreatorID).Scan(&running)
 	if err != nil {
 		return Competition{}, err
 	}
-	_, err = s.db.Exec(`insert into competitions (slug, title, deadline, status, created_at) values (?, ?, ?, 'open', ?)`,
-		slug, title, deadline, now())
+	if running >= MaxOpenPerCreator {
+		return Competition{}, ErrLimit
+	}
+	slug, err := s.uniqueSlug("competitions", Slugify(c.Title))
+	if err != nil {
+		return Competition{}, err
+	}
+	_, err = s.db.Exec(`insert into competitions (slug, title, description, creator_id, entries_close, voting_closes, status, created_at)
+		values (?, ?, ?, ?, ?, ?, 'open', ?)`,
+		slug, c.Title, c.Description, c.CreatorID, c.EntriesClose, c.VotingCloses, now())
 	if err != nil {
 		return Competition{}, err
 	}
 	return s.CompetitionBySlug(slug)
 }
 
+var ErrBadDates = errors.New("bad dates")
+
+func checkCompetitionDates(entriesClose, votingCloses string, today time.Time) error {
+	entries, err := time.Parse(dayLayout, entriesClose)
+	if err != nil {
+		return ErrBadDates
+	}
+	voting, err := time.Parse(dayLayout, votingCloses)
+	if err != nil {
+		return ErrBadDates
+	}
+	day := today.UTC().Truncate(24 * time.Hour)
+	if !entries.After(day) || entries.Sub(day) > MaxEntryDays*24*time.Hour {
+		return ErrBadDates
+	}
+	if !voting.After(entries) || voting.Sub(entries) > MaxVotingDays*24*time.Hour {
+		return ErrBadDates
+	}
+	return nil
+}
+
 func (s *Store) CompetitionBySlug(slug string) (Competition, error) {
-	var c Competition
-	err := s.db.QueryRow(`select id, slug, title, deadline, status, created_at from competitions where slug = ?`, slug).
-		Scan(&c.ID, &c.Slug, &c.Title, &c.Deadline, &c.Status, &c.CreatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
+	rows, err := s.db.Query(`select `+competitionColumns+` where c.slug = ?`, slug)
+	if err != nil {
+		return Competition{}, err
+	}
+	list, err := scanCompetitions(rows)
+	if err != nil {
+		return Competition{}, err
+	}
+	if len(list) == 0 {
 		return Competition{}, ErrNotFound
 	}
-	return c, err
+	return list[0], nil
 }
 
 func (s *Store) Competitions() ([]Competition, error) {
-	rows, err := s.db.Query(`select id, slug, title, deadline, status, created_at from competitions
-		order by id desc limit ?`, MaxCompetitions)
+	rows, err := s.db.Query(`select `+competitionColumns+` order by c.id desc limit ?`, MaxCompetitions)
 	if err != nil {
 		return nil, err
 	}
+	return scanCompetitions(rows)
+}
+
+func scanCompetitions(rows *sql.Rows) ([]Competition, error) {
 	defer rows.Close()
 	var list []Competition
 	for rows.Next() {
 		var c Competition
-		if err := rows.Scan(&c.ID, &c.Slug, &c.Title, &c.Deadline, &c.Status, &c.CreatedAt); err != nil {
+		err := rows.Scan(&c.ID, &c.Slug, &c.Title, &c.Description, &c.CreatorID, &c.CreatorName, &c.CreatorSlug,
+			&c.EntriesClose, &c.VotingCloses, &c.Status, &c.CreatedAt)
+		if err != nil {
 			return nil, err
 		}
 		list = append(list, c)
@@ -509,12 +758,34 @@ func (s *Store) Competitions() ([]Competition, error) {
 	return list, rows.Err()
 }
 
-func (s *Store) SetCompetitionStatus(id int64, status string) error {
-	if status != "open" && status != "voting" && status != "decided" {
-		return errors.New("store: bad status")
+// Advance moves competitions along by date: open ones whose entry day has
+// passed start voting, voting ones whose voting day has passed are decided.
+// Call it on a timer and before showing competitions.
+func (s *Store) Advance(today time.Time) error {
+	day := today.UTC().Format(dayLayout)
+	if _, err := s.db.Exec(`update competitions set status = 'voting' where status = 'open' and entries_close < ?`, day); err != nil {
+		return fmt.Errorf("store: advance to voting: %w", err)
 	}
-	_, err := s.db.Exec(`update competitions set status = ? where id = ?`, status, id)
-	return err
+	rows, err := s.db.Query(`select id from competitions where status = 'voting' and voting_closes < ? limit ?`, day, MaxCompetitions)
+	if err != nil {
+		return err
+	}
+	var due []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		due = append(due, id)
+	}
+	rows.Close()
+	for _, id := range due {
+		if err := s.Decide(id); err != nil {
+			return fmt.Errorf("store: decide %d: %w", id, err)
+		}
+	}
+	return nil
 }
 
 type Entry struct {
@@ -568,14 +839,14 @@ func (s *Store) EntriesWithVotes(competitionID int64) ([]Entry, error) {
 	var list []Entry
 	for rows.Next() {
 		var entry Entry
-		var featured int
+		var pinned int
 		b := &entry.Build
 		err := rows.Scan(&entry.ID, &b.ID, &b.UserID, &b.Title, &b.Kit, &b.Brand, &b.Scale, &b.Description,
-			&b.BuiltOn, &featured, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.CoverPhoto, &b.TrophyPlace, &entry.Votes)
+			&b.BuiltOn, &pinned, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.CoverPhoto, &b.TrophyPlace, &b.Votes, &entry.Votes)
 		if err != nil {
 			return nil, err
 		}
-		b.Featured = featured != 0
+		b.Pinned = pinned != 0
 		list = append(list, entry)
 	}
 	return list, rows.Err()
@@ -615,7 +886,9 @@ func (s *Store) HasVoted(competitionID, userID int64) (bool, error) {
 
 // Decide tallies votes deterministically (ties break to the earlier entry),
 // writes trophies for up to three placings, and marks the competition decided.
-// Entries with zero votes never place.
+// Entries with zero votes never place; with no votes at all there are no
+// trophies and the competition is simply closed. Deciding an already decided
+// competition changes nothing.
 func (s *Store) Decide(competitionID int64) error {
 	entries, err := s.EntriesWithVotes(competitionID)
 	if err != nil {
@@ -639,23 +912,28 @@ func (s *Store) Decide(competitionID int64) error {
 		taken[entries[best].ID] = true
 		winners = append(winners, entries[best])
 	}
-	if len(winners) == 0 {
-		return errors.New("store: no votes, nothing to decide")
-	}
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	result, err := tx.Exec(`update competitions set status = 'decided' where id = ? and status != 'decided'`, competitionID)
+	if err != nil {
+		return err
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if changed == 0 {
+		return nil
+	}
 	for i, winner := range winners {
 		_, err := tx.Exec(`insert into trophies (competition_id, place, user_id, build_id) values (?, ?, ?, ?)`,
 			competitionID, i+1, winner.Build.UserID, winner.Build.ID)
 		if err != nil {
 			return err
 		}
-	}
-	if _, err := tx.Exec(`update competitions set status = 'decided' where id = ?`, competitionID); err != nil {
-		return err
 	}
 	return tx.Commit()
 }

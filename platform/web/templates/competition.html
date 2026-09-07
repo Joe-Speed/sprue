@@ -1,57 +1,53 @@
 {{define "content"}}
 <p class="back"><a href="/competitions">&larr; competitions</a></p>
 <h1>{{.Data.Competition.Title}}</h1>
-<p class="meta">deadline {{.Data.Competition.Deadline}} · {{.Data.Competition.Status}}</p>
+<p class="meta">{{template "status_tag" .Data.Competition.Status}} {{template "competition_dates" .Data.Competition}} · started by <a href="/u/{{.Data.Competition.CreatorSlug}}">{{.Data.Competition.CreatorName}}</a></p>
+{{if .Data.Competition.Description}}<p>{{.Data.Competition.Description}}</p>{{end}}
 
-{{if .Data.Trophies}}
-<h2>Results</h2>
+{{if eq .Data.Competition.Status "decided"}}
+<section class="nes-container with-title">
+<h2 class="title">results</h2>
+{{if not .Data.Trophies}}<p class="quiet">No votes were cast, so there are no placings.</p>{{end}}
 <ul class="trophies">
 {{range .Data.Trophies}}
-<li><img src="{{placeBadge .Place}}" alt="{{placeName .Place}} place" width="40" height="40"> {{placeName .Place}} place: <strong>{{.BuildTitle}}</strong></li>
+<li><img class="badge" src="{{placeBadge .Place}}" alt="{{placeName .Place}} place" width="40" height="40"><span>{{placeName .Place}} place: <a href="/builds/{{.BuildID}}">{{.BuildTitle}}</a></span></li>
 {{end}}
 </ul>
+</section>
 {{end}}
 
 {{if .Data.CanEnter}}
-<h2>Enter this competition</h2>
+<section class="nes-container with-title">
+<h2 class="title">enter</h2>
 <form method="post" action="/competitions/{{.Data.Competition.Slug}}/enter">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
-<label>Pick one of your builds
-<select name="build">
+<div class="nes-field"><label for="build">Pick one of your builds</label>
+<div class="nes-select"><select id="build" name="build">
 {{range .Data.MyBuilds}}<option value="{{.ID}}">{{.Title}} ({{.Kit}})</option>{{end}}
-</select>
-</label>
-<button type="submit">Enter</button>
+</select></div></div>
+<button class="nes-btn is-primary" type="submit">Enter</button>
 </form>
-{{else if eq .Data.Competition.Status "open"}}
-{{if not .User}}<p class="next"><a href="/login">Sign in</a> to enter one of your builds.</p>{{end}}
+</section>
+{{else if and (eq .Data.Competition.Status "open") (not .User)}}
+<p class="prompt"><a href="/login">Sign in</a> to enter one of your builds.</p>
 {{end}}
 
-{{if .Data.HasVoted}}<p class="next">Your vote is in.</p>{{end}}
+{{if .Data.HasVoted}}<p class="prompt">Your vote is in.</p>{{end}}
 
-<h2>Entries</h2>
-{{if not .Data.Entries}}<p class="stash">No entries yet.</p>{{end}}
-{{if .Data.CanVote}}
-<form method="post" action="/competitions/{{.Data.Competition.Slug}}/vote">
-<input type="hidden" name="csrf" value="{{.CSRF}}">
-{{end}}
+<section class="nes-container with-title">
+<h2 class="title">entries</h2>
+{{if not .Data.Entries}}<p class="quiet">No entries yet.</p>{{end}}
+{{if .Data.CanVote}}<form class="wide" method="post" action="/competitions/{{.Data.Competition.Slug}}/vote"><input type="hidden" name="csrf" value="{{.CSRF}}">{{end}}
 <ul class="cards">
 {{range .Data.Entries}}
-<li>
-{{if $.Data.CanVote}}{{if ne .Build.UserID $.User.ID}}<label class="votebox"><input type="radio" name="entry" value="{{.ID}}"> vote</label>{{else}}<span class="meta">your entry</span>{{end}}{{end}}
-<a href="/builds/{{.Build.ID}}">
-{{if .Build.CoverPhoto}}<img src="/photos/{{.Build.ID}}/{{.Build.CoverPhoto}}" alt="" loading="lazy">{{end}}
-<strong>{{.Build.Title}}</strong>
-<em>{{.Build.Kit}}</em>
-<span class="meta">by {{.Build.OwnerName}}{{if $.Data.ShowVotes}} · {{.Votes}} vote{{if ne .Votes 1}}s{{end}}{{end}}</span>
-</a>
+<li class="card">
+{{if $.Data.CanVote}}{{if ne .Build.UserID $.User.ID}}<label class="votebox choice"><input class="nes-radio" type="radio" name="entry" value="{{.ID}}"><span>vote for this one</span></label>{{else}}<span class="votebox meta">your entry</span>{{end}}{{end}}
+{{if $.Data.ShowVotes}}<span class="votebox meta">{{.Votes}} vote{{if ne .Votes 1}}s{{end}}</span>{{end}}
+{{template "build_card_body" (card .Build true)}}
 </li>
 {{end}}
 </ul>
-{{if .Data.CanVote}}
-<p><button type="submit">Cast my vote</button></p>
-</form>
-{{else if and (eq .Data.Competition.Status "voting") (not .User)}}
-<p class="next"><a href="/login">Sign in</a> to vote.</p>
-{{end}}
+{{if .Data.CanVote}}<p><button class="nes-btn is-primary" type="submit">Cast my vote</button></p></form>
+{{else if and (eq .Data.Competition.Status "voting") (not .User)}}<p class="prompt"><a href="/login">Sign in</a> to vote.</p>{{end}}
+</section>
 {{end}}

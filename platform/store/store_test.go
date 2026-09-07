@@ -4,7 +4,21 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 )
+
+var testToday = time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+
+func testCompetition(t *testing.T, s *Store, creator int64, title string) Competition {
+	t.Helper()
+	comp, err := s.CreateCompetition(Competition{
+		Title: title, CreatorID: creator, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20",
+	}, testToday)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return comp
+}
 
 func testStore(t *testing.T) *Store {
 	t.Helper()
@@ -88,7 +102,7 @@ func TestSessions(t *testing.T) {
 	}
 }
 
-func TestBuildOrderingFeaturedAndDate(t *testing.T) {
+func TestBuildOrderingPinnedAndDate(t *testing.T) {
 	s := testStore(t)
 	alice := testUser(t, s, "alice@example.com")
 	oldID, err := s.CreateBuild(Build{UserID: alice.ID, Title: "Old", Kit: "K", BuiltOn: "2020-01-01"})
@@ -99,7 +113,7 @@ func TestBuildOrderingFeaturedAndDate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	featuredID, err := s.CreateBuild(Build{UserID: alice.ID, Title: "Star", Kit: "K", BuiltOn: "2019-01-01", Featured: true})
+	pinnedID, err := s.CreateBuild(Build{UserID: alice.ID, Title: "Star", Kit: "K", BuiltOn: "2019-01-01", Pinned: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +124,7 @@ func TestBuildOrderingFeaturedAndDate(t *testing.T) {
 	if len(builds) != 3 {
 		t.Fatalf("got %d builds", len(builds))
 	}
-	if builds[0].ID != featuredID || builds[1].ID != newID || builds[2].ID != oldID {
+	if builds[0].ID != pinnedID || builds[1].ID != newID || builds[2].ID != oldID {
 		t.Fatalf("wrong order: %v %v %v", builds[0].Title, builds[1].Title, builds[2].Title)
 	}
 }
@@ -125,11 +139,8 @@ func TestCompetitionLifecycle(t *testing.T) {
 	aliceBuild := testBuild(t, s, alice.ID, "Spitfire")
 	bobBuild := testBuild(t, s, bob.ID, "Hurricane")
 
-	comp, err := s.CreateCompetition("Spring Classic", "2026-08-15")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if comp.Slug != "spring-classic" || comp.Status != "open" {
+	comp := testCompetition(t, s, cara.ID, "Spring Classic")
+	if comp.Slug != "spring-classic" || comp.Status != "open" || comp.CreatorName != cara.DisplayName {
 		t.Fatalf("bad competition: %+v", comp)
 	}
 
@@ -152,8 +163,17 @@ func TestCompetitionLifecycle(t *testing.T) {
 		t.Fatalf("entries: %v %d", err, len(entries))
 	}
 
-	if err := s.SetCompetitionStatus(comp.ID, "voting"); err != nil {
+	if err := s.Advance(testToday); err != nil {
 		t.Fatal(err)
+	}
+	if c, _ := s.CompetitionBySlug("spring-classic"); c.Status != "open" {
+		t.Fatalf("advanced too early: %s", c.Status)
+	}
+	if err := s.Advance(time.Date(2026, 6, 11, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := s.CompetitionBySlug("spring-classic"); c.Status != "voting" {
+		t.Fatalf("should be voting: %s", c.Status)
 	}
 	aliceEntry, bobEntry := entries[0], entries[1]
 	if err := s.Vote(comp.ID, alice.ID, aliceEntry.ID); err == nil {
@@ -172,7 +192,7 @@ func TestCompetitionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.Decide(comp.ID); err != nil {
+	if err := s.Advance(time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	comp, err = s.CompetitionBySlug("spring-classic")
@@ -189,6 +209,110 @@ func TestCompetitionLifecycle(t *testing.T) {
 	if trophies[1].Place != 2 || trophies[1].UserID != alice.ID {
 		t.Fatalf("second place wrong: %+v", trophies[1])
 	}
+	if err := s.Decide(comp.ID); err != nil {
+		t.Fatalf("deciding twice should be harmless: %v", err)
+	}
+	if again, _ := s.TrophiesForCompetition(comp.ID); len(again) != 2 {
+		t.Fatalf("second decide changed trophies: %d", len(again))
+	}
+}
+
+func TestCompetitionRules(t *testing.T) {
+	s := testStore(t)
+	alice := testUser(t, s, "alice@example.com")
+	bad := []Competition{
+		{Title: "No dates", CreatorID: alice.ID},
+		{Title: "Past", CreatorID: alice.ID, EntriesClose: "2026-05-01", VotingCloses: "2026-05-10"},
+		{Title: "Today", CreatorID: alice.ID, EntriesClose: "2026-06-01", VotingCloses: "2026-06-10"},
+		{Title: "Voting first", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-10"},
+		{Title: "Too long", CreatorID: alice.ID, EntriesClose: "2027-06-10", VotingCloses: "2027-06-20"},
+		{Title: "Voting too long", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-09-10"},
+		{Title: "", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20"},
+	}
+	for _, c := range bad {
+		if _, err := s.CreateCompetition(c, testToday); err == nil {
+			t.Errorf("accepted %q", c.Title)
+		}
+	}
+	for i := 0; i < MaxOpenPerCreator; i++ {
+		testCompetition(t, s, alice.ID, "Running")
+	}
+	_, err := s.CreateCompetition(Competition{Title: "One more", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20"}, testToday)
+	if !errors.Is(err, ErrLimit) {
+		t.Errorf("creator cap: %v", err)
+	}
+	// A competition nobody votes in still closes, with no trophies.
+	if err := s.Advance(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := s.Competitions()
+	for _, c := range list {
+		if c.Status != "decided" {
+			t.Errorf("%s still %s", c.Slug, c.Status)
+		}
+		if trophies, _ := s.TrophiesForCompetition(c.ID); len(trophies) != 0 {
+			t.Errorf("%s has trophies without votes", c.Slug)
+		}
+	}
+	if _, err := s.CreateCompetition(Competition{Title: "After", CreatorID: alice.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20"}, testToday); err != nil {
+		t.Errorf("decided competitions should not count toward the cap: %v", err)
+	}
+}
+
+func TestBuildVotesAndFeatured(t *testing.T) {
+	s := testStore(t)
+	alice := testUser(t, s, "alice@example.com")
+	bob := testUser(t, s, "bob@example.com")
+	cara := testUser(t, s, "cara@example.com")
+	quiet := testBuild(t, s, alice.ID, "Quiet")
+	popular := testBuild(t, s, alice.ID, "Popular")
+	other := testBuild(t, s, bob.ID, "Other")
+	if err := s.VoteBuild(popular, alice.ID); err == nil {
+		t.Fatal("voted for own build")
+	}
+	for _, voter := range []int64{bob.ID, cara.ID} {
+		if err := s.VoteBuild(popular, voter); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.VoteBuild(popular, bob.ID); err != nil {
+		t.Fatal("second vote should be ignored, not fail")
+	}
+	if err := s.VoteBuild(other, alice.ID); err != nil {
+		t.Fatal(err)
+	}
+	build, _ := s.BuildByID(popular)
+	if build.Votes != 2 {
+		t.Fatalf("votes = %d", build.Votes)
+	}
+	featured, err := s.FeaturedBuilds(time.Now().Add(-time.Hour), MaxFeatured)
+	if err != nil || len(featured) != 2 || featured[0].ID != popular || featured[1].ID != other {
+		t.Fatalf("featured: %v %v", featured, err)
+	}
+	for _, b := range featured {
+		if b.ID == quiet {
+			t.Fatal("unvoted build featured")
+		}
+	}
+	if voted, _ := s.HasVotedBuild(popular, bob.ID); !voted {
+		t.Fatal("bob's vote missing")
+	}
+	if err := s.UnvoteBuild(popular, bob.ID); err != nil {
+		t.Fatal(err)
+	}
+	if voted, _ := s.HasVotedBuild(popular, bob.ID); voted {
+		t.Fatal("bob's vote still there")
+	}
+	stale, _ := s.FeaturedBuilds(time.Now().Add(time.Hour), MaxFeatured)
+	if len(stale) != 0 {
+		t.Fatal("old votes should not feature")
+	}
+	if _, err := s.DeleteBuild(popular, alice.ID); err != nil {
+		t.Fatal(err)
+	}
+	if voted, _ := s.HasVotedBuild(popular, cara.ID); voted {
+		t.Fatal("votes survived the build")
+	}
 }
 
 func TestTrophyDownloadSingleUse(t *testing.T) {
@@ -197,10 +321,7 @@ func TestTrophyDownloadSingleUse(t *testing.T) {
 	bob := testUser(t, s, "bob@example.com")
 	cara := testUser(t, s, "cara@example.com")
 	aliceBuild := testBuild(t, s, alice.ID, "Spitfire")
-	comp, err := s.CreateCompetition("Cup", "2026-01-01")
-	if err != nil {
-		t.Fatal(err)
-	}
+	comp := testCompetition(t, s, bob.ID, "Cup")
 	if err := s.EnterCompetition(comp.ID, aliceBuild, alice.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -233,6 +354,127 @@ func TestTrophyDownloadSingleUse(t *testing.T) {
 	}
 	if err := s.UseTrophyDownload(trophy.ID, alice.ID); err != nil {
 		t.Fatal("re-armed download failed")
+	}
+}
+
+func TestPhotoOrderAndRemoval(t *testing.T) {
+	s := testStore(t)
+	user := testUser(t, s, "photos@example.com")
+	build := testBuild(t, s, user.ID, "Photo build")
+	for _, name := range []string{"a.jpg", "b.jpg", "c.jpg"} {
+		if err := s.AddPhoto(build, name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SetCoverPhoto(build, "c.jpg"); err != nil {
+		t.Fatal(err)
+	}
+	names, _ := s.Photos(build)
+	if len(names) != 3 || names[0] != "c.jpg" || names[1] != "a.jpg" {
+		t.Fatalf("cover order wrong: %v", names)
+	}
+	if err := s.RemovePhoto(build, "a.jpg"); err != nil {
+		t.Fatal(err)
+	}
+	names, _ = s.Photos(build)
+	if len(names) != 2 || names[0] != "c.jpg" || names[1] != "b.jpg" {
+		t.Fatalf("removal order wrong: %v", names)
+	}
+	if err := s.RemovePhoto(build, "missing.jpg"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("removing a missing photo: %v", err)
+	}
+	if err := s.SetCoverPhoto(build, "missing.jpg"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("cover of a missing photo: %v", err)
+	}
+	if err := s.AddPhoto(build, "d.jpg"); err != nil {
+		t.Fatal(err)
+	}
+	names, _ = s.Photos(build)
+	if len(names) != 3 || names[2] != "d.jpg" {
+		t.Fatalf("positions did not close up: %v", names)
+	}
+}
+
+func TestDeleteBuild(t *testing.T) {
+	s := testStore(t)
+	owner := testUser(t, s, "owner@example.com")
+	other := testUser(t, s, "other@example.com")
+	build := testBuild(t, s, owner.ID, "Doomed")
+	if err := s.AddPhoto(build, "a.jpg"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DeleteBuild(build, other.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("someone else deleted the build: %v", err)
+	}
+	entered := testBuild(t, s, owner.ID, "Entered")
+	comp := testCompetition(t, s, owner.ID, "Sprint")
+	if err := s.EnterCompetition(comp.ID, entered, owner.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DeleteBuild(entered, owner.ID); !errors.Is(err, ErrInUse) {
+		t.Fatalf("entered build should be kept: %v", err)
+	}
+	photos, err := s.DeleteBuild(build, owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(photos) != 1 || photos[0] != "a.jpg" {
+		t.Fatalf("photo names for cleanup: %v", photos)
+	}
+	if _, err := s.BuildByID(build); !errors.Is(err, ErrNotFound) {
+		t.Error("build still there")
+	}
+	if names, _ := s.Photos(build); len(names) != 0 {
+		t.Error("photo rows still there")
+	}
+}
+
+func TestRecentBuildsPaging(t *testing.T) {
+	s := testStore(t)
+	user := testUser(t, s, "pages@example.com")
+	for i := 0; i < 5; i++ {
+		testBuild(t, s, user.ID, "Build")
+	}
+	first, err := s.RecentBuilds(0, 2)
+	if err != nil || len(first) != 2 || first[0].ID != 5 {
+		t.Fatalf("first page: %v %v", first, err)
+	}
+	second, err := s.RecentBuilds(first[1].ID, 2)
+	if err != nil || len(second) != 2 || second[0].ID != 3 {
+		t.Fatalf("second page: %v %v", second, err)
+	}
+	last, err := s.RecentBuilds(second[1].ID, 2)
+	if err != nil || len(last) != 1 || last[0].ID != 1 {
+		t.Fatalf("last page: %v %v", last, err)
+	}
+}
+
+func TestSweep(t *testing.T) {
+	s := testStore(t)
+	user := testUser(t, s, "sweep@example.com")
+	if err := s.CreateSession("live", user.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec(`insert into sessions (token_hash, user_id, expires_at) values ('dead', ?, '2000-01-01T00:00:00Z')`, user.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateMagicToken("fresh", "sweep@example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateMagicToken("spent", "sweep@example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ConsumeMagicToken("spent"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Sweep(); err != nil {
+		t.Fatal(err)
+	}
+	var sessions, tokens int
+	s.db.QueryRow(`select count(*) from sessions`).Scan(&sessions)
+	s.db.QueryRow(`select count(*) from magic_tokens`).Scan(&tokens)
+	if sessions != 1 || tokens != 1 {
+		t.Errorf("after sweep: %d sessions, %d tokens", sessions, tokens)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/mail"
 	"net/smtp"
 	"strings"
 	"time"
@@ -20,13 +21,13 @@ func (s *Server) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
-	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
-	if email == "" || !strings.Contains(email, "@") || len(email) > 200 {
-		http.Redirect(w, r, "/login?error=Enter+a+real+email+address", http.StatusSeeOther)
+	email, ok := plainEmail(r.FormValue("email"))
+	if !ok {
+		flashRedirect(w, r, "/login", "", "Enter a real email address.")
 		return
 	}
 	if !s.limiter.allow("email:"+email, magicLinkMinGap) || !s.limiter.allow("ip:"+clientKey(r), magicLinkMinGap) {
-		http.Redirect(w, r, "/login?error=Hold+on+a+moment,+then+try+again", http.StatusSeeOther)
+		flashRedirect(w, r, "/login", "", "Too many attempts. Wait a moment and try again.")
 		return
 	}
 	token, err := randomToken()
@@ -47,8 +48,23 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "check_email", "Check your email", email)
 }
 
-// sendMagicLink emails the link when SMTP is configured and logs it otherwise,
-// which is how local development signs in.
+// plainEmail accepts a bare address only: no display name, no whitespace,
+// nothing that could reach a mail header unchanged.
+func plainEmail(raw string) (string, bool) {
+	email := strings.ToLower(strings.TrimSpace(raw))
+	if email == "" || len(email) > 200 {
+		return "", false
+	}
+	parsed, err := mail.ParseAddress(email)
+	if err != nil || parsed.Address != email {
+		return "", false
+	}
+	return email, true
+}
+
+// sendMagicLink emails the link when SMTP is configured and logs it otherwise.
+// main refuses to start without SMTP unless the base URL is localhost, so the
+// logging path is local development only.
 func (s *Server) sendMagicLink(email, link string) error {
 	if s.config.SMTPHost == "" {
 		log.Printf("web: magic link for %s: %s", email, link)
@@ -119,12 +135,12 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	}
 	name := strings.TrimSpace(r.FormValue("display_name"))
 	if name == "" || len(name) > 100 {
-		http.Redirect(w, r, "/settings?error=Pick+a+name+under+100+characters", http.StatusSeeOther)
+		flashRedirect(w, r, "/settings", "", "Pick a name under 100 characters.")
 		return
 	}
 	if err := s.store.RenameUser(user.ID, name); err != nil {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not save your settings.")
 		return
 	}
-	http.Redirect(w, r, "/settings?note=Saved", http.StatusSeeOther)
+	flashRedirect(w, r, "/settings", "Saved.", "")
 }

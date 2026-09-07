@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 160 160" role="img">
-<title>Second place</title>
-<circle cx="80" cy="80" r="72" fill="#eceff4" stroke="#7d8590" stroke-width="7"/>
-<path d="M56 44 h48 v22 a24 24 0 0 1 -48 0 z" fill="#565d66"/>
-<path d="M56 50 h-10 a4 4 0 0 0 -4 4 v2 a16 16 0 0 0 16 16 M104 50 h10 a4 4 0 0 1 4 4 v2 a16 16 0 0 1 -16 16" fill="none" stroke="#565d66" stroke-width="5"/>
-<rect x="74" y="88" width="12" height="12" fill="#565d66"/>
-<rect x="62" y="100" width="36" height="8" rx="2" fill="#565d66"/>
-<text x="80" y="140" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="bold" fill="#565d66">2</text>
-</svg>

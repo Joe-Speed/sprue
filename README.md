@@ -5,18 +5,20 @@
 [![SQLite](https://img.shields.io/badge/SQLite-pure_Go-003B57?logo=sqlite&logoColor=white)](https://pkg.go.dev/modernc.org/sqlite)
 [![No JS framework](https://img.shields.io/badge/frontend-server_rendered-brightgreen)]()
 
-A community platform for scale modellers. Builders sign in with an email link, share their builds with photos, curate their own bench page, and enter mini competitions with an Airfix focus. The community votes, and winners download a 3D-printable trophy that arrives, like everything else in this hobby, unpainted.
+A community platform for scale modellers. Builders sign in with an email link, post their builds with photos, curate their own bench page, vote for the builds they like, and run their own competitions. Winners download a 3D-printable trophy that arrives, like everything else in this hobby, unpainted.
 
 Built as a single Go binary with SQLite. No framework, no JavaScript build step, no external services beyond outbound email. One process, one data directory, done.
 
 ## Features
 
 - **Passwordless sign-in.** Email magic links, single use, fifteen minute expiry. No passwords stored, ever.
-- **Your bench, your page.** Every builder gets a profile at `/u/name` with a trophy case, featured builds up top, and the rest ordered by build date.
-- **Builds with photos.** Uploads are decoded and re-encoded server side, stripped of metadata, and capped at 1600 pixels on the long edge. Nothing a browser sends is stored verbatim.
-- **Competitions.** Enter one of your own builds, one entry per builder. One vote per account, no voting for yourself, and vote counts stay hidden until the result is decided.
+- **Your bench, your page.** Every builder gets a profile at `/u/name` with a trophy case, pinned builds up top, and the rest ordered by build date.
+- **Community featured spot.** Members vote for builds they like, one vote per build each and never for their own. The most voted builds of the last 30 days sit at the top of the workbench.
+- **Builds with photos.** Upload up to six at a time, pick the cover, remove the ones you do not want. Uploads are decoded and re-encoded server side, stripped of metadata, and capped at 1600 pixels on the long edge. Nothing a browser sends is stored verbatim.
+- **Competitions, run by members.** Anyone can start one with a brief, an entry close date and a voting close date. Entries open, then voting, then results, all by date. Enter one of your own builds, one entry per builder. One vote per account, no voting for yourself, and vote counts stay hidden until the result is decided.
 - **Deterministic results.** Ties break to the earlier entry, entries with zero votes never place, and the tally is reproducible from the database.
 - **Printable trophies.** First, second, and third get placement badges on their builds and profile, plus a single-use download of their trophy STL. The STL files live only on the server and are released only to their winner. Recommended paints: gold DB0016, silver DB0011, antique bronze DB0171.
+- **Retro pixel look.** NES.css borders and controls, self-hosted pixel fonts, a sky and paper palette, and pixel-art trophy badges. Photos stay photographs. No external requests from the browser.
 - **Bounded by design.** Every collection has a hard cap and every limit is a clean error, never growth. The code follows the spirit of NASA's Power of 10 rules, adapted to Go.
 
 ## Quick start

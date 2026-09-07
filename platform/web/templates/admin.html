@@ -1,37 +1,36 @@
 {{define "content"}}
-<h1>Admin</h1>
-<h2>New competition</h2>
-<form method="post" action="/admin/competitions">
-<input type="hidden" name="csrf" value="{{.CSRF}}">
-<label>Title <input type="text" name="title" required maxlength="200"></label>
-<label>Deadline <input type="date" name="deadline" required></label>
-<button type="submit">Create</button>
-</form>
-<h2>Competitions</h2>
-<ul class="builds">
+<h1>admin</h1>
+<p class="meta">Competitions run themselves by date. From here you can decide one early while it is in voting, and re-arm a trophy download.</p>
+<section class="nes-container with-title">
+<h2 class="title">competitions</h2>
+{{if not .Data.Competitions}}<p class="quiet">None yet.</p>{{end}}
+<ul class="rows">
 {{range .Data.Competitions}}
 <li>
-<strong>{{.Title}}</strong> <em>{{.Status}}</em>
-<form class="inline" method="post" action="/admin/competitions/{{.Slug}}/status">
+<a href="/competitions/{{.Slug}}">{{.Title}}</a>{{template "status_tag" .Status}}<span class="meta">{{template "competition_dates" .}} · by {{.CreatorName}}</span>
+{{if eq .Status "voting"}}<form method="post" action="/admin/competitions/{{.Slug}}/decide">
 <input type="hidden" name="csrf" value="{{$.CSRF}}">
-{{if eq .Status "open"}}<button name="status" value="voting">open voting</button>{{end}}
-{{if eq .Status "voting"}}<button name="status" value="decided">close and decide</button>
-<button name="status" value="open">back to open</button>{{end}}
-</form>
+<button class="nes-btn">decide now</button>
+</form>{{end}}
 </li>
 {{end}}
 </ul>
+</section>
 {{if .Data.Trophies}}
-<h2>Trophy downloads</h2>
-<ul class="trophies">
+<section class="nes-container with-title">
+<h2 class="title">trophy downloads</h2>
+<ul class="rows">
 {{range .Data.Trophies}}
-<li>{{.CompetitionTitle}} · {{placeName .Place}} · {{.BuildTitle}} · downloads left: {{.DownloadsLeft}}
-<form class="inline" method="post" action="/admin/trophies/{{.ID}}/rearm">
+<li>
+<img class="badge" src="{{placeBadge .Place}}" alt="{{placeName .Place}} place" width="24" height="24">
+<span class="meta">{{.CompetitionTitle}} · {{.BuildTitle}} · downloads left: {{.DownloadsLeft}}</span>
+<form method="post" action="/admin/trophies/{{.ID}}/rearm">
 <input type="hidden" name="csrf" value="{{$.CSRF}}">
-<button>re-arm</button>
+<button class="nes-btn">re-arm</button>
 </form>
 </li>
 {{end}}
 </ul>
+</section>
 {{end}}
 {{end}}

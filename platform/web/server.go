@@ -11,6 +11,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -44,6 +45,8 @@ type Server struct {
 	limiter   *rateLimiter
 }
 
+const staticCacheControl = "public, max-age=31536000, immutable"
+
 func New(st *store.Store, config Config) (*Server, error) {
 	if st == nil || config.DataDir == "" || config.BaseURL == "" {
 		return nil, errors.New("web: store, data dir, and base url are required")
@@ -55,53 +58,9 @@ func New(st *store.Store, config Config) (*Server, error) {
 	return &Server{store: st, config: config, templates: templates, limiter: newRateLimiter()}, nil
 }
 
-var pageNames = []string{
-	"home", "login", "check_email", "settings", "profile", "build", "build_form",
-	"competitions", "competition", "admin", "error",
-}
-
-func parseTemplates() (map[string]*template.Template, error) {
-	templates := make(map[string]*template.Template, len(pageNames))
-	for _, name := range pageNames {
-		t, err := template.New("base.html").Funcs(template.FuncMap{
-			"placeBadge": placeBadge,
-			"placeName":  placeName,
-		}).ParseFS(templateFiles, "templates/base.html", "templates/"+name+".html")
-		if err != nil {
-			return nil, fmt.Errorf("web: template %s: %w", name, err)
-		}
-		templates[name] = t
-	}
-	return templates, nil
-}
-
-func placeBadge(place int) string {
-	switch place {
-	case 1:
-		return "/static/trophies/first-place.svg"
-	case 2:
-		return "/static/trophies/second-place.svg"
-	case 3:
-		return "/static/trophies/third-place.svg"
-	}
-	return ""
-}
-
-func placeName(place int) string {
-	switch place {
-	case 1:
-		return "First"
-	case 2:
-		return "Second"
-	case 3:
-		return "Third"
-	}
-	return ""
-}
-
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("GET /static/", http.FileServerFS(staticFiles))
+	mux.Handle("GET /static/", cacheForever(http.FileServerFS(staticFiles)))
 	mux.HandleFunc("GET /{$}", s.handleHome)
 	mux.HandleFunc("GET /login", s.handleLoginPage)
 	mux.HandleFunc("POST /auth/start", s.handleAuthStart)
@@ -116,17 +75,119 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /builds/{id}/edit", s.handleBuildForm)
 	mux.HandleFunc("POST /builds/{id}/edit", s.handleBuildUpdate)
 	mux.HandleFunc("POST /builds/{id}/photos", s.handlePhotoUpload)
+	mux.HandleFunc("POST /builds/{id}/photos/{name}/cover", s.handlePhotoCover)
+	mux.HandleFunc("POST /builds/{id}/photos/{name}/delete", s.handlePhotoDelete)
+	mux.HandleFunc("POST /builds/{id}/delete", s.handleBuildDelete)
+	mux.HandleFunc("POST /builds/{id}/vote", s.handleBuildVote)
 	mux.HandleFunc("GET /photos/{build}/{name}", s.handlePhoto)
 	mux.HandleFunc("GET /competitions", s.handleCompetitions)
+	mux.HandleFunc("GET /competitions/new", s.handleCompetitionForm)
+	mux.HandleFunc("POST /competitions/new", s.handleCompetitionCreate)
 	mux.HandleFunc("GET /competitions/{slug}", s.handleCompetition)
 	mux.HandleFunc("POST /competitions/{slug}/enter", s.handleEnter)
 	mux.HandleFunc("POST /competitions/{slug}/vote", s.handleVote)
 	mux.HandleFunc("GET /trophies/{id}/download", s.handleTrophyDownload)
 	mux.HandleFunc("GET /admin", s.handleAdmin)
-	mux.HandleFunc("POST /admin/competitions", s.handleAdminCreateCompetition)
-	mux.HandleFunc("POST /admin/competitions/{slug}/status", s.handleAdminStatus)
+	mux.HandleFunc("POST /admin/competitions/{slug}/decide", s.handleAdminDecide)
 	mux.HandleFunc("POST /admin/trophies/{id}/rearm", s.handleAdminRearm)
-	return s.withRequestLog(mux)
+	mux.HandleFunc("GET /mark/next", s.handleMarkNext)
+	mux.HandleFunc("GET /healthz", s.handleHealth)
+	mux.HandleFunc("/", s.handleNotFound)
+	return s.withRequestLog(withSecurityHeaders(withBodyLimit(mux)))
+}
+
+// maxFormBytes bounds every POST except the two that carry photos, which set
+// their own larger limit. Text forms never need more than this.
+const maxFormBytes = 64 * 1024
+
+func carriesPhotos(path string) bool {
+	return path == "/builds/new" || strings.HasSuffix(path, "/photos")
+}
+
+func withBodyLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && !carriesPhotos(r.URL.Path) {
+			r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// contentSecurityPolicy allows only what the pages use: same-origin pages,
+// styles, fonts, and images, plus the data URIs NES.css draws its borders
+// with. No scripts run at all.
+const contentSecurityPolicy = "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; " +
+	"form-action 'self'; base-uri 'self'; frame-ancestors 'none'"
+
+func withSecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("Content-Security-Policy", contentSecurityPolicy)
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Referrer-Policy", "same-origin")
+		h.Set("X-Frame-Options", "DENY")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func readMark(r *http.Request) string {
+	cookie, err := r.Cookie(markCookie)
+	if err != nil {
+		return markColours[0]
+	}
+	return validMark(cookie.Value)
+}
+
+// handleMarkNext moves the airplane mark to its next colour and sends the
+// reader back to the page they clicked from. Same-origin referers only;
+// anything else goes to the front page.
+func (s *Server) handleMarkNext(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     markCookie,
+		Value:    nextMark(readMark(r)),
+		Path:     "/",
+		MaxAge:   365 * 24 * 60 * 60,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   strings.HasPrefix(s.config.BaseURL, "https://"),
+	})
+	http.Redirect(w, r, localReferer(r), http.StatusSeeOther)
+}
+
+// localReferer returns the path of the referring page when it is a plain
+// path on this site, otherwise the front page. A path starting with two
+// slashes would be read by browsers as another host, so it is refused too.
+func localReferer(r *http.Request) string {
+	from, err := url.Parse(r.Referer())
+	if err != nil || from.Host != r.Host || from.Path == "/mark/next" {
+		return "/"
+	}
+	if !strings.HasPrefix(from.Path, "/") || strings.HasPrefix(from.Path, "//") {
+		return "/"
+	}
+	back := from.Path
+	if from.RawQuery != "" {
+		back += "?" + from.RawQuery
+	}
+	return back
+}
+
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	if err := s.store.Ping(); err != nil {
+		http.Error(w, "database unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	fmt.Fprintln(w, "ok")
+}
+
+// cacheForever marks embedded static files immutable. Every static URL
+// carries the build's asset version, so a new binary is a new URL.
+func cacheForever(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", staticCacheControl)
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) withRequestLog(next http.Handler) http.Handler {
@@ -140,6 +201,8 @@ func (s *Server) withRequestLog(next http.Handler) http.Handler {
 // page is the data every template receives.
 type page struct {
 	Title string
+	Path  string // request path, so the nav can mark where the reader is
+	Mark  string // colour of the airplane mark, from the reader's cookie
 	User  *store.User
 	CSRF  string
 	Data  any
@@ -157,7 +220,9 @@ func (s *Server) renderStatus(w http.ResponseWriter, r *http.Request, status int
 		http.Error(w, "template missing", http.StatusInternalServerError)
 		return
 	}
-	p := page{Title: title, Data: data, Error: r.URL.Query().Get("error"), Note: r.URL.Query().Get("note")}
+	query := r.URL.Query()
+	p := page{Title: title, Path: r.URL.Path, Mark: readMark(r), Data: data,
+		Error: clipMessage(query.Get("error")), Note: clipMessage(query.Get("note"))}
 	if user, token, err := s.sessionUser(r); err == nil {
 		p.User = &user
 		p.CSRF = csrfToken(token)
@@ -169,8 +234,35 @@ func (s *Server) renderStatus(w http.ResponseWriter, r *http.Request, status int
 	}
 }
 
+func (s *Server) handleNotFound(w http.ResponseWriter, r *http.Request) {
+	s.renderError(w, r, http.StatusNotFound, "Nothing at this address.")
+}
+
 func (s *Server) renderError(w http.ResponseWriter, r *http.Request, status int, message string) {
 	s.renderStatus(w, r, status, "error", "Something went wrong", message)
+}
+
+// maxMessageLength bounds the flash text a page will show from its query
+// string, which anyone can put in a link.
+const maxMessageLength = 200
+
+func clipMessage(text string) string {
+	if len(text) > maxMessageLength {
+		return text[:maxMessageLength]
+	}
+	return text
+}
+
+// flashRedirect sends the reader to path with one message: an error if
+// errorText is set, otherwise a note.
+func flashRedirect(w http.ResponseWriter, r *http.Request, path, note, errorText string) {
+	query := url.Values{}
+	if errorText != "" {
+		query.Set("error", errorText)
+	} else if note != "" {
+		query.Set("note", note)
+	}
+	http.Redirect(w, r, path+"?"+query.Encode(), http.StatusSeeOther)
 }
 
 func randomToken() (string, error) {

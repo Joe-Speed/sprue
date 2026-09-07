@@ -1,9 +1,18 @@
 {{define "content"}}
-<h1>Competitions</h1>
-{{if not .Data}}<p class="stash">No competitions yet.</p>{{end}}
-<ul class="builds">
-{{range .Data}}
-<li><a href="/competitions/{{.Slug}}"><strong>{{.Title}}</strong> <em>{{.Status}} · deadline {{.Deadline}}</em></a></li>
+<div class="profile-head">
+<div>
+<h1>competitions</h1>
+<p class="meta">Any member can start one. Entries stay open until the entry date, then the community votes, then the results stand.</p>
+</div>
+{{if .User}}<p class="actions"><a class="nes-btn is-primary" href="/competitions/new">start a competition</a></p>{{end}}
+</div>
+{{if not .Data.Competitions}}<p class="quiet">No competitions yet.{{if not .User}} <a href="/login">Sign in</a> to start one.{{end}}</p>{{end}}
+<ul class="rows">
+{{range .Data.Competitions}}
+<li>
+<a href="/competitions/{{.Slug}}">{{.Title}}</a>{{template "status_tag" .Status}}
+<span class="meta">{{template "competition_dates" .}} · by {{.CreatorName}}</span>
+</li>
 {{end}}
 </ul>
 {{end}}

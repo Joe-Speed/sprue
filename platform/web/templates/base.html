@@ -4,27 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} · sprue</title>
-<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" type="image/svg+xml" href="{{markPath .Mark}}">
+<link rel="stylesheet" href="{{static "vendor/nes-core.min.css"}}">
+<link rel="stylesheet" href="{{static "style.css"}}">
 </head>
 <body>
 <header class="site">
-<nav>
-<a class="brand" href="/">sprue</a>
-<a href="/competitions">competitions</a>
+<span class="brand"><a class="mark-link" href="/mark/next" title="Change the plane's colour"><img class="mark" src="{{markPath .Mark}}" alt="Change the plane's colour" width="61" height="40"></a><a href="/">sprue</a></span>
+<nav class="primary" aria-label="Site">
+<a href="/"{{if eq .Path "/"}} aria-current="page"{{end}}>workbench</a>
+<a href="/competitions"{{if under .Path "/competitions"}} aria-current="page"{{end}}>competitions</a>
+</nav>
+<nav class="account" aria-label="Account">
 {{if .User}}
-<a href="/u/{{.User.Slug}}">my bench</a>
-<a href="/builds/new">add a build</a>
-{{if .User.IsAdmin}}<a href="/admin">admin</a>{{end}}
-<form class="inline" method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="linkish">sign out</button></form>
+<a href="/u/{{.User.Slug}}"{{if eq .Path (print "/u/" .User.Slug)}} aria-current="page"{{end}}>my bench</a>
+{{if .User.IsAdmin}}<a href="/admin"{{if under .Path "/admin"}} aria-current="page"{{end}}>admin</a>{{end}}
+<a class="nes-btn is-primary" href="/builds/new">post a build</a>
+<form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="linkish">sign out</button></form>
 {{else}}
-<a href="/login">sign in</a>
+<a class="nes-btn is-primary" href="/login">sign in</a>
 {{end}}
 </nav>
 </header>
-<main>
+<main class="panel">
 {{if .Error}}<p class="flash error">{{.Error}}</p>{{end}}
 {{if .Note}}<p class="flash note">{{.Note}}</p>{{end}}
 {{block "content" .}}{{end}}
 </main>
+<footer class="site">Scale model builds and competitions. <a href="https://github.com/Joe-Speed/sprue">Source</a>.</footer>
 </body>
 </html>
