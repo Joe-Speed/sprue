@@ -425,18 +425,18 @@ main.panel {
 footer.site {
   max-width: var(--width);
   margin: 0 auto;
-  padding: 0 1rem 2rem;
-  font-size: 0.9rem;
+  padding: 2.5rem 1rem 3rem;
+  font-size: 1rem;
   color: var(--ink);
 }
 
 footer.site nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem 1.4rem;
-  margin-bottom: 0.5rem;
+  gap: 0.6rem 1.6rem;
+  margin-bottom: 1rem;
   font-family: var(--display);
-  font-size: 0.55rem;
+  font-size: 0.6rem;
 }
 
 footer.site nav a {
@@ -451,6 +451,14 @@ footer.site nav a:hover {
 
 footer.site p {
   margin: 0;
+}
+
+/* The body font draws the copyright sign tiny; the display font draws it
+   at the size of a capital. */
+footer.site .copyright {
+  font-family: var(--display);
+  font-size: 0.75rem;
+  vertical-align: -1px;
 }
 
 /* Sections: NES containers with the title sitting in the border line. */
@@ -1065,15 +1073,17 @@ section.nes-container.danger.with-title > .title {
   color: var(--red);
 }
 
-/* Plain lists: competitions, admin rows */
+/* Plain lists: competitions, admin rows, supporters */
 
-ul.rows {
+ul.rows,
+ol.rows {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-ul.rows li {
+ul.rows li,
+ol.rows li {
   display: flex;
   align-items: center;
   gap: 0.6rem 1rem;
@@ -1082,8 +1092,28 @@ ul.rows li {
   border-bottom: 4px dotted var(--paper-deep);
 }
 
-ul.rows li:last-child {
+ul.rows li:last-child,
+ol.rows li:last-child {
   border-bottom: 0;
+}
+
+/* Supporters are numbered by hand in the display font so the order reads
+   as a standing, top gift first. */
+ol.donors {
+  counter-reset: donor;
+}
+
+ol.donors li::before {
+  counter-increment: donor;
+  content: counter(donor);
+  font-family: var(--display);
+  font-size: 0.7rem;
+  min-width: 1.6rem;
+  color: var(--roundel-blue);
+}
+
+ol.donors strong {
+  font-size: 1.2rem;
 }
 
 ul.rows a {

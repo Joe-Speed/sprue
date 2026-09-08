@@ -44,6 +44,8 @@ type Config struct {
 	DiscordURL       string // invite link shown in the footer, empty to hide
 	DiscordWebhook   string // webhook the feedback form posts to, empty to hide the form
 	SupportEmail     string // address shown in the footer for support
+	KofiURL          string // the site's Ko-fi page, empty to hide the donate page
+	KofiToken        string // Ko-fi webhook verification token, empty to refuse webhooks
 }
 
 type Server struct {
@@ -65,6 +67,9 @@ func New(st *store.Store, config Config) (*Server, error) {
 	}
 	if config.Currency == "" {
 		config.Currency = "£"
+	}
+	if config.KofiURL != "" && !strings.HasPrefix(config.KofiURL, "https://") {
+		return nil, errors.New("web: ko-fi url must start with https://")
 	}
 	templates, err := parseTemplates()
 	if err != nil {
@@ -124,6 +129,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /admin/competitions/{slug}/entries/{id}/remove", s.handleAdminRemoveEntry)
 	mux.HandleFunc("POST /admin/trophies/{id}/rearm", s.handleAdminRearm)
 	mux.HandleFunc("POST /admin/builds/{id}/{action}", s.handleAdminModerate)
+	mux.HandleFunc("POST /admin/donations/{id}/remove", s.handleAdminRemoveDonation)
+	mux.HandleFunc("GET /support", s.handleSupport)
+	mux.HandleFunc("POST /webhooks/kofi", s.handleKofiWebhook)
 	mux.HandleFunc("GET /terms", s.handleTerms)
 	mux.HandleFunc("GET /privacy", s.handlePrivacy)
 	mux.HandleFunc("GET /feedback", s.handleFeedbackForm)
@@ -207,7 +215,7 @@ func localReferer(r *http.Request) string {
 }
 
 // policyUpdated is the date the terms and privacy text last changed.
-const policyUpdated = "2026-09-07"
+const policyUpdated = "2026-09-08"
 
 func (s *Server) handleTerms(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "terms", "Terms", policyUpdated)
@@ -252,6 +260,7 @@ type site struct {
 	DiscordURL       string
 	SupportEmail     string
 	Feedback         bool // the feedback form is available
+	Donate           bool // the support page is available
 	Year             int
 }
 
@@ -298,7 +307,7 @@ func (s *Server) renderMeta(w http.ResponseWriter, r *http.Request, status int, 
 		Site: site{
 			AnalyticsID: s.config.AnalyticsID, SiteVerification: s.config.SiteVerification, Currency: s.config.Currency,
 			DiscordURL: s.config.DiscordURL, SupportEmail: s.config.SupportEmail,
-			Feedback: s.config.DiscordWebhook != "", Year: time.Now().UTC().Year(),
+			Feedback: s.config.DiscordWebhook != "", Donate: s.config.KofiURL != "", Year: time.Now().UTC().Year(),
 		},
 	}
 	if name == "home" {

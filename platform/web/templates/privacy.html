@@ -1,9 +1,9 @@
 {{define "content"}}
 <h1>Privacy</h1>
 <p class="meta">Last updated {{niceDate .Data}}.</p>
-<p><strong>What we hold.</strong> Your email address, your display name, your profile picture if you add one, the builds, photos, stash entries, notes, votes, reports, and friendships you create, and the time you did each of these. Nothing else.</p>
+<p><strong>What we hold.</strong> Your email address, your display name, your profile picture if you add one, the builds, photos, stash entries, notes, votes, reports, and friendships you create, and the time you did each of these.{{if .Site.Donate}} If you donate through Ko-fi, the name you gave there, the amount, and any message, but never your card or payment details.{{end}} Nothing else.</p>
 <p><strong>Why.</strong> The email address signs you in and, only if you turn it on, sends stash reminders. Everything else exists to run the site: to show your builds, count votes, and decide competitions.</p>
-<p><strong>Who sees what.</strong> Your display name, public builds, competition entries, and trophies are public. Your email address, stash, journal, private builds, and friend list are seen by you alone. Photos are stripped of camera metadata before they are stored.</p>
+<p><strong>Who sees what.</strong> Your display name, public builds, competition entries, and trophies are public. Your email address, stash, journal, private builds, and friend list are seen by you alone.{{if .Site.Donate}} Donations you did not mark private on Ko-fi are listed by name on the support page.{{end}} Photos are stripped of camera metadata before they are stored.</p>
 <p><strong>Cookies.</strong> Two: one that keeps you signed in for ninety days, and one that remembers which colour plane you picked. No advertising cookies.{{if .Site.AnalyticsID}} Google Analytics measures visits to the site.{{end}}</p>
 <p><strong>Third parties.</strong> Sign-in emails and reminders go through an email provider. Photos may be checked by an image screening service before they are saved.{{if .Site.AnalyticsID}} Google Analytics receives the usual visit data.{{end}} Nothing is sold to anyone.</p>
 <p><strong>Your rights.</strong> You can change your name and picture in settings, delete your builds and stash entries yourself, and ask for your account and everything in it to be removed {{template "contact" .}}. We answer within a month.</p>

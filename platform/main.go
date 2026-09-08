@@ -63,6 +63,8 @@ func main() {
 		DiscordURL:       os.Getenv("SPRUE_DISCORD_URL"),
 		DiscordWebhook:   os.Getenv("SPRUE_DISCORD_WEBHOOK"),
 		SupportEmail:     os.Getenv("SPRUE_SUPPORT_EMAIL"),
+		KofiURL:          os.Getenv("SPRUE_KOFI_URL"),
+		KofiToken:        os.Getenv("SPRUE_KOFI_TOKEN"),
 	})
 	if err != nil {
 		log.Fatalf("sprue: %v", err)

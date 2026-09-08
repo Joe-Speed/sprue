@@ -1,6 +1,20 @@
 {{define "content"}}
 <h1>Admin</h1>
 <p class="meta">Competitions open, vote, and close on their own dates. Here you can act on reported builds, end a vote early, and give a winner another trophy download.</p>
+{{if .Site.Donate}}<section class="nes-container with-title">
+<h2 class="title">Donations</h2>
+<p class="meta">Every payment Ko-fi has reported, newest first. Remove a test payment or an unwelcome name and the supporters list changes at once.</p>
+{{if not .Data.Donations}}<p class="quiet">None yet.</p>{{end}}
+<ul class="rows">
+{{range .Data.Donations}}
+<li>
+<strong>{{.Name}}</strong>{{if not .Public}}<span class="tag">private</span>{{end}}
+<span class="meta">{{money .AmountMinor}} {{.Currency}} · {{niceDate .CreatedAt}}{{if .Message}} · "{{.Message}}"{{end}}</span>
+<form method="post" action="/admin/donations/{{.ID}}/remove"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="nes-btn is-error">Remove</button></form>
+</li>
+{{end}}
+</ul>
+</section>{{end}}
 <section class="nes-container with-title">
 <h2 class="title">Reports</h2>
 {{if not .Data.Reports}}<p class="quiet">Nothing reported.</p>{{end}}

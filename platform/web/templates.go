@@ -17,7 +17,7 @@ import (
 var pageNames = []string{
 	"home", "login", "check_email", "settings", "profile", "builds", "build", "build_form",
 	"competitions", "competition", "competition_form", "past", "stash", "stash_item", "members", "friends",
-	"terms", "privacy", "feedback", "admin", "error",
+	"terms", "privacy", "feedback", "support", "admin", "error",
 }
 
 // assetVersion is a short hash of every embedded static file, appended to

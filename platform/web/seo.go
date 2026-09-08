@@ -101,6 +101,9 @@ func (s *Server) handleSitemap(w http.ResponseWriter, r *http.Request) {
 	for _, path := range []string{"/", "/competitions", "/competitions/past", "/members", "/terms", "/privacy"} {
 		urls = append(urls, sitemapURL{Loc: s.absolute(path)})
 	}
+	if s.config.KofiURL != "" {
+		urls = append(urls, sitemapURL{Loc: s.absolute("/support")})
+	}
 	for _, comp := range comps {
 		urls = append(urls, sitemapURL{Loc: s.absolute("/competitions/" + comp.Slug)})
 	}

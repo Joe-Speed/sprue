@@ -32,19 +32,21 @@ func TestEveryPageRenders(t *testing.T) {
 	user.Nudge = "weekly"
 
 	pages := map[string]any{
-		"home":             homeData{Featured: []store.Build{build}, Builds: []store.Build{build}, Older: 7},
-		"login":            nil,
-		"check_email":      "joe@example.com",
-		"settings":         settingsData{User: user, Won: [4]bool{false, true, false, false}},
-		"builds":           []store.Build{build},
-		"profile":          profileData{Owner: user, Builds: []store.Build{build}, Pinned: []store.Build{build}, Trophies: []store.Trophy{trophy}, Friendship: "incoming"},
-		"build":            buildPageData{Build: build, Photos: []string{"abc.jpg"}, CanVote: true, Voted: true},
-		"build_form":       buildFormData{Build: build, Photos: []string{"abc.jpg", "def.jpg"}, CanDelete: true},
-		"competitions":     competitionsData{Competitions: []store.Competition{comp}, Categories: store.Categories, Category: "fighter"},
-		"past":             []pastCompetition{{Competition: comp, Trophies: []store.Trophy{trophy}}},
-		"terms":            "2026-09-07",
-		"privacy":          "2026-09-07",
-		"feedback":         nil,
+		"home":         homeData{Featured: []store.Build{build}, Builds: []store.Build{build}, Older: 7},
+		"login":        nil,
+		"check_email":  "joe@example.com",
+		"settings":     settingsData{User: user, Won: [4]bool{false, true, false, false}},
+		"builds":       []store.Build{build},
+		"profile":      profileData{Owner: user, Builds: []store.Build{build}, Pinned: []store.Build{build}, Trophies: []store.Trophy{trophy}, Friendship: "incoming"},
+		"build":        buildPageData{Build: build, Photos: []string{"abc.jpg"}, CanVote: true, Voted: true},
+		"build_form":   buildFormData{Build: build, Photos: []string{"abc.jpg", "def.jpg"}, CanDelete: true},
+		"competitions": competitionsData{Competitions: []store.Competition{comp}, Categories: store.Categories, Category: "fighter"},
+		"past":         []pastCompetition{{Competition: comp, Trophies: []store.Trophy{trophy}}},
+		"terms":        "2026-09-07",
+		"privacy":      "2026-09-07",
+		"feedback":     nil,
+		"support": supportData{KofiURL: "https://ko-fi.com/sprue", Total: "£12.50", Gifts: 3,
+			Donors: []donorView{{Name: "Sam", Amount: "£10.00", Count: 2}, {Name: "Alex", Amount: "£2.50", Count: 1}}},
 		"competition_form": competitionFormData{Tomorrow: "2026-06-02", Categories: store.Categories},
 		"stash": stashData{Items: []store.StashItem{kit}, Tomorrow: "2026-06-02",
 			Summary: stashSummary{Waiting: 1, DebtPence: 1299, Oldest: "Lancaster", OldestDays: 40, Next: &kit, GoalDone: 1, GoalDaysLeft: -3}},
@@ -53,7 +55,8 @@ func TestEveryPageRenders(t *testing.T) {
 		"stash_item":  stashItemData{Item: kit, Journal: []store.JournalEntry{{ID: 1, StashID: 5, Text: "Primed.", CreatedAt: "2026-05-02T10:00:00Z"}}},
 		"competition": competitionData{Competition: comp, Entries: []store.Entry{entry}, Trophies: []store.Trophy{trophy}, MyBuilds: []store.Build{build}, CanEnter: true, CanVote: true, ShowVotes: true},
 		"admin": adminData{Competitions: []store.Competition{comp}, Trophies: []store.Trophy{trophy},
-			Reports: []store.Report{{BuildID: 7, BuildTitle: "Spitfire Mk.I", OwnerName: "Joe", Count: 2, Reason: "Not a model.", LatestAt: "2026-05-01T00:00:00Z"}}},
+			Reports:   []store.Report{{BuildID: 7, BuildTitle: "Spitfire Mk.I", OwnerName: "Joe", Count: 2, Reason: "Not a model.", LatestAt: "2026-05-01T00:00:00Z"}},
+			Donations: []store.Donation{{ID: 1, ExternalID: "tx-1", Name: "Sam", Message: "Lovely site", AmountMinor: 300, Currency: "GBP", Public: true, CreatedAt: "2026-09-01T00:00:00Z"}}},
 		"error": "Not your build.",
 	}
 	if len(pages) != len(pageNames) {
@@ -61,7 +64,7 @@ func TestEveryPageRenders(t *testing.T) {
 	}
 	for name, data := range pages {
 		var out bytes.Buffer
-		p := page{Title: name, Path: "/competitions", Mark: "green", User: &user, CSRF: "token", Data: data, Site: site{Currency: "£", Year: 2026, DiscordURL: "https://discord.gg/x", Feedback: true, SupportEmail: "help@example.com"}, Requests: 2, Note: "Saved."}
+		p := page{Title: name, Path: "/competitions", Mark: "green", User: &user, CSRF: "token", Data: data, Site: site{Currency: "£", Year: 2026, DiscordURL: "https://discord.gg/x", Feedback: true, Donate: true, SupportEmail: "help@example.com"}, Requests: 2, Note: "Saved."}
 		if err := templates[name].Execute(&out, p); err != nil {
 			t.Errorf("%s: %v", name, err)
 			continue
@@ -82,8 +85,11 @@ func TestEveryPageRenders(t *testing.T) {
 		if !strings.Contains(html, `class="toast note"`) || !strings.Contains(html, "tick.svg") {
 			t.Errorf("%s: note did not render as a toast", name)
 		}
-		if !strings.Contains(html, "&copy; 2026 sprue") || !strings.Contains(html, `href="https://discord.gg/x">Discord`) || !strings.Contains(html, `href="/feedback">Feedback`) {
+		if !strings.Contains(html, "&copy;</span> 2026 sprue") || !strings.Contains(html, `href="https://discord.gg/x">Discord`) || !strings.Contains(html, `href="/feedback">Feedback`) {
 			t.Errorf("%s: footer missing the year, Discord, or feedback link", name)
+		}
+		if !strings.Contains(html, `href="/support">Donate`) {
+			t.Errorf("%s: footer missing the donate link", name)
 		}
 	}
 }

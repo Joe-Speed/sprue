@@ -361,6 +361,7 @@ type adminData struct {
 	Competitions []store.Competition
 	Trophies     []store.Trophy
 	Reports      []store.Report
+	Donations    []store.Donation
 }
 
 func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
@@ -379,6 +380,13 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := adminData{Competitions: comps, Reports: reports}
+	if s.config.KofiURL != "" {
+		data.Donations, err = s.store.RecentDonations()
+		if err != nil {
+			s.renderError(w, r, http.StatusInternalServerError, "Could not load donations.")
+			return
+		}
+	}
 	for _, comp := range comps {
 		if comp.Status != "decided" {
 			continue

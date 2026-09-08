@@ -53,10 +53,18 @@ Builders can remove photos, choose the cover photo, and delete a build. A build 
 - `SPRUE_DISCORD_URL`: the invite link to the community Discord, shown in the footer. Unset, no link.
 - `SPRUE_DISCORD_WEBHOOK`: a Discord channel webhook. When set, signed-in members get a feedback page whose messages post to that channel with their name and profile link. Unset, the page and its footer link do not exist.
 - `SPRUE_SUPPORT_EMAIL`: an address for the footer's support link. Unset, no link.
+- `SPRUE_KOFI_URL`: the site's Ko-fi page. When set, the footer gains a Donate link to a support page that lists the top supporters and everything given so far. Unset, no page and no link.
+- `SPRUE_KOFI_TOKEN`: the verification token from Ko-fi's webhook settings. Ko-fi posts every payment to `/webhooks/kofi`; payments carrying this token are recorded, anything else is refused and logged. Unset, the webhook answers 404. Treat it as a secret.
+
+## Donations
+
+The site can run on donations through Ko-fi, which takes no fee of its own. Ko-fi calls the webhook once per payment with the donor's name, the amount, the currency, a message, and whether the donor ticked private. The store keeps those and nothing else, never the donor's email or payment details. Retries are harmless because each payment carries a transaction id and a repeat is ignored. Donations and memberships count; shop orders do not.
+
+The support page lists the top twenty public supporters by total given, most first and earliest first on a tie, plus the sum of every gift including private ones. It updates itself as payments arrive. The admin page lists every recorded payment newest first with a Remove button, which is how to clear Ko-fi's test payment ("Jo Example") or a name you do not want on the site.
 
 ## Footer, terms and privacy
 
-Every page ends with a footer: terms, privacy, licence, source, and, when configured, support, feedback, and Discord, then a copyright line whose year is the current year. The terms and privacy pages are templates with a "last updated" date set by `policyUpdated` in `web/server.go`; change the date when you change the text. The text is plain and honest about what the site holds and why, but it is not legal advice.
+Every page ends with a footer: terms, privacy, licence, source, and, when configured, support, feedback, donate, and Discord, then a copyright line whose year is the current year. The terms and privacy pages are templates with a "last updated" date set by `policyUpdated` in `web/server.go`; change the date when you change the text. The text is plain and honest about what the site holds and why, but it is not legal advice.
 - `SPRUE_VISION_KEY`: a Google Cloud Vision API key. When set, every uploaded photo is run through SafeSearch before it is saved and refused if likely adult or violent. Unset, photos are not screened.
 
 ## Profiles

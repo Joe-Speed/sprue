@@ -167,6 +167,16 @@ create table if not exists trophies (
 	seen integer not null default 0,
 	unique(competition_id, place)
 );
+create table if not exists donations (
+	id integer primary key autoincrement,
+	external_id text not null unique,
+	name text not null,
+	message text not null default '',
+	amount_minor integer not null,
+	currency text not null,
+	public integer not null default 1,
+	created_at text not null
+);
 `
 
 func Open(path string) (*Store, error) {

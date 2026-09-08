@@ -1,40 +1,65 @@
 # Going live
 
-Everything needed to take sprue from this repository to a public site, in order. Nothing here costs money except Railway after its trial credit and a domain if you do not already own one.
+Do these in order. Each step says what you need before you start and what you have at the end.
 
-## 1. Accounts
+## 1. Push the code
 
-Create these before touching the code. Each takes a few minutes.
+In the repo:
 
-- Railway, at railway.com, to run the binary and hold the data volume.
-- Cloudflare, at cloudflare.com, for DNS, HTTPS, and caching in front of Railway. Add your domain as a site on the free plan and move its nameservers to Cloudflare.
-- Brevo, at brevo.com, for the sign-in emails and stash reminders. The free plan sends 300 a day over SMTP.
-- Google Analytics, at analytics.google.com, if you want traffic numbers. Create a GA4 property for the domain and note its measurement ID, which looks like G-XXXXXXXX.
-- Google Search Console, at search.google.com/search-console, so Google indexes the site and shows you what it finds.
+```sh
+cd platform
+gofmt -l .
+go vet ./...
+go test ./...
+cd ..
+git add -A
+git commit -m "Ko-fi donations and support page"
+git push
+```
 
-## 2. Email
+End: GitHub has the current code.
 
-Any SMTP provider works; the five variables are the same. Brevo is the suggestion because its free plan needs no domain to start. Resend (about 3,000 a month free, needs your own domain), Postmark (100 a month free, the best deliverability), Mailjet (200 a day free), and Amazon SES (cheap, needs an AWS account and production access) all fit the same way. Change provider later by changing the variables.
+## 2. Domain
 
-In Brevo, open Senders and add the address mail will come from, for example hello@yourdomain. Verify it by clicking the link Brevo sends. Then open SMTP and API, create an SMTP key, and note the four values:
+You need a domain you own.
+
+1. Go to cloudflare.com. Make a free account.
+2. Add your domain as a site. Pick the Free plan.
+3. Cloudflare shows two nameservers. Set them at your registrar.
+4. Wait until Cloudflare says the site is active. Can take an hour.
+
+End: Cloudflare controls DNS for your domain.
+
+## 3. Email
+
+Sign-in links go out by email. Nothing works without this.
+
+1. Go to brevo.com. Make a free account.
+2. Senders, Domains and Dedicated IPs. Add a sender such as hello@yourdomain. Click the link Brevo emails you.
+3. Domains. Add yourdomain. Brevo shows three DNS records. Add each one in Cloudflare, DNS, Records. Come back and press Verify.
+4. SMTP and API, SMTP tab. Generate SMTP key. Copy it.
+
+Write these down:
 
 ```
 SPRUE_SMTP_HOST=smtp-relay.brevo.com
 SPRUE_SMTP_PORT=587
-SPRUE_SMTP_USER=<the login email shown on the SMTP page>
-SPRUE_SMTP_PASS=<the SMTP key, not your Brevo password>
-SPRUE_SMTP_FROM=<the verified sender address>
+SPRUE_SMTP_USER=<login shown on the SMTP tab>
+SPRUE_SMTP_PASS=<the SMTP key>
+SPRUE_SMTP_FROM=hello@yourdomain
 ```
 
-Deliverability improves a lot if the domain is authenticated: Brevo's Domains page gives you three DNS records to add in Cloudflare. Do it once and mail stops landing in spam.
+End: five SMTP values.
 
-## 3. Railway
+## 4. Railway
 
-Create a new project from the GitHub repository. Railway reads the Dockerfile at the root and builds the image.
-
-Storage: add a volume to the service and mount it at `/data`. This is where the database, photos, and trophy files live. Without it everything is lost on each deploy.
-
-Variables, on the service:
+1. Go to railway.com. Sign in with GitHub.
+2. New Project, Deploy from GitHub repo, pick Joe-Speed/sprue. Railway finds the Dockerfile and builds. First build fails to start. That is expected, variables are missing.
+3. Click the service. Settings tab.
+4. Volumes: Add Volume. Mount path `/data`.
+5. Networking: Generate Domain. Note the address, it ends in `.up.railway.app`.
+6. Health Check Path: `/healthz`.
+7. Variables tab. Add these:
 
 ```
 SPRUE_URL=https://yourdomain
@@ -44,100 +69,151 @@ SPRUE_SMTP_PORT=587
 SPRUE_SMTP_USER=...
 SPRUE_SMTP_PASS=...
 SPRUE_SMTP_FROM=...
-SPRUE_ANALYTICS_ID=G-XXXXXXXX        optional
-SPRUE_SITE_VERIFICATION=...          optional, see step 6
-SPRUE_VISION_KEY=...                  optional, see step 8
-SPRUE_DISCORD_URL=...                 optional, see step 7
-SPRUE_DISCORD_WEBHOOK=...             optional, see step 7
-SPRUE_SUPPORT_EMAIL=...               optional
-SPRUE_CURRENCY=£                      optional, default £
 ```
 
-`PORT` and `SPRUE_DATA` are already handled: Railway sets `PORT`, the Dockerfile sets `SPRUE_DATA=/data`. The binary refuses to start with `SPRUE_URL` set to a real domain and no SMTP host, so the sign-in flow cannot silently break.
+8. Deploy. Wait for the green tick.
+9. Open `https://<railway address>/healthz`. Expect the word `ok`.
 
-Networking: in the service settings, generate a Railway domain first to check the deploy works, then add your custom domain. Railway shows a CNAME target to use at Cloudflare.
+End: site running on a Railway address.
 
-Health check: set the path to `/healthz`. Railway then restarts the service if the database ever stops answering.
+## 5. Point the domain at Railway
 
-## 4. Cloudflare
+1. Railway, service Settings, Networking, Custom Domain. Enter yourdomain. Railway shows a CNAME target.
+2. Cloudflare, DNS, Records. Add record: type CNAME, name `@`, target the value Railway gave, proxy on (orange cloud).
+3. Cloudflare, SSL/TLS, Overview. Set Full (strict).
+4. Cloudflare, SSL/TLS, Edge Certificates. Turn on Always Use HTTPS.
+5. Cloudflare, Speed, Optimization. Make sure Rocket Loader is off.
+6. Wait a few minutes. Open `https://yourdomain/healthz`. Expect `ok`.
 
-DNS: add a CNAME for your domain, or for `www`, pointing at the target Railway gave you, with the proxy switched on (orange cloud). If you use the bare domain, Cloudflare flattens the CNAME for you.
+End: site at your domain.
 
-SSL/TLS: set the mode to Full (strict). Railway serves HTTPS itself, so this end-to-end setting is right. Turn on Always Use HTTPS under Edge Certificates.
+## 6. First sign-in
 
-Caching: nothing to configure. Static files and photos already carry cache headers and Cloudflare honours them. Pages are served fresh.
+1. Open `https://yourdomain`. Sign in with the address you put in `SPRUE_ADMIN_EMAIL`.
+2. Email arrives from Brevo within a minute. Click the link.
+3. Admin appears in the menu.
+4. Post a build with a photo.
+5. Railway, Deployments, Redeploy. Wait for green.
+6. Reload the site. Build and photo still there. That proves the volume works.
 
-Rules worth adding on the free plan: none are required. Leave Rocket Loader, Auto Minify, and Email Obfuscation off. Rocket Loader in particular injects a script the Content-Security-Policy would block.
+End: admin account, volume proven.
 
-## 5. Trophy files
+## 7. Trophy files
 
-Copy first-place.stl, second-place.stl, and third-place.stl into `/data/stl/` on the volume. Railway has no file upload in the dashboard, so use the CLI:
+You need first-place.stl, second-place.stl, third-place.stl. They are never in the repo.
+
+1. Install the Railway CLI:
 
 ```sh
 npm install -g @railway/cli
 railway login
+cd ~/Code-Projects/sprue
 railway link
+```
+
+2. Upload the files. Put them somewhere with a temporary link first, such as a private Dropbox or Drive share link, then:
+
+```sh
 railway ssh
-```
-
-Inside the shell, fetch the files from wherever you keep them privately, for example a temporary signed link, and place them:
-
-```sh
 mkdir -p /data/stl
-curl -o /data/stl/first-place.stl "<private url>"
-curl -o /data/stl/second-place.stl "<private url>"
-curl -o /data/stl/third-place.stl "<private url>"
+curl -L -o /data/stl/first-place.stl "<link>"
+curl -L -o /data/stl/second-place.stl "<link>"
+curl -L -o /data/stl/third-place.stl "<link>"
+ls -l /data/stl
+exit
 ```
 
-The names must match exactly. TROPHIES.md covers designing them.
+Names must match exactly.
 
-## 6. Google
+End: winners can download trophies.
 
-Analytics: paste the measurement ID into `SPRUE_ANALYTICS_ID` and redeploy. Without the variable the site serves only its own small site script; with it, Google's tag is allowed too and nothing else. Real-time reports in GA4 show your own visit within a minute.
+## 8. Ko-fi
 
-Search Console: add the domain as a property. The DNS method is simplest: Google gives you a TXT record, you add it in Cloudflare, done. The alternative is the HTML tag method: put the content value into `SPRUE_SITE_VERIFICATION` and redeploy. Once verified, open Sitemaps and submit `https://yourdomain/sitemap.xml`. The sitemap is built from the database on every request, so it never needs resubmitting.
+You have a Ko-fi account with Stripe connected.
 
-## 7. Discord and feedback
+1. Ko-fi, Settings, Payment. Set currency to GBP.
+2. Ko-fi, More, Webhooks. Webhook URL: `https://yourdomain/webhooks/kofi`. Save. Copy the Verification Token.
+3. Ko-fi, Your page. Copy the page address.
+4. Railway, Variables. Add:
 
-Create a Discord server for the community and make an invite link that does not expire. Put it in `SPRUE_DISCORD_URL` and it appears in the footer.
+```
+SPRUE_KOFI_URL=https://ko-fi.com/<yourpage>
+SPRUE_KOFI_TOKEN=<verification token>
+```
 
-For feedback, make a channel for it, open its settings, Integrations, Webhooks, create one, and copy its URL into `SPRUE_DISCORD_WEBHOOK`. Signed-in members then get a feedback page, and each message lands in that channel with their name and a link to their profile. Mentions are switched off in the post so nobody can ping the server through it, and one message a minute per member is the limit. Treat the webhook URL as a secret; anyone holding it can post to the channel.
+5. Redeploy. Wait for green.
+6. Ko-fi Webhooks page, Send Test.
+7. Open `https://yourdomain/support`. A gift from Jo Example is listed.
+8. Open `https://yourdomain/admin`. Donations section. Press Remove on Jo Example.
 
-Set `SPRUE_SUPPORT_EMAIL` to an address you read and a support link joins the footer.
+End: Donate link in the footer, supporters list updates itself.
 
-## 8. Photo screening
+## 9. Discord, optional
 
-Members can report any build and you can hide it from the admin page, which is the part that matters for a small site. Automatic screening on top of that is optional and uses Google Cloud Vision's SafeSearch: the first thousand images a month are free, then about a dollar fifty per thousand.
+1. Make a Discord server. Make an invite that never expires.
+2. Make a channel called feedback. Channel settings, Integrations, Webhooks, New Webhook, Copy URL.
+3. Railway, Variables:
 
-In Google Cloud console, create a project, enable the Cloud Vision API, then under Credentials create an API key and restrict it to the Cloud Vision API only. Put it in `SPRUE_VISION_KEY` and redeploy. Every uploaded photo is then checked before it is saved; anything rated likely adult or violent is refused with a plain message, and if the check cannot be reached the photo is refused rather than let through. Without the key nothing is checked and nothing changes.
+```
+SPRUE_DISCORD_URL=<invite link>
+SPRUE_DISCORD_WEBHOOK=<webhook url>
+SPRUE_SUPPORT_EMAIL=you@yourdomain
+```
 
-## 9. First run
+4. Redeploy.
 
-Open `https://yourdomain/healthz` and expect `ok`.
+End: Discord, Feedback, and Support links in the footer.
 
-Sign in with the address in `SPRUE_ADMIN_EMAIL`. The email should arrive from Brevo within a minute; that account becomes the admin.
+## 10. Google, optional
 
-Post a build with a photo from the community page. Then trigger a redeploy in Railway and check the photo and your account are still there. This proves the volume is mounted and used.
+Analytics:
 
-Start a competition, enter the build, and check the competition page. Voting opens the day after the entry date and results follow the day after the voting date, both automatically.
+1. analytics.google.com. Create a GA4 property for yourdomain. Copy the measurement ID, looks like G-XXXXXXXX.
+2. Railway, Variables: `SPRUE_ANALYTICS_ID=G-XXXXXXXX`. Redeploy.
 
-Add a kit to your stash, set a goal, and switch reminders to weekly in settings. The first reminder arrives a week later.
+Search Console:
 
-## 10. Backups
+1. search.google.com/search-console. Add property, Domain type, yourdomain.
+2. Google shows a TXT record. Add it in Cloudflare, DNS. Press Verify.
+3. Sitemaps. Submit `https://yourdomain/sitemap.xml`.
 
-Railway volumes are durable but not versioned on the free and Hobby plans. Take your own copies. From `railway ssh`:
+End: traffic numbers, Google indexes the site.
+
+## 11. Photo screening, optional
+
+1. console.cloud.google.com. New project. APIs and Services, Enable APIs, Cloud Vision API.
+2. Credentials, Create credentials, API key. Edit the key, restrict it to Cloud Vision API.
+3. Railway, Variables: `SPRUE_VISION_KEY=<key>`. Redeploy.
+
+End: every photo checked before it is saved. First thousand a month free.
+
+## 12. Backups
+
+Once a month:
 
 ```sh
+railway ssh
 apk add sqlite
 sqlite3 /data/sprue.db ".backup /data/backup.db"
+exit
 ```
 
-Then copy `/data/backup.db` and the `/data/photos` folder somewhere else. Doing this monthly by hand is fine at first. The database is one file and photos are plain JPEGs, so restoring means putting them back on the volume.
+Then copy `/data/backup.db` and `/data/photos` off the server. Railway has no download button, so from your machine:
 
-## 11. Money
+```sh
+railway ssh -- tar cz /data/backup.db /data/photos > sprue-backup-$(date +%F).tgz
+```
 
-Railway: free trial credit, then the Hobby plan at five dollars a month. Cloudflare, Brevo, Google Analytics, Search Console, and Vision at under a thousand photos a month: free. A domain is the only other cost if you need to buy one.
+End: a copy you can restore by putting the files back on the volume.
 
-## Afterwards
+## 13. Cost
 
-When something goes wrong, `railway logs` shows the request log and any errors. MAINTAINING.md covers day to day operation: the competition lifecycle, trophy re-arming, and the environment variables.
+Railway: free trial credit, then 5 dollars a month on Hobby. Everything else free. Ko-fi covers Railway if a few members chip in.
+
+## When something breaks
+
+```sh
+railway logs
+```
+
+MAINTAINING.md has the day to day details.
