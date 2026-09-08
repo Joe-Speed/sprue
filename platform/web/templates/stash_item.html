@@ -1,7 +1,7 @@
 {{define "content"}}
 <p class="back"><a href="/stash">&larr; my stash</a></p>
-<h1>{{.Data.Item.Title}}</h1>
-<p class="meta"><span class="tag {{.Data.Item.Status}}">{{.Data.Item.Status}}</span>{{if .Data.Item.Next}} <span class="tag next">next</span>{{end}} {{if .Data.Item.Brand}}{{.Data.Item.Brand}} · {{end}}{{if .Data.Item.Scale}}{{.Data.Item.Scale}} · {{end}}{{if .Data.Item.CostPence}}{{.Site.Currency}}{{money .Data.Item.CostPence}} · {{end}}added {{niceDate .Data.Item.AddedAt}}</p>
+<h1><img class="icon" src="{{static "icon-box.svg"}}" alt="" width="24" height="24">{{.Data.Item.Title}}</h1>
+<p class="meta"><span class="tag {{.Data.Item.Status}}">{{.Data.Item.Status}}</span>{{if .Data.Item.Next}} <span class="tag next">next</span>{{end}} {{if .Data.Item.Brand}}{{.Data.Item.Brand}} · {{end}}{{if .Data.Item.Scale}}{{.Data.Item.Scale}} · {{end}}{{if .Data.Item.CostPence}}{{currency}}{{money .Data.Item.CostPence}} · {{end}}added {{niceDate .Data.Item.AddedAt}}</p>
 {{if .Data.Item.Note}}<p>{{.Data.Item.Note}}</p>{{end}}
 {{if eq .Data.Item.Status "built"}}
 <p class="prompt">Finished {{niceDate .Data.Item.FinishedAt}}. <a href="/builds/{{.Data.Item.BuildID}}">See the build.</a></p>

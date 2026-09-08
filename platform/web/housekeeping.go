@@ -2,8 +2,10 @@ package web
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
+	"net"
 	"net/smtp"
 	"strings"
 	"time"
@@ -84,7 +86,7 @@ func (s *Server) nudgeBody(user store.User, summary stashSummary) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Hello %s,\n\n", user.DisplayName)
 	if summary.Waiting > 0 {
-		fmt.Fprintf(&b, "%d kit%s in your stash are unbuilt, about %s%s in total.", summary.Waiting, plural(summary.Waiting), s.config.Currency, money(summary.DebtPence))
+		fmt.Fprintf(&b, "%d kit%s in your stash are unbuilt, about %s%s in total.", summary.Waiting, plural(summary.Waiting), currency, money(summary.DebtPence))
 		if summary.Oldest != "" {
 			fmt.Fprintf(&b, " The oldest, %s, has waited %d days.", summary.Oldest, summary.OldestDays)
 		}
@@ -107,8 +109,13 @@ func (s *Server) nudgeBody(user store.User, summary stashSummary) string {
 	return b.String()
 }
 
-// sendMail delivers one plain text message over SMTP. Callers check that
-// SMTP is configured; main refuses to start without it outside localhost.
+// smtpTimeout bounds the whole SMTP conversation. A host that blocks the
+// port would otherwise hang the sign-in request for minutes.
+const smtpTimeout = 15 * time.Second
+
+// sendMail delivers one plain text message over SMTP: TLS from the start on
+// port 465, STARTTLS on any other port. Callers check that SMTP is
+// configured; main refuses to start without it outside localhost.
 func (s *Server) sendMail(to, subject, body string) error {
 	from := s.config.SMTPFrom
 	if from == "" {
@@ -117,6 +124,51 @@ func (s *Server) sendMail(to, subject, body string) error {
 	message := fmt.Sprintf("From: sprue <%s>\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n%s",
 		from, to, subject, strings.ReplaceAll(body, "\n", "\r\n"))
 	address := s.config.SMTPHost + ":" + s.config.SMTPPort
+	tlsConfig := &tls.Config{ServerName: s.config.SMTPHost}
+	dialer := &net.Dialer{Timeout: smtpTimeout}
+	var conn net.Conn
+	var err error
+	if s.config.SMTPPort == "465" {
+		conn, err = tls.DialWithDialer(dialer, "tcp", address, tlsConfig)
+	} else {
+		conn, err = dialer.Dial("tcp", address)
+	}
+	if err != nil {
+		return fmt.Errorf("smtp connect %s: %w", address, err)
+	}
+	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(smtpTimeout)); err != nil {
+		return err
+	}
+	client, err := smtp.NewClient(conn, s.config.SMTPHost)
+	if err != nil {
+		return fmt.Errorf("smtp greeting: %w", err)
+	}
+	defer client.Close()
+	if s.config.SMTPPort != "465" {
+		if err := client.StartTLS(tlsConfig); err != nil {
+			return fmt.Errorf("smtp starttls: %w", err)
+		}
+	}
 	auth := smtp.PlainAuth("", s.config.SMTPUser, s.config.SMTPPass, s.config.SMTPHost)
-	return smtp.SendMail(address, auth, from, []string{to}, []byte(message))
+	if err := client.Auth(auth); err != nil {
+		return fmt.Errorf("smtp auth: %w", err)
+	}
+	if err := client.Mail(from); err != nil {
+		return fmt.Errorf("smtp from: %w", err)
+	}
+	if err := client.Rcpt(to); err != nil {
+		return fmt.Errorf("smtp to: %w", err)
+	}
+	writer, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("smtp data: %w", err)
+	}
+	if _, err := writer.Write([]byte(message)); err != nil {
+		return fmt.Errorf("smtp write: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("smtp send: %w", err)
+	}
+	return client.Quit()
 }

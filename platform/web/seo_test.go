@@ -38,7 +38,7 @@ func testServer(t *testing.T, analyticsID string) *httptest.Server {
 	}, time.Date(2999, 1, 1, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	server, err := New(st, Config{DataDir: dir, BaseURL: "https://sprue.test", AnalyticsID: analyticsID, SiteVerification: "verify-me"})
+	server, err := New(st, Config{DataDir: dir, BaseURL: "https://sprue.test", AnalyticsID: analyticsID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,6 @@ func TestPageMeta(t *testing.T) {
 		"<title>sprue · The community</title>",
 		`<link rel="canonical" href="https://sprue.test/">`,
 		`<meta property="og:image" content="https://sprue.test/static/apple-touch-icon.png?v=`,
-		`<meta name="google-site-verification" content="verify-me">`,
 	} {
 		if !strings.Contains(home, want) {
 			t.Errorf("home missing %s", want)

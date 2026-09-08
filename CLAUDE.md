@@ -24,7 +24,7 @@ Retro pixel game look. Sky gradient behind a cream paper panel, dark ink borders
 
 ## Pixel art
 
-The trophy badges (`platform/web/static/trophies/`) and the airplane marks (`platform/web/static/mark-<colour>.svg`) are hand-maintained SVGs: one path per colour on a pixel grid with `shape-rendering="crispEdges"`. The five mark colours must match `markColours` in `web/templates.go`, in the same order. Paints for the printed trophies: gold DB0016 first, silver DB0011 second, antique bronze DB0171 third. Trophy STL files belong only in the data directory at `data/stl/`, never in the repo.
+The trophy badges (`platform/web/static/trophies/`), the airplane marks (`platform/web/static/mark-<colour>.svg`), and the page icons beside section titles (`platform/web/static/icon-<name>.svg`, 12 by 12) are hand-maintained SVGs: one path per colour on a pixel grid with `shape-rendering="crispEdges"`. The five mark colours must match `markColours` in `web/templates.go`, in the same order. Paints for the printed trophies: gold DB0016 first, silver DB0011 second, antique bronze DB0171 third. Trophy STL files belong only in the data directory at `data/stl/`, never in the repo.
 
 ## Templates
 

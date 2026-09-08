@@ -1,5 +1,5 @@
 {{define "content"}}
-<h1>My stash</h1>
+<h1><img class="icon" src="{{static "icon-box.svg"}}" alt="" width="24" height="24">My stash</h1>
 <p class="meta">Kits you own and have not built yet. Only you can see this page.</p>
 {{with .Data.Summary}}
 <section class="nes-container with-title">
@@ -7,7 +7,7 @@
 {{if eq .Waiting 0}}
 <p>Nothing waiting. Every kit you own is built.</p>
 {{else}}
-<p class="debt"><strong>{{.Waiting}} kit{{if ne .Waiting 1}}s{{end}}</strong> waiting, about <strong>{{$.Site.Currency}}{{money .DebtPence}}</strong> in total.{{if .Oldest}} The oldest, {{.Oldest}}, has waited {{.OldestDays}} days.{{end}}</p>
+<p class="debt"><strong>{{.Waiting}} kit{{if ne .Waiting 1}}s{{end}}</strong> waiting, about <strong>{{currency}}{{money .DebtPence}}</strong> in total.{{if .Oldest}} The oldest, {{.Oldest}}, has waited {{.OldestDays}} days.{{end}}</p>
 {{if .Next}}<p class="prompt">Next up: <a href="/stash/{{.Next.ID}}">{{.Next.Title}}</a>.{{if eq .Next.Status "building"}} Being built.{{end}}</p>
 {{else}}<p class="prompt">No kit is marked as next. Pick one to start with.</p>{{end}}
 {{end}}
@@ -47,7 +47,7 @@
 {{range .Data.Items}}
 <li>
 <a href="/stash/{{.ID}}">{{.Title}}</a><span class="tag {{.Status}}">{{.Status}}</span>{{if .Next}}<span class="tag next">next</span>{{end}}
-<span class="meta">{{if .Brand}}{{.Brand}} · {{end}}{{if .Scale}}{{.Scale}} · {{end}}{{if .CostPence}}{{$.Site.Currency}}{{money .CostPence}} · {{end}}{{if eq .Status "built"}}finished {{niceDate .FinishedAt}}{{else}}waiting {{daysSince .AddedAt}} days{{end}}</span>
+<span class="meta">{{if .Brand}}{{.Brand}} · {{end}}{{if .Scale}}{{.Scale}} · {{end}}{{if .CostPence}}{{currency}}{{money .CostPence}} · {{end}}{{if eq .Status "built"}}finished {{niceDate .FinishedAt}}{{else}}waiting {{daysSince .AddedAt}} days{{end}}</span>
 </li>
 {{end}}
 </ul>

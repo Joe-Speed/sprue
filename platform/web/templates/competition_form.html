@@ -1,6 +1,6 @@
 {{define "content"}}
 <p class="back"><a href="/competitions">&larr; competitions</a></p>
-<h1>Start a competition</h1>
+<h1><img class="icon" src="{{static "icon-flag.svg"}}" alt="" width="24" height="24">Start a competition</h1>
 <p>Pick a theme, set when entries close and when voting closes. The competition runs itself from there. Winners get placement badges and a printable trophy.</p>
 <form method="post" action="/competitions/new">
 <input type="hidden" name="csrf" value="{{.CSRF}}">

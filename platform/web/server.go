@@ -29,23 +29,21 @@ var staticFiles embed.FS
 const sessionCookie = "sprue_session"
 
 type Config struct {
-	DataDir          string
-	BaseURL          string
-	AdminEmail       string
-	SMTPHost         string
-	SMTPPort         string
-	SMTPUser         string
-	SMTPPass         string
-	SMTPFrom         string
-	AnalyticsID      string // Google Analytics measurement ID, empty for none
-	SiteVerification string // Google Search Console meta tag value, empty for none
-	Currency         string // symbol shown before stash costs
-	VisionKey        string // Google Cloud Vision API key for photo screening, empty to skip
-	DiscordURL       string // invite link shown in the footer, empty to hide
-	DiscordWebhook   string // webhook the feedback form posts to, empty to hide the form
-	SupportEmail     string // address shown in the footer for support
-	KofiURL          string // the site's Ko-fi page, empty to hide the donate page
-	KofiToken        string // Ko-fi webhook verification token, empty to refuse webhooks
+	DataDir        string
+	BaseURL        string
+	AdminEmail     string
+	SMTPHost       string
+	SMTPPort       string
+	SMTPUser       string
+	SMTPPass       string
+	SMTPFrom       string
+	AnalyticsID    string // Google Analytics measurement ID, empty for none
+	VisionKey      string // Google Cloud Vision API key for photo screening, empty to skip
+	DiscordURL     string // invite link shown in the footer, empty to hide
+	DiscordWebhook string // webhook the feedback form posts to, empty to hide the form
+	SupportEmail   string // address shown in the footer for support
+	KofiURL        string // the site's Ko-fi page, empty to hide the donate page
+	KofiToken      string // Ko-fi webhook verification token, empty to refuse webhooks
 }
 
 type Server struct {
@@ -64,9 +62,6 @@ func New(st *store.Store, config Config) (*Server, error) {
 	}
 	if config.AnalyticsID != "" && !analyticsIDPattern.MatchString(config.AnalyticsID) {
 		return nil, errors.New("web: analytics id must look like G-XXXXXXXX")
-	}
-	if config.Currency == "" {
-		config.Currency = "£"
 	}
 	if config.KofiURL != "" && !strings.HasPrefix(config.KofiURL, "https://") {
 		return nil, errors.New("web: ko-fi url must start with https://")
@@ -254,14 +249,12 @@ func (s *Server) withRequestLog(next http.Handler) http.Handler {
 // site is the part of the configuration templates may see. The rest, SMTP
 // credentials included, never reaches a template.
 type site struct {
-	AnalyticsID      string
-	SiteVerification string
-	Currency         string
-	DiscordURL       string
-	SupportEmail     string
-	Feedback         bool // the feedback form is available
-	Donate           bool // the support page is available
-	Year             int
+	AnalyticsID  string
+	DiscordURL   string
+	SupportEmail string
+	Feedback     bool // the feedback form is available
+	Donate       bool // the support page is available
+	Year         int
 }
 
 // page is the data every template receives.
@@ -305,8 +298,8 @@ func (s *Server) renderMeta(w http.ResponseWriter, r *http.Request, status int, 
 		Path: r.URL.Path, Mark: readMark(r), Data: data,
 		Error: clipMessage(query.Get("error")), Note: clipMessage(query.Get("note")),
 		Site: site{
-			AnalyticsID: s.config.AnalyticsID, SiteVerification: s.config.SiteVerification, Currency: s.config.Currency,
-			DiscordURL: s.config.DiscordURL, SupportEmail: s.config.SupportEmail,
+			AnalyticsID: s.config.AnalyticsID,
+			DiscordURL:  s.config.DiscordURL, SupportEmail: s.config.SupportEmail,
 			Feedback: s.config.DiscordWebhook != "", Donate: s.config.KofiURL != "", Year: time.Now().UTC().Year(),
 		},
 	}

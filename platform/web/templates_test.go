@@ -64,7 +64,7 @@ func TestEveryPageRenders(t *testing.T) {
 	}
 	for name, data := range pages {
 		var out bytes.Buffer
-		p := page{Title: name, Path: "/competitions", Mark: "green", User: &user, CSRF: "token", Data: data, Site: site{Currency: "£", Year: 2026, DiscordURL: "https://discord.gg/x", Feedback: true, Donate: true, SupportEmail: "help@example.com"}, Requests: 2, Note: "Saved."}
+		p := page{Title: name, Path: "/competitions", Mark: "green", User: &user, CSRF: "token", Data: data, Site: site{Year: 2026, DiscordURL: "https://discord.gg/x", Feedback: true, Donate: true, SupportEmail: "help@example.com"}, Requests: 2, Note: "Saved."}
 		if err := templates[name].Execute(&out, p); err != nil {
 			t.Errorf("%s: %v", name, err)
 			continue
@@ -262,10 +262,25 @@ func TestSignedOutPagesRender(t *testing.T) {
 	comp := store.Competition{ID: 3, Slug: "summer", Title: "Summer sprint", CreatorName: "Joe", CreatorSlug: "joe", EntriesClose: "2026-07-01", VotingCloses: "2026-08-01", Status: "open"}
 	var out bytes.Buffer
 	data := competitionData{Competition: comp}
-	if err := templates["competition"].Execute(&out, page{Title: "x", Data: data, Site: site{Currency: "£", Year: 2026, DiscordURL: "https://discord.gg/x", Feedback: true, SupportEmail: "help@example.com"}, Requests: 2, Note: "Saved."}); err != nil {
+	if err := templates["competition"].Execute(&out, page{Title: "x", Data: data, Site: site{Year: 2026, DiscordURL: "https://discord.gg/x", Feedback: true, SupportEmail: "help@example.com"}, Requests: 2, Note: "Saved."}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "/login") {
 		t.Error("signed-out competition page should offer sign in")
+	}
+}
+
+// Every page icon a template asks for must exist, drawn on the pixel grid.
+func TestPageIcons(t *testing.T) {
+	for _, name := range []string{"icon-heart", "icon-members", "icon-home", "icon-trophy", "icon-envelope", "icon-key", "icon-gear", "icon-padlock",
+		"icon-document", "icon-medal", "icon-sprue", "icon-box", "icon-friends", "icon-bubble", "icon-shield", "icon-flag", "icon-pencil", "icon-cross"} {
+		content, err := fs.ReadFile(staticFiles, "static/"+name+".svg")
+		if err != nil {
+			t.Errorf("no icon %s", name)
+			continue
+		}
+		if !strings.Contains(string(content), `shape-rendering="crispEdges"`) || !strings.Contains(string(content), `viewBox="0 0 12 12"`) {
+			t.Errorf("%s: icons are 12 by 12 pixel art with crisp edges", name)
+		}
 	}
 }

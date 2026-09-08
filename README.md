@@ -53,6 +53,8 @@ platform/            the whole application, one Go module
     templates.go     template parsing and helpers
     templates/       one HTML file per page, base.html shell, partials.html fragments
     static/          stylesheet, one small script, fonts, pixel art, vendored NES.css
+start.sh             local run: loads .env, builds, starts the server
+.env.example         every variable with the secrets left blank
 Dockerfile           two stage build to a small Alpine image
 LAUNCH.md            taking the site live, step by step
 MAINTAINING.md       running, deploying, and operating the site
@@ -67,12 +69,12 @@ Requires Go 1.26 or newer.
 
 ```sh
 git clone https://github.com/Joe-Speed/sprue.git
-cd sprue/platform
-go build -o sprue .
-SPRUE_ADMIN_EMAIL=you@example.com ./sprue
+cd sprue
+cp .env.example .env
+./start.sh
 ```
 
-Open http://localhost:8080, enter your email, and copy the sign-in link from the server log (with no SMTP configured, links are logged instead of emailed, which is the development mode). Signing in with the admin email gives that account the admin pages.
+Put your email in `SPRUE_ADMIN_EMAIL` in `.env` first. Open http://localhost:8080 and sign in with that address. With `SPRUE_SMTP_HOST` empty, sign-in links print in the terminal instead of being emailed. Every variable in `.env` is described in MAINTAINING.md.
 
 Run the tests:
 

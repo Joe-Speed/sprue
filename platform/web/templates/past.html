@@ -1,6 +1,6 @@
 {{define "content"}}
 <p class="back"><a href="/competitions">&larr; Competitions</a></p>
-<h1>Past winners</h1>
+<h1><img class="icon" src="{{static "icon-medal.svg"}}" alt="" width="24" height="24">Past winners</h1>
 <p class="meta">Every decided competition and who placed.</p>
 {{if not .Data}}<p class="quiet">No competition has been decided yet.</p>{{end}}
 {{range .Data}}

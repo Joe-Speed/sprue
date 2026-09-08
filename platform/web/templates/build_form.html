@@ -1,6 +1,6 @@
 {{define "content"}}
 {{if not .Data.IsNew}}<p class="back"><a href="/builds/{{.Data.Build.ID}}">&larr; {{.Data.Build.Title}}</a></p>{{end}}
-<h1>{{if .Data.IsNew}}Add a build{{else}}edit build{{end}}</h1>
+<h1><img class="icon" src="{{static "icon-pencil.svg"}}" alt="" width="24" height="24">{{if .Data.IsNew}}Add a build{{else}}edit build{{end}}</h1>
 <form method="post" action="{{if .Data.IsNew}}/builds/new{{else}}/builds/{{.Data.Build.ID}}/edit{{end}}"{{if .Data.IsNew}} enctype="multipart/form-data"{{end}}>
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="nes-field"><label for="title">Title</label><input class="nes-input" id="title" type="text" name="title" value="{{.Data.Build.Title}}" required maxlength="200"></div>

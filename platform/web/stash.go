@@ -112,6 +112,10 @@ func parsePence(text string) (int64, bool) {
 	return pounds*100 + pence, true
 }
 
+// currency is the sign shown before stash costs. Members enter prices in
+// pounds and pence.
+const currency = "£"
+
 func money(pence int64) string {
 	return fmt.Sprintf("%d.%02d", pence/100, pence%100)
 }

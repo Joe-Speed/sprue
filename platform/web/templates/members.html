@@ -1,5 +1,5 @@
 {{define "content"}}
-<h1>Members</h1>
+<h1><img class="icon" src="{{static "icon-members.svg"}}" alt="" width="24" height="24">Members</h1>
 <form class="wide inline-fields" method="get" action="/members">
 <div class="nes-field"><label for="q">Find a member</label><input class="nes-input" id="q" type="search" name="q" value="{{.Data.Query}}" maxlength="200" autocomplete="off"></div>
 <button class="nes-btn is-primary" type="submit">Search</button>

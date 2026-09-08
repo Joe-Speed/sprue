@@ -196,6 +196,15 @@ h1 {
   font-size: 1.25rem;
 }
 
+/* Page icons: pixel art drawn on a 12 by 12 grid, one per section so the
+   pages read differently at a glance. */
+h1 img.icon {
+  width: 24px;
+  height: 24px;
+  margin-right: 0.6rem;
+  vertical-align: -3px;
+}
+
 h1 img.badge {
   width: 28px;
   height: 28px;

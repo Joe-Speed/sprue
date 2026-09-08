@@ -48,8 +48,6 @@ Builders can remove photos, choose the cover photo, and delete a build. A build 
 - `SPRUE_ADMIN_EMAIL`: the email address that gets admin on sign-in.
 - `SPRUE_SMTP_HOST`, `SPRUE_SMTP_PORT`, `SPRUE_SMTP_USER`, `SPRUE_SMTP_PASS`, `SPRUE_SMTP_FROM`: outbound email. The host is required unless `SPRUE_URL` is a localhost address. Locally, with no host set, sign-in links go to the log instead.
 - `SPRUE_ANALYTICS_ID`: a Google Analytics measurement ID such as `G-XXXXXXXX`. Leave it unset and the only script served is the site's own small one. Set it and the pages also load Google's tag, with the Content-Security-Policy widened to allow exactly that and nothing else.
-- `SPRUE_SITE_VERIFICATION`: the value from Google Search Console's HTML tag method. Verifying through DNS at Cloudflare works too and needs no variable.
-- `SPRUE_CURRENCY`: the symbol shown before stash costs, default `£`.
 - `SPRUE_DISCORD_URL`: the invite link to the community Discord, shown in the footer. Unset, no link.
 - `SPRUE_DISCORD_WEBHOOK`: a Discord channel webhook. When set, signed-in members get a feedback page whose messages post to that channel with their name and profile link. Unset, the page and its footer link do not exist.
 - `SPRUE_SUPPORT_EMAIL`: an address for the footer's support link. Unset, no link.

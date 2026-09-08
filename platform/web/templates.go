@@ -62,6 +62,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		"monthYear":    monthYear,
 		"daysSince":    daysSince,
 		"money":        money,
+		"currency":     func() string { return currency },
 		"neg":          func(n int) int { return -n },
 	}
 	templates := make(map[string]*template.Template, len(pageNames))
