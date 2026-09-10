@@ -56,7 +56,6 @@ platform/            the whole application, one Go module
 start.sh             local run: loads .env, builds, starts the server
 .env.example         every variable with the secrets left blank
 Dockerfile           two stage build to a small Alpine image
-LAUNCH.md            taking the site live, step by step
 MAINTAINING.md       running, deploying, and operating the site
 TROPHIES.md          designing the printable trophies
 ```
