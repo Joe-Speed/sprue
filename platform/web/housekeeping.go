@@ -47,7 +47,7 @@ func (s *Server) housekeep() {
 // sendNudges emails members whose reminder is due. A member is marked nudged
 // before the attempt so a failing mailbox is not retried every hour.
 func (s *Server) sendNudges() {
-	if s.config.SMTPHost == "" {
+	if !s.mailConfigured() {
 		return
 	}
 	users, err := s.store.UsersDueNudge(time.Now(), maxNudgesPerRun)
@@ -109,14 +109,9 @@ func (s *Server) nudgeBody(user store.User, summary stashSummary) string {
 	return b.String()
 }
 
-// smtpTimeout bounds the whole SMTP conversation. A host that blocks the
-// port would otherwise hang the sign-in request for minutes.
-const smtpTimeout = 15 * time.Second
-
-// sendMail delivers one plain text message over SMTP: TLS from the start on
-// port 465, STARTTLS on any other port. Callers check that SMTP is
-// configured; main refuses to start without it outside localhost.
-func (s *Server) sendMail(to, subject, body string) error {
+// sendViaSMTP delivers one plain text message over SMTP: TLS from the start
+// on port 465, STARTTLS on any other port.
+func (s *Server) sendViaSMTP(to, subject, body string) error {
 	from := s.config.SMTPFrom
 	if from == "" {
 		from = s.config.SMTPUser
@@ -125,7 +120,7 @@ func (s *Server) sendMail(to, subject, body string) error {
 		from, to, subject, strings.ReplaceAll(body, "\n", "\r\n"))
 	address := s.config.SMTPHost + ":" + s.config.SMTPPort
 	tlsConfig := &tls.Config{ServerName: s.config.SMTPHost}
-	dialer := &net.Dialer{Timeout: smtpTimeout}
+	dialer := &net.Dialer{Timeout: mailTimeout}
 	var conn net.Conn
 	var err error
 	if s.config.SMTPPort == "465" {
@@ -137,7 +132,7 @@ func (s *Server) sendMail(to, subject, body string) error {
 		return fmt.Errorf("smtp connect %s: %w", address, err)
 	}
 	defer conn.Close()
-	if err := conn.SetDeadline(time.Now().Add(smtpTimeout)); err != nil {
+	if err := conn.SetDeadline(time.Now().Add(mailTimeout)); err != nil {
 		return err
 	}
 	client, err := smtp.NewClient(conn, s.config.SMTPHost)

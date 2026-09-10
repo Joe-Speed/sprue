@@ -32,6 +32,7 @@ type Config struct {
 	DataDir        string
 	BaseURL        string
 	AdminEmail     string
+	BrevoKey       string // Brevo API key; when set, mail goes over HTTPS and SMTP is unused
 	SMTPHost       string
 	SMTPPort       string
 	SMTPUser       string

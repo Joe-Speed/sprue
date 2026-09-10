@@ -63,11 +63,11 @@ func plainEmail(raw string) (string, bool) {
 	return email, true
 }
 
-// sendMagicLink emails the link when SMTP is configured and logs it otherwise.
-// main refuses to start without SMTP unless the base URL is localhost, so the
-// logging path is local development only.
+// sendMagicLink emails the link when mail is configured and logs it
+// otherwise. main refuses to start without mail unless the base URL is
+// localhost, so the logging path is local development only.
 func (s *Server) sendMagicLink(email, link string) error {
-	if s.config.SMTPHost == "" {
+	if !s.mailConfigured() {
 		log.Printf("web: magic link for %s: %s", email, link)
 		return nil
 	}

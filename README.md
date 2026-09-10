@@ -74,7 +74,7 @@ cp .env.example .env
 ./start.sh
 ```
 
-Put your email in `SPRUE_ADMIN_EMAIL` in `.env` first. Open http://localhost:8080 and sign in with that address. With `SPRUE_SMTP_HOST` empty, sign-in links print in the terminal instead of being emailed. Every variable in `.env` is described in MAINTAINING.md.
+Put your email in `SPRUE_ADMIN_EMAIL` in `.env` first. Open http://localhost:8080 and sign in with that address. With `SPRUE_BREVO_KEY` and `SPRUE_SMTP_HOST` empty, sign-in links print in the terminal instead of being emailed. Every variable in `.env` is described in MAINTAINING.md.
 
 Run the tests:
 
@@ -90,7 +90,7 @@ All configuration is environment variables. None of them are secrets you would e
 - `SPRUE_DATA` sets the data directory, default `data`. The SQLite database, uploaded photos, and trophy STL files all live here and nowhere else.
 - `SPRUE_URL` is the public base URL used inside emailed sign-in links.
 - `SPRUE_ADMIN_EMAIL` grants admin to that address on sign-in.
-- `SPRUE_SMTP_HOST`, `SPRUE_SMTP_PORT`, `SPRUE_SMTP_USER`, `SPRUE_SMTP_PASS`, `SPRUE_SMTP_FROM` configure outbound email. Unset means development mode.
+- `SPRUE_BREVO_KEY` and `SPRUE_SMTP_FROM` send email over HTTPS through Brevo. `SPRUE_SMTP_HOST`, `SPRUE_SMTP_PORT`, `SPRUE_SMTP_USER`, `SPRUE_SMTP_PASS` are the SMTP alternative. Neither set means development mode.
 
 ## Deployment
 

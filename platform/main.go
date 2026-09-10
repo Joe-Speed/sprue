@@ -30,8 +30,12 @@ func main() {
 	port := envOr("PORT", "8080")
 	baseURL := envOr("SPRUE_URL", "http://localhost:"+port)
 	smtpHost := os.Getenv("SPRUE_SMTP_HOST")
-	if smtpHost == "" && !strings.HasPrefix(baseURL, "http://localhost") {
-		log.Fatal("sprue: SPRUE_SMTP_HOST is required unless SPRUE_URL is a localhost address; without it sign-in links would only be logged")
+	brevoKey := os.Getenv("SPRUE_BREVO_KEY")
+	if smtpHost == "" && brevoKey == "" && !strings.HasPrefix(baseURL, "http://localhost") {
+		log.Fatal("sprue: SPRUE_BREVO_KEY or SPRUE_SMTP_HOST is required unless SPRUE_URL is a localhost address; without one sign-in links would only be logged")
+	}
+	if brevoKey != "" && os.Getenv("SPRUE_SMTP_FROM") == "" {
+		log.Fatal("sprue: SPRUE_SMTP_FROM is required with SPRUE_BREVO_KEY; it is the address mail comes from")
 	}
 
 	for _, sub := range []string{"photos", "avatars", "stl"} {
@@ -50,6 +54,7 @@ func main() {
 		DataDir:    dataDir,
 		BaseURL:    baseURL,
 		AdminEmail: os.Getenv("SPRUE_ADMIN_EMAIL"),
+		BrevoKey:   brevoKey,
 		SMTPHost:   smtpHost,
 		SMTPPort:   envOr("SPRUE_SMTP_PORT", "587"),
 		SMTPUser:   os.Getenv("SPRUE_SMTP_USER"),

@@ -19,30 +19,41 @@ git push
 
 End: GitHub has the current code.
 
-## 2. Email
+## 2. Domain and email
 
-Sign-in links go out by email. Nothing works without this. No domain needed.
+Sign-in links go out by email. Nothing works without this. Every hosting plan Railway offers below Pro blocks the mail ports, so mail goes over HTTPS through Brevo, and Brevo will only send from a domain you own. Free webmail addresses are refused by every provider now. The domain is about 10 pounds a year and is the only cost besides Railway.
 
-1. Make a new Gmail account for the site, such as sprue.community@gmail.com. Personal account, not Workspace.
-2. Signed in as that account, open https://myaccount.google.com/signinoptions/two-step-verification. Turn on 2-Step Verification.
-3. Open https://myaccount.google.com/apppasswords. App name `sprue`. Create. Copy the 16 letters without spaces.
+Domain:
+
+1. Go to cloudflare.com. Make a free account.
+2. Domain Registration, Register Domains. Buy one. Cloudflare sells at cost and runs its DNS for you.
+
+Brevo:
+
+1. Go to brevo.com. Make a free account, 300 emails a day.
+2. Settings, Senders, domains, IPs, Domains tab. Add a domain. Enter yourdomain. Brevo shows DNS records.
+3. Cloudflare, your domain, DNS, Records. Add each record Brevo showed. Back in Brevo, press Verify.
+4. Settings, SMTP and API, **API Keys** tab. Generate a new API key. Name it `railway`. Copy it, it is shown once.
+
+Replies:
+
+1. Cloudflare, your domain, Email, Email Routing. Enable it.
+2. Add a destination address, your Gmail. Confirm the email Cloudflare sends.
+3. Add a custom address `hello@yourdomain` forwarding to that Gmail. Replies to sign-in emails now land in your inbox.
 
 Write these down:
 
 ```
-SPRUE_SMTP_HOST=smtp.gmail.com
-SPRUE_SMTP_PORT=587
-SPRUE_SMTP_USER=sprue.community@gmail.com
-SPRUE_SMTP_PASS=<the 16 letters>
-SPRUE_SMTP_FROM=sprue.community@gmail.com
+SPRUE_BREVO_KEY=<the API key>
+SPRUE_SMTP_FROM=hello@yourdomain
 ```
 
-Gmail allows 500 emails a day. Brevo and the like need a domain, see step 10.
+End: a domain, and two mail values.
 
 ## 3. Railway
 
 1. Go to railway.com. Sign in with GitHub.
-2. Upgrade to the Hobby plan, 5 dollars a month. The Trial plan blocks outgoing email, so sign-in cannot work on it.
+2. The trial credit runs out after a while; the Hobby plan is 5 dollars a month. Both block the mail ports, which is why email goes over HTTPS.
 3. New Project, Deploy from GitHub repo, pick Joe-Speed/sprue. Railway finds the Dockerfile and builds. First build fails to start. That is expected, variables are missing.
 4. Click the service. Settings tab.
 5. Volume: on the project canvas, right click the service box, Attach Volume. Mount path `/data`.
@@ -53,11 +64,8 @@ Gmail allows 500 emails a day. Brevo and the like need a domain, see step 10.
 ```
 SPRUE_URL=https://<railway address>
 SPRUE_ADMIN_EMAIL=<your login email>
-SPRUE_SMTP_HOST=smtp.gmail.com
-SPRUE_SMTP_PORT=587
-SPRUE_SMTP_USER=sprue.community@gmail.com
-SPRUE_SMTP_PASS=<the 16 letters>
-SPRUE_SMTP_FROM=sprue.community@gmail.com
+SPRUE_BREVO_KEY=<the API key>
+SPRUE_SMTP_FROM=hello@yourdomain
 ```
 
 9. Deploy. Wait for the green tick.
@@ -70,7 +78,7 @@ Everywhere below, `https://<site>` means that Railway address. When you get a do
 ## 4. First sign-in
 
 1. Open `https://<site>`. Sign in with the address you put in `SPRUE_ADMIN_EMAIL`.
-2. Email arrives from sprue.community@gmail.com within a minute. Click the link.
+2. Email arrives from hello@yourdomain within a minute. Click the link.
 3. Admin appears in the menu.
 4. Post a build with a photo.
 5. Railway, Deployments, Redeploy. Wait for green.
@@ -153,7 +161,7 @@ Analytics:
 
 Search Console:
 
-Needs your own domain, step 10.
+Needs the site served at your domain, step 10.
 
 1. search.google.com/search-console. Add property, Domain type, yourdomain.
 2. Google shows a TXT record. Add it in Cloudflare, DNS. Press Verify.
@@ -169,30 +177,19 @@ End: traffic numbers, Google indexes the site.
 
 End: every photo checked before it is saved. First thousand a month free.
 
-## 10. Your own domain, optional
+## 10. Serve the site at your domain, optional
 
-Costs about 10 pounds a year. Do it when the site works on the Railway address.
+The site works on the Railway address. This puts it on the domain you bought in step 2.
 
-1. Go to cloudflare.com. Make a free account.
-2. Domain Registration, Register Domains. Buy one. Cloudflare sells at cost and sets up DNS for you.
-3. Railway, service Settings, Networking, Custom Domain. Enter the domain. Railway shows a CNAME target.
-4. Cloudflare, DNS, Records. Add record: type CNAME, name `@`, target the value Railway gave, proxy on (orange cloud).
-5. Cloudflare, SSL/TLS, Overview. Set Full (strict).
-6. Cloudflare, SSL/TLS, Edge Certificates. Turn on Always Use HTTPS.
-7. Cloudflare, Speed, Optimization. Make sure Rocket Loader is off.
-8. Railway, Variables. Change `SPRUE_URL` to `https://yourdomain`. Redeploy.
-9. Ko-fi, Webhooks. Change the URL to `https://yourdomain/webhooks/kofi`.
-10. Optional, email from the domain. Make a free Brevo account at brevo.com, 300 emails a day. Senders, Domains, add the domain, add the DNS records it shows in Cloudflare, Verify. SMTP and API, generate an SMTP key. Change the five SMTP variables in Railway:
+1. Railway, service Settings, Networking, Custom Domain. Enter the domain. Railway shows a CNAME target.
+2. Cloudflare, DNS, Records. Add record: type CNAME, name `@`, target the value Railway gave, proxy on (orange cloud).
+3. Cloudflare, SSL/TLS, Overview. Set Full (strict).
+4. Cloudflare, SSL/TLS, Edge Certificates. Turn on Always Use HTTPS.
+5. Cloudflare, Speed, Optimization. Make sure Rocket Loader is off.
+6. Railway, Variables. Change `SPRUE_URL` to `https://yourdomain`. Redeploy.
+7. Ko-fi, Webhooks. Change the URL to `https://yourdomain/webhooks/kofi`.
 
-```
-SPRUE_SMTP_HOST=smtp-relay.brevo.com
-SPRUE_SMTP_PORT=587
-SPRUE_SMTP_USER=<login shown on Brevo's SMTP tab>
-SPRUE_SMTP_PASS=<the SMTP key>
-SPRUE_SMTP_FROM=hello@yourdomain
-```
-
-End: site at your domain, email from your domain.
+End: site at your domain.
 
 ## 11. Backups
 
@@ -215,7 +212,7 @@ End: a copy you can restore by putting the files back on the volume.
 
 ## 12. Cost
 
-Railway: free trial credit, then 5 dollars a month on Hobby. A domain about 10 pounds a year if you want one. Everything else free. Ko-fi covers Railway if a few members chip in.
+Railway: free trial credit, then 5 dollars a month on Hobby. The domain, about 10 pounds a year. Everything else free. Ko-fi covers Railway if a few members chip in.
 
 ## When something breaks
 

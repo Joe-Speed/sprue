@@ -24,7 +24,7 @@ go build -o sprue .
 SPRUE_ADMIN_EMAIL=you@example.com ./sprue
 ```
 
-Without SMTP configured, sign-in links are printed to the server log instead of emailed. Open the site, enter your email, copy the link from the log into the browser. Signing in with the address in `SPRUE_ADMIN_EMAIL` makes that account the admin.
+Without a mail provider configured, sign-in links are printed to the server log instead of emailed. Open the site, enter your email, copy the link from the log into the browser. Signing in with the address in `SPRUE_ADMIN_EMAIL` makes that account the admin.
 
 Gates before calling any change done: `gofmt -l .` prints nothing, `go vet ./...` is clean, `go test ./...` passes, and the flow you touched works in a browser or with curl against a locally running server.
 
@@ -46,7 +46,8 @@ Builders can remove photos, choose the cover photo, and delete a build. A build 
 - `SPRUE_DATA`: the data directory. In the container it defaults to `/data`; mount your persistent volume there.
 - `SPRUE_URL`: the public base URL, used inside emailed sign-in links. Set it to your real domain in production.
 - `SPRUE_ADMIN_EMAIL`: the email address that gets admin on sign-in.
-- `SPRUE_SMTP_HOST`, `SPRUE_SMTP_PORT`, `SPRUE_SMTP_USER`, `SPRUE_SMTP_PASS`, `SPRUE_SMTP_FROM`: outbound email. The host is required unless `SPRUE_URL` is a localhost address. Locally, with no host set, sign-in links go to the log instead.
+- `SPRUE_BREVO_KEY`: a Brevo API key. When set, every email goes out over HTTPS through Brevo's transactional API from the address in `SPRUE_SMTP_FROM`, with replies directed to `SPRUE_SUPPORT_EMAIL` when that is set. This is the production path, because Railway blocks the SMTP ports on every plan below Pro.
+- `SPRUE_SMTP_HOST`, `SPRUE_SMTP_PORT`, `SPRUE_SMTP_USER`, `SPRUE_SMTP_PASS`, `SPRUE_SMTP_FROM`: outbound email over SMTP, used when no Brevo key is set. Port 465 means TLS from the start, any other port means STARTTLS. `SPRUE_SMTP_FROM` is also the sender for Brevo. One of the Brevo key or the SMTP host is required unless `SPRUE_URL` is a localhost address. Locally, with neither set, sign-in links go to the log instead.
 - `SPRUE_ANALYTICS_ID`: a Google Analytics measurement ID such as `G-XXXXXXXX`. Leave it unset and the only script served is the site's own small one. Set it and the pages also load Google's tag, with the Content-Security-Policy widened to allow exactly that and nothing else.
 - `SPRUE_DISCORD_URL`: the invite link to the community Discord, shown in the footer. Unset, no link.
 - `SPRUE_DISCORD_WEBHOOK`: a Discord channel webhook. When set, signed-in members get a feedback page whose messages post to that channel with their name and profile link. Unset, the page and its footer link do not exist.
@@ -136,7 +137,7 @@ The Dockerfile at the repo root builds the platform. Set up the service with:
 - a persistent volume mounted at `/data`
 - `SPRUE_URL` set to your domain
 - `SPRUE_ADMIN_EMAIL` set to your email
-- the SMTP variables pointed at your email provider
+- the mail variables pointed at your email provider
 
 Copy the three STL files into the volume once. Everything else, including the database, lives on that volume, so redeploys lose nothing.
 
