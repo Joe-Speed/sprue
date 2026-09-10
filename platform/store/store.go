@@ -25,7 +25,8 @@ const (
 	FeaturedWindowDays = 30  // votes this recent count toward the featured spot
 	MaxFeatured        = 3
 	MaxSlugAttempts    = 100
-	sessionLifetime    = 90 * 24 * time.Hour
+	sessionLifetime    = 90 * 24 * time.Hour // remembered sessions, renewed while the member keeps visiting
+	shortSessionLife   = 24 * time.Hour      // sessions the member asked not to remember
 	magicTokenLifetime = 15 * time.Minute
 	maxTextField       = 2000
 	maxShortField      = 200
@@ -179,6 +180,22 @@ create table if not exists donations (
 );
 `
 
+// migrations add columns to tables that shipped without them. SQLite has no
+// "add column if not exists", so a duplicate column error means already done.
+var migrations = []string{
+	`alter table magic_tokens add column remember integer not null default 1`,
+	`alter table sessions add column remember integer not null default 1`,
+}
+
+func migrate(db *sql.DB) error {
+	for _, statement := range migrations {
+		if _, err := db.Exec(statement); err != nil && !strings.Contains(err.Error(), "duplicate column") {
+			return fmt.Errorf("store: migrate %q: %w", statement, err)
+		}
+	}
+	return nil
+}
+
 func Open(path string) (*Store, error) {
 	if path == "" {
 		return nil, errors.New("store: empty database path")
@@ -190,6 +207,9 @@ func Open(path string) (*Store, error) {
 	db.SetMaxOpenConns(1)
 	if _, err := db.Exec(schema); err != nil {
 		return nil, fmt.Errorf("store: schema: %w", err)
+	}
+	if err := migrate(db); err != nil {
+		return nil, err
 	}
 	return &Store{db: db}, nil
 }
@@ -268,39 +288,49 @@ func scanUsers(rows *sql.Rows) ([]User, error) {
 	return users, rows.Err()
 }
 
-func (s *Store) CreateMagicToken(tokenHash, email string) error {
+// CreateMagicToken issues a sign-in token. remember is the member's choice
+// from the sign-in form and carries through to the session the link creates.
+func (s *Store) CreateMagicToken(tokenHash, email string, remember bool) error {
 	if tokenHash == "" || email == "" {
 		return errors.New("store: empty magic token or email")
 	}
 	expires := time.Now().UTC().Add(magicTokenLifetime).Format(time.RFC3339)
-	_, err := s.db.Exec(`insert into magic_tokens (token_hash, email, expires_at) values (?, ?, ?)`,
-		tokenHash, strings.ToLower(clip(email, maxShortField)), expires)
+	_, err := s.db.Exec(`insert into magic_tokens (token_hash, email, expires_at, remember) values (?, ?, ?, ?)`,
+		tokenHash, strings.ToLower(clip(email, maxShortField)), expires, flag(remember))
 	return err
 }
 
-// ConsumeMagicToken burns the token and returns the email it was issued for.
-func (s *Store) ConsumeMagicToken(tokenHash string) (string, error) {
+// ConsumeMagicToken burns the token and returns the email it was issued for
+// and whether the member asked to stay signed in.
+func (s *Store) ConsumeMagicToken(tokenHash string) (string, bool, error) {
 	if tokenHash == "" {
-		return "", ErrNotFound
+		return "", false, ErrNotFound
 	}
 	var email, expires string
-	var used int
-	err := s.db.QueryRow(`select email, expires_at, used from magic_tokens where token_hash = ?`, tokenHash).
-		Scan(&email, &expires, &used)
+	var used, remember int
+	err := s.db.QueryRow(`select email, expires_at, used, remember from magic_tokens where token_hash = ?`, tokenHash).
+		Scan(&email, &expires, &used, &remember)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", ErrNotFound
+		return "", false, ErrNotFound
 	}
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	when, err := time.Parse(time.RFC3339, expires)
 	if err != nil || used != 0 || time.Now().UTC().After(when) {
-		return "", ErrNotFound
+		return "", false, ErrNotFound
 	}
 	if _, err := s.db.Exec(`update magic_tokens set used = 1 where token_hash = ?`, tokenHash); err != nil {
-		return "", err
+		return "", false, err
 	}
-	return email, nil
+	return email, remember == 1, nil
+}
+
+func flag(on bool) int {
+	if on {
+		return 1
+	}
+	return 0
 }
 
 // FindOrCreateUser returns the user for an email, creating one on first login.
@@ -380,24 +410,34 @@ func (s *Store) SetAvatar(id int64, fileName string) error {
 	return s.updateOwned(`update users set avatar = ? where id = ?`, clip(fileName, maxShortField), id)
 }
 
-func (s *Store) CreateSession(tokenHash string, userID int64) error {
+// CreateSession opens a session. A remembered session lasts sessionLifetime
+// and renews itself on use; any other ends after shortSessionLife.
+func (s *Store) CreateSession(tokenHash string, userID int64, remember bool) error {
 	if tokenHash == "" || userID <= 0 {
 		return errors.New("store: bad session")
 	}
-	expires := time.Now().UTC().Add(sessionLifetime).Format(time.RFC3339)
-	_, err := s.db.Exec(`insert into sessions (token_hash, user_id, expires_at) values (?, ?, ?)`,
-		tokenHash, userID, expires)
+	life := shortSessionLife
+	if remember {
+		life = sessionLifetime
+	}
+	expires := time.Now().UTC().Add(life).Format(time.RFC3339)
+	_, err := s.db.Exec(`insert into sessions (token_hash, user_id, expires_at, remember) values (?, ?, ?, ?)`,
+		tokenHash, userID, expires, flag(remember))
 	return err
 }
 
+// SessionUser returns the member behind a live session. A remembered
+// session past the halfway point of its life is pushed out to a full
+// lifetime again, so a member who keeps visiting never has to sign in.
 func (s *Store) SessionUser(tokenHash string) (User, error) {
 	if tokenHash == "" {
 		return User{}, ErrNotFound
 	}
 	var userID int64
 	var expires string
-	err := s.db.QueryRow(`select user_id, expires_at from sessions where token_hash = ?`, tokenHash).
-		Scan(&userID, &expires)
+	var remember int
+	err := s.db.QueryRow(`select user_id, expires_at, remember from sessions where token_hash = ?`, tokenHash).
+		Scan(&userID, &expires, &remember)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
@@ -405,8 +445,15 @@ func (s *Store) SessionUser(tokenHash string) (User, error) {
 		return User{}, err
 	}
 	when, err := time.Parse(time.RFC3339, expires)
-	if err != nil || time.Now().UTC().After(when) {
+	current := time.Now().UTC()
+	if err != nil || current.After(when) {
 		return User{}, ErrNotFound
+	}
+	if remember == 1 && when.Sub(current) < sessionLifetime/2 {
+		renewed := current.Add(sessionLifetime).Format(time.RFC3339)
+		if _, err := s.db.Exec(`update sessions set expires_at = ? where token_hash = ?`, renewed, tokenHash); err != nil {
+			return User{}, err
+		}
 	}
 	return s.userBy("id = ?", userID)
 }

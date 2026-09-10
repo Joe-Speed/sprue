@@ -421,12 +421,24 @@ func (s *Server) requireAdmin(w http.ResponseWriter, r *http.Request) (store.Use
 	return user, true
 }
 
-func (s *Server) setSessionCookie(w http.ResponseWriter, token string) {
+// rememberedCookieDays is how long the browser keeps a remembered session
+// cookie. The store renews the session itself while the member keeps
+// visiting, so the cookie only needs to outlive the longest quiet spell.
+// Browsers cap cookies at about 400 days.
+const rememberedCookieDays = 365
+
+// setSessionCookie stores the session token. Without remember the cookie
+// has no age, so the browser drops it when it closes.
+func (s *Server) setSessionCookie(w http.ResponseWriter, token string, remember bool) {
+	maxAge := 0
+	if remember {
+		maxAge = rememberedCookieDays * 24 * 60 * 60
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
 		Value:    token,
 		Path:     "/",
-		MaxAge:   90 * 24 * 60 * 60,
+		MaxAge:   maxAge,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   strings.HasPrefix(s.config.BaseURL, "https://"),

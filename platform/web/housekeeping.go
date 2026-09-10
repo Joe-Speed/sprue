@@ -69,7 +69,7 @@ func (s *Server) sendNudges() {
 		if err != nil || (summary.Waiting == 0 && user.GoalCount == 0) {
 			continue
 		}
-		if err := s.sendMail(user.Email, nudgeSubject(summary), s.nudgeBody(user, summary)); err != nil {
+		if err := s.sendMail(user.Email, s.nudgeMessage(user, summary)); err != nil {
 			log.Printf("web: nudge %d: %v", user.ID, err)
 		}
 	}
@@ -82,42 +82,52 @@ func nudgeSubject(summary stashSummary) string {
 	return fmt.Sprintf("Your stash: %d kit%s waiting", summary.Waiting, plural(summary.Waiting))
 }
 
-func (s *Server) nudgeBody(user store.User, summary stashSummary) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "Hello %s,\n\n", user.DisplayName)
+// nudgeMessage is the reminder email about a member's stash.
+func (s *Server) nudgeMessage(user store.User, summary stashSummary) mailMessage {
+	intro := make([]string, 0, 4)
+	intro = append(intro, fmt.Sprintf("Hello %s,", user.DisplayName))
 	if summary.Waiting > 0 {
-		fmt.Fprintf(&b, "%d kit%s in your stash are unbuilt, about %s%s in total.", summary.Waiting, plural(summary.Waiting), currency, money(summary.DebtPence))
+		debt := fmt.Sprintf("%d kit%s in your stash are unbuilt, about %s%s in total.", summary.Waiting, plural(summary.Waiting), currency, money(summary.DebtPence))
 		if summary.Oldest != "" {
-			fmt.Fprintf(&b, " The oldest, %s, has waited %d days.", summary.Oldest, summary.OldestDays)
+			debt += fmt.Sprintf(" The oldest, %s, has waited %d days.", summary.Oldest, summary.OldestDays)
 		}
-		b.WriteString("\n\n")
+		intro = append(intro, debt)
 		if summary.Next != nil {
-			fmt.Fprintf(&b, "Next up: %s.\n\n", summary.Next.Title)
+			intro = append(intro, fmt.Sprintf("Next up: %s.", summary.Next.Title))
 		} else {
-			b.WriteString("No kit is marked as next. Pick one to start with.\n\n")
+			intro = append(intro, "No kit is marked as next. Pick one to start with.")
 		}
 	}
 	if user.GoalCount > 0 {
-		fmt.Fprintf(&b, "Goal: %d of %d finished", summary.GoalDone, user.GoalCount)
+		goal := fmt.Sprintf("Goal: %d of %d finished", summary.GoalDone, user.GoalCount)
 		if summary.GoalDaysLeft < 0 {
-			fmt.Fprintf(&b, ", %d days past the date.\n\n", -summary.GoalDaysLeft)
+			goal += fmt.Sprintf(", %d days past the date.", -summary.GoalDaysLeft)
 		} else {
-			fmt.Fprintf(&b, ", %d days left.\n\n", summary.GoalDaysLeft)
+			goal += fmt.Sprintf(", %d days left.", summary.GoalDaysLeft)
 		}
+		intro = append(intro, goal)
 	}
-	fmt.Fprintf(&b, "Your stash: %s\nChange how often you get this: %s\n", s.absolute("/stash"), s.absolute("/settings"))
-	return b.String()
+	return mailMessage{
+		Subject: nudgeSubject(summary),
+		Intro:   intro,
+		Action:  "Open your stash",
+		Link:    s.absolute("/stash"),
+		Links:   []mailLink{{Label: "Change how often you get this", URL: s.absolute("/settings")}},
+	}
 }
 
-// sendViaSMTP delivers one plain text message over SMTP: TLS from the start
-// on port 465, STARTTLS on any other port.
-func (s *Server) sendViaSMTP(to, subject, body string) error {
+// sendViaSMTP delivers one message over SMTP as text and HTML parts: TLS
+// from the start on port 465, STARTTLS on any other port.
+func (s *Server) sendViaSMTP(to, subject, text, html string) error {
 	from := s.config.SMTPFrom
 	if from == "" {
 		from = s.config.SMTPUser
 	}
-	message := fmt.Sprintf("From: sprue <%s>\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n%s",
-		from, to, subject, strings.ReplaceAll(body, "\n", "\r\n"))
+	message := fmt.Sprintf("From: sprue <%s>\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\n"+
+		"Content-Type: multipart/alternative; boundary=%q\r\n\r\n"+
+		"--%s\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n%s\r\n"+
+		"--%s\r\nContent-Type: text/html; charset=utf-8\r\n\r\n%s\r\n--%s--\r\n",
+		from, to, subject, mailBoundary, mailBoundary, crlf(text), mailBoundary, crlf(html), mailBoundary)
 	address := s.config.SMTPHost + ":" + s.config.SMTPPort
 	tlsConfig := &tls.Config{ServerName: s.config.SMTPHost}
 	dialer := &net.Dialer{Timeout: mailTimeout}
@@ -166,4 +176,12 @@ func (s *Server) sendViaSMTP(to, subject, body string) error {
 		return fmt.Errorf("smtp send: %w", err)
 	}
 	return client.Quit()
+}
+
+// mailBoundary separates the text and HTML parts of an SMTP message. Neither
+// part is user controlled enough to contain it.
+const mailBoundary = "sprue-part-7f3a9c"
+
+func crlf(text string) string {
+	return strings.ReplaceAll(text, "\n", "\r\n")
 }

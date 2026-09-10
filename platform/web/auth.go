@@ -1,7 +1,6 @@
 package web
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"net/mail"
@@ -53,7 +52,8 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not create a sign-in link.")
 		return
 	}
-	if err := s.store.CreateMagicToken(hashToken(token), email); err != nil {
+	remember := r.FormValue("remember") == "on"
+	if err := s.store.CreateMagicToken(hashToken(token), email, remember); err != nil {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not create a sign-in link.")
 		return
 	}
@@ -88,8 +88,13 @@ func (s *Server) sendMagicLink(email, link string) error {
 		log.Printf("web: magic link for %s: %s", email, link)
 		return nil
 	}
-	body := fmt.Sprintf("Sign in to sprue:\n\n%s\n\nThis link works once and expires in 15 minutes.\n", link)
-	return s.sendMail(email, "Your sprue sign-in link", body)
+	return s.sendMail(email, mailMessage{
+		Subject: "Your sprue sign-in link",
+		Intro:   []string{"Press the button to sign in to sprue."},
+		Action:  "Sign in",
+		Link:    link,
+		Outro:   []string{"This link works once and expires in 15 minutes. If you did not ask for it, ignore this email and nothing happens."},
+	})
 }
 
 func (s *Server) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
@@ -98,7 +103,7 @@ func (s *Server) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusBadRequest, "That sign-in link is not valid.")
 		return
 	}
-	email, err := s.store.ConsumeMagicToken(hashToken(token))
+	email, remember, err := s.store.ConsumeMagicToken(hashToken(token))
 	if err != nil {
 		s.renderError(w, r, http.StatusBadRequest, "That sign-in link is expired or already used. Request a new one.")
 		return
@@ -114,11 +119,11 @@ func (s *Server) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not sign you in.")
 		return
 	}
-	if err := s.store.CreateSession(hashToken(session), user.ID); err != nil {
+	if err := s.store.CreateSession(hashToken(session), user.ID, remember); err != nil {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not sign you in.")
 		return
 	}
-	s.setSessionCookie(w, session)
+	s.setSessionCookie(w, session, remember)
 	http.Redirect(w, r, "/u/"+user.Slug, http.StatusSeeOther)
 }
 

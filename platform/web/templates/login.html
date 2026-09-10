@@ -4,6 +4,7 @@
 <form method="post" action="/auth/start">
 <div class="nes-field trap" aria-hidden="true"><label for="website">Website</label><input id="website" type="text" name="website" tabindex="-1" autocomplete="off"></div>
 <div class="nes-field"><label for="email">Email</label><input class="nes-input" id="email" type="email" name="email" required maxlength="200" autocomplete="email"></div>
+<div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="remember" checked><span>Keep me signed in on this device.</span></label></div>
 <button class="nes-btn is-primary" type="submit">Send my link</button>
 </form>
 {{end}}

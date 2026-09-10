@@ -69,25 +69,74 @@ func TestUserCreationAndSlugs(t *testing.T) {
 
 func TestMagicTokenSingleUse(t *testing.T) {
 	s := testStore(t)
-	if err := s.CreateMagicToken("hash1", "a@b.com"); err != nil {
+	if err := s.CreateMagicToken("hash1", "a@b.com", false); err != nil {
 		t.Fatal(err)
 	}
-	email, err := s.ConsumeMagicToken("hash1")
-	if err != nil || email != "a@b.com" {
-		t.Fatalf("consume: %v %s", err, email)
+	email, remember, err := s.ConsumeMagicToken("hash1")
+	if err != nil || email != "a@b.com" || remember {
+		t.Fatalf("consume: %v %s %v", err, email, remember)
 	}
-	if _, err := s.ConsumeMagicToken("hash1"); !errors.Is(err, ErrNotFound) {
+	if _, _, err := s.ConsumeMagicToken("hash1"); !errors.Is(err, ErrNotFound) {
 		t.Fatal("token worked twice")
 	}
-	if _, err := s.ConsumeMagicToken("never-issued"); !errors.Is(err, ErrNotFound) {
+	if _, _, err := s.ConsumeMagicToken("never-issued"); !errors.Is(err, ErrNotFound) {
 		t.Fatal("unknown token worked")
+	}
+	if err := s.CreateMagicToken("hash2", "a@b.com", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, remember, err := s.ConsumeMagicToken("hash2"); err != nil || !remember {
+		t.Fatalf("remember should carry through the token: %v %v", err, remember)
+	}
+}
+
+func TestSessionLifetimes(t *testing.T) {
+	s := testStore(t)
+	alice := testUser(t, s, "alice@example.com")
+	if err := s.CreateSession("short", alice.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateSession("long", alice.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	var shortEnd, longEnd string
+	s.db.QueryRow(`select expires_at from sessions where token_hash = 'short'`).Scan(&shortEnd)
+	s.db.QueryRow(`select expires_at from sessions where token_hash = 'long'`).Scan(&longEnd)
+	if !(shortEnd < longEnd) {
+		t.Errorf("short session %s should end before long %s", shortEnd, longEnd)
+	}
+	// A remembered session near its end is renewed on use; a short one is not.
+	soon := time.Now().UTC().Add(time.Hour).Format(time.RFC3339)
+	if _, err := s.db.Exec(`update sessions set expires_at = ?`, soon); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SessionUser("long"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SessionUser("short"); err != nil {
+		t.Fatal(err)
+	}
+	s.db.QueryRow(`select expires_at from sessions where token_hash = 'short'`).Scan(&shortEnd)
+	s.db.QueryRow(`select expires_at from sessions where token_hash = 'long'`).Scan(&longEnd)
+	if shortEnd != soon {
+		t.Errorf("short session was renewed to %s", shortEnd)
+	}
+	if longEnd == soon {
+		t.Error("remembered session near its end was not renewed")
+	}
+}
+
+func TestMigrateTwice(t *testing.T) {
+	s := testStore(t)
+	if err := migrate(s.db); err != nil {
+		t.Fatalf("second migrate should be a no-op: %v", err)
 	}
 }
 
 func TestSessions(t *testing.T) {
 	s := testStore(t)
 	alice := testUser(t, s, "alice@example.com")
-	if err := s.CreateSession("sess1", alice.ID); err != nil {
+	if err := s.CreateSession("sess1", alice.ID, true); err != nil {
 		t.Fatal(err)
 	}
 	user, err := s.SessionUser("sess1")
@@ -540,19 +589,19 @@ func TestRecentBuildsPaging(t *testing.T) {
 func TestSweep(t *testing.T) {
 	s := testStore(t)
 	user := testUser(t, s, "sweep@example.com")
-	if err := s.CreateSession("live", user.ID); err != nil {
+	if err := s.CreateSession("live", user.ID, true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.db.Exec(`insert into sessions (token_hash, user_id, expires_at) values ('dead', ?, '2000-01-01T00:00:00Z')`, user.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CreateMagicToken("fresh", "sweep@example.com"); err != nil {
+	if err := s.CreateMagicToken("fresh", "sweep@example.com", true); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CreateMagicToken("spent", "sweep@example.com"); err != nil {
+	if err := s.CreateMagicToken("spent", "sweep@example.com", true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.ConsumeMagicToken("spent"); err != nil {
+	if _, _, err := s.ConsumeMagicToken("spent"); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Sweep(); err != nil {
