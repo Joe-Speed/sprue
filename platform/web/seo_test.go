@@ -77,7 +77,7 @@ func TestRobotsAndSitemap(t *testing.T) {
 	for _, want := range []string{
 		"<loc>https://sprue.test/</loc>",
 		"<loc>https://sprue.test/competitions/summer-sprint</loc>",
-		"<loc>https://sprue.test/u/alice</loc>",
+		"<loc>https://sprue.test/u/builder</loc>",
 		"<loc>https://sprue.test/builds/1</loc>",
 		"<lastmod>",
 	} {
@@ -105,7 +105,7 @@ func TestPageMeta(t *testing.T) {
 	_, build := get(t, ts, "/builds/1")
 	for _, want := range []string{
 		"<title>Spitfire · sprue</title>",
-		`<meta name="description" content="Airfix 1/72, built by alice.">`,
+		`<meta name="description" content="Airfix 1/72, built by Builder.">`,
 		`<meta property="og:image" content="https://sprue.test/photos/1/0123456789abcdef01234567.jpg">`,
 	} {
 		if !strings.Contains(build, want) {

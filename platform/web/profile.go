@@ -82,6 +82,7 @@ func (s *Server) avatarDir() string {
 
 func (s *Server) handleAvatarUpload(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, images.MaxUploadBytes+64*1024)
+	extendReadDeadline(w)
 	user, ok := s.requireUser(w, r)
 	if !ok {
 		return

@@ -176,6 +176,7 @@ func buildFromForm(r *http.Request, userID int64) store.Build {
 // photos in the same submission, so a build can go up in one step.
 func (s *Server) handleBuildCreate(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxPhotosPerUpload*images.MaxUploadBytes+64*1024)
+	extendReadDeadline(w)
 	user, ok := s.requireUser(w, r)
 	if !ok {
 		return
@@ -327,8 +328,22 @@ const maxPhotosPerUpload = 6
 
 var errUnusablePhoto = errors.New("web: unusable photo")
 
+// uploadReadTimeout replaces the server's 60 second read timeout for the
+// three photo posts. Six phone photos on a slow mobile uplink take longer.
+const uploadReadTimeout = 5 * time.Minute
+
+// extendReadDeadline gives an upload request longer to arrive. Test
+// recorders do not support deadlines, which is not an error worth noting.
+func extendReadDeadline(w http.ResponseWriter) {
+	err := http.NewResponseController(w).SetReadDeadline(time.Now().Add(uploadReadTimeout))
+	if err != nil && !errors.Is(err, http.ErrNotSupported) {
+		log.Printf("web: upload read deadline: %v", err)
+	}
+}
+
 func (s *Server) handlePhotoUpload(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxPhotosPerUpload*images.MaxUploadBytes+64*1024)
+	extendReadDeadline(w)
 	user, ok := s.requireUser(w, r)
 	if !ok {
 		return
@@ -537,7 +552,26 @@ func (s *Server) handlePhoto(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	// A photo is only as visible as its build, so a hidden or private build
+	// stops serving its pictures to everyone but those allowed to see it.
+	build, err := s.store.BuildByID(buildID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	var viewer *store.User
+	if user, _, err := s.sessionUser(r); err == nil {
+		viewer = &user
+	}
+	if !visibleTo(build, viewer) {
+		http.NotFound(w, r)
+		return
+	}
+	cache := "public, max-age=86400"
+	if build.Private || build.Hidden {
+		cache = "private, max-age=0"
+	}
 	path := filepath.Join(s.config.DataDir, "photos", strconv.FormatInt(buildID, 10), name)
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Cache-Control", cache)
 	http.ServeFile(w, r, path)
 }

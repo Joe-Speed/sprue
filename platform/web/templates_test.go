@@ -35,6 +35,7 @@ func TestEveryPageRenders(t *testing.T) {
 		"home":         homeData{Featured: []store.Build{build}, Builds: []store.Build{build}, Older: 7},
 		"login":        nil,
 		"check_email":  "joe@example.com",
+		"verify":       strings.Repeat("ab", 32),
 		"settings":     settingsData{User: user, Won: [4]bool{false, true, false, false}},
 		"builds":       []store.Build{build},
 		"profile":      profileData{Owner: user, Builds: []store.Build{build}, Pinned: []store.Build{build}, Trophies: []store.Trophy{trophy}, Friendship: "incoming"},

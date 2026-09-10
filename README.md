@@ -97,7 +97,7 @@ The Dockerfile at the repo root builds a small static image. Point a persistent 
 
 ## Privacy and data
 
-Everything user-generated stays in the data directory: the database, photos, and trophies. The repository contains code and badge artwork only. There are no analytics, no third-party scripts, no tracking, and the only personal data stored is an email address, a display name, and whatever a builder writes about their models. Session and sign-in tokens are stored hashed.
+Everything user-generated stays in the data directory: the database, photos, and trophies. The repository contains code and badge artwork only. Google Analytics runs only when `SPRUE_ANALYTICS_ID` is set and is the only third-party script; without it there is no tracking at all. The only personal data stored is an email address, a display name, and whatever a builder writes about their models. Session and sign-in tokens are stored hashed.
 
 ## License
 

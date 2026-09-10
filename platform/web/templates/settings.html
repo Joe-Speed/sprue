@@ -5,7 +5,10 @@
 <form method="post" action="/settings">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="nes-field"><label for="display_name">Display name</label><input class="nes-input" id="display_name" type="text" name="display_name" value="{{.Data.DisplayName}}" required maxlength="100">
-<p class="meta">Your page stays at /u/{{.Data.Slug}}</p></div>
+{{if defaultSlug .Data.Slug}}<p class="meta">Your page is at /u/{{.Data.Slug}} until you pick an address below.</p></div>
+<div class="nes-field"><label for="slug">Page address</label><input class="nes-input" id="slug" type="text" name="slug" value="" placeholder="{{.Data.Slug}}" minlength="3" maxlength="40" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocomplete="off">
+<p class="meta">Lowercase letters, numbers, and hyphens. Chosen once, then it never changes so your links keep working.</p></div>
+{{else}}<p class="meta">Your page stays at /u/{{.Data.Slug}}</p></div>{{end}}
 <div class="nes-field"><span class="label">Flair, shown beside your name</span>
 <div class="flair-picker">
 {{range flairs}}<label><input type="radio" name="flair" value="{{.}}"{{if eq (flairPath $.Data.Flair $.Data.ID) (flairPath . 0)}} checked{{end}}><img class="flair" src="{{flairPath . 0}}" alt="{{.}}" width="32" height="32"></label>{{end}}

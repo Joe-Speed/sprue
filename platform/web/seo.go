@@ -23,7 +23,7 @@ type meta struct {
 // noIndexPages are pages search engines should not list: forms, account
 // pages, and error pages.
 var noIndexPages = map[string]bool{
-	"login": true, "check_email": true, "settings": true, "builds": true, "build_form": true, "feedback": true,
+	"login": true, "check_email": true, "verify": true, "settings": true, "builds": true, "build_form": true, "feedback": true,
 	"competition_form": true, "admin": true, "error": true,
 }
 

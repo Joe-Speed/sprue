@@ -97,8 +97,20 @@ func (s *Server) sendMagicLink(email, link string) error {
 	})
 }
 
-func (s *Server) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
+// handleAuthVerifyPage shows a button instead of signing the reader in on
+// the GET. Mail gateways and link scanners open every address in an email
+// before the member does, and would otherwise burn the token.
+func (s *Server) handleAuthVerifyPage(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
+	if len(token) != 64 {
+		s.renderError(w, r, http.StatusBadRequest, "That sign-in link is not valid.")
+		return
+	}
+	s.render(w, r, "verify", "Sign in", token)
+}
+
+func (s *Server) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
+	token := r.FormValue("token")
 	if len(token) != 64 {
 		s.renderError(w, r, http.StatusBadRequest, "That sign-in link is not valid.")
 		return
@@ -124,6 +136,10 @@ func (s *Server) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.setSessionCookie(w, session, remember)
+	if store.DefaultSlug(user.Slug) {
+		flashRedirect(w, r, "/settings", "Welcome to sprue. Pick a display name and your page address.", "")
+		return
+	}
 	http.Redirect(w, r, "/u/"+user.Slug, http.StatusSeeOther)
 }
 
@@ -181,6 +197,16 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.RenameUser(user.ID, name, flair); err != nil {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not save your settings.")
 		return
+	}
+	if wanted := strings.TrimSpace(r.FormValue("slug")); wanted != "" && wanted != user.Slug {
+		if !store.DefaultSlug(user.Slug) {
+			flashRedirect(w, r, "/settings", "", "Your page address is set and cannot change.")
+			return
+		}
+		if err := s.store.SetSlug(user.ID, wanted); err != nil {
+			flashRedirect(w, r, "/settings", "", "That address is taken or not allowed. Use 3 to 40 lowercase letters, numbers, and hyphens.")
+			return
+		}
 	}
 	if nudge := r.FormValue("nudge"); nudge != "" && nudge != user.Nudge {
 		if err := s.store.SetNudge(user.ID, nudge); err != nil {

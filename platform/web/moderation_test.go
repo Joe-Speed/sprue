@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -78,5 +79,59 @@ func TestHiddenBuildVisibility(t *testing.T) {
 	}
 	if !visibleTo(private, owner) {
 		t.Error("owner must see their private build")
+	}
+}
+
+func TestPhotosFollowBuildVisibility(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	user, err := st.FindOrCreateUser("owner@example.com", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	build, err := st.CreateBuild(store.Build{UserID: user.ID, Title: "Hurricane", Kit: "Airfix 1/48"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := "0123456789abcdef01234567.jpg"
+	if err := st.AddPhoto(build, name); err != nil {
+		t.Fatal(err)
+	}
+	photoDir := filepath.Join(dir, "photos", "1")
+	if err := os.MkdirAll(photoDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(photoDir, name), []byte("jpeg"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	server, err := New(st, Config{DataDir: dir, BaseURL: "https://sprue.test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(server.Handler())
+	defer ts.Close()
+	photo := ts.URL + "/photos/1/" + name
+	res, err := http.Get(photo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("public build photo: %d", res.StatusCode)
+	}
+	if err := st.SetBuildHidden(build, true); err != nil {
+		t.Fatal(err)
+	}
+	res, err = http.Get(photo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("hidden build photo should stop serving to strangers, got %d", res.StatusCode)
 	}
 }

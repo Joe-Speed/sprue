@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -328,41 +329,35 @@ func (s *Store) CreateMagicToken(tokenHash, email string, remember bool) error {
 	}
 	expires := time.Now().UTC().Add(magicTokenLifetime).Format(time.RFC3339)
 	_, err := s.db.Exec(`insert into magic_tokens (token_hash, email, expires_at, remember) values (?, ?, ?, ?)`,
-		tokenHash, strings.ToLower(clip(email, maxShortField)), expires, flag(remember))
+		tokenHash, strings.ToLower(clip(email, maxShortField)), expires, boolInt(remember))
 	return err
 }
 
 // ConsumeMagicToken burns the token and returns the email it was issued for
-// and whether the member asked to stay signed in.
+// and whether the member asked to stay signed in. One conditional update
+// does the burning, so two requests with the same link cannot both win.
 func (s *Store) ConsumeMagicToken(tokenHash string) (string, bool, error) {
 	if tokenHash == "" {
 		return "", false, ErrNotFound
 	}
-	var email, expires string
-	var used, remember int
-	err := s.db.QueryRow(`select email, expires_at, used, remember from magic_tokens where token_hash = ?`, tokenHash).
-		Scan(&email, &expires, &used, &remember)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", false, ErrNotFound
-	}
+	result, err := s.db.Exec(`update magic_tokens set used = 1 where token_hash = ? and used = 0 and expires_at > ?`,
+		tokenHash, now())
 	if err != nil {
 		return "", false, err
 	}
-	when, err := time.Parse(time.RFC3339, expires)
-	if err != nil || used != 0 || time.Now().UTC().After(when) {
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return "", false, err
+	}
+	if changed == 0 {
 		return "", false, ErrNotFound
 	}
-	if _, err := s.db.Exec(`update magic_tokens set used = 1 where token_hash = ?`, tokenHash); err != nil {
+	var email string
+	var remember int
+	if err := s.db.QueryRow(`select email, remember from magic_tokens where token_hash = ?`, tokenHash).Scan(&email, &remember); err != nil {
 		return "", false, err
 	}
 	return email, remember == 1, nil
-}
-
-func flag(on bool) int {
-	if on {
-		return 1
-	}
-	return 0
 }
 
 // FindOrCreateUser returns the user for an email, creating one on first login.
@@ -374,22 +369,22 @@ func (s *Store) FindOrCreateUser(email string, makeAdmin bool) (User, error) {
 	}
 	user, err := s.userBy("email = ?", email)
 	if err == nil {
-		if makeAdmin && !user.IsAdmin {
-			if _, err := s.db.Exec(`update users set is_admin = 1 where id = ?`, user.ID); err != nil {
+		// Admin follows the configuration in both directions, so changing
+		// SPRUE_ADMIN_EMAIL takes the right away from the old address.
+		if user.IsAdmin != makeAdmin {
+			if _, err := s.db.Exec(`update users set is_admin = ? where id = ?`, boolInt(makeAdmin), user.ID); err != nil {
 				return User{}, err
 			}
-			user.IsAdmin = true
+			user.IsAdmin = makeAdmin
 		}
 		return user, nil
 	}
 	if !errors.Is(err, ErrNotFound) {
 		return User{}, err
 	}
-	name := email[:strings.Index(email, "@")]
-	if name == "" {
-		name = "builder"
-	}
-	slug, err := s.uniqueSlug("users", Slugify(name))
+	// New members start with a neutral name and address so the email's
+	// local part is never published. Settings lets them pick both.
+	slug, err := s.uniqueSlug("users", defaultSlugBase)
 	if err != nil {
 		return User{}, err
 	}
@@ -398,7 +393,7 @@ func (s *Store) FindOrCreateUser(email string, makeAdmin bool) (User, error) {
 		admin = 1
 	}
 	result, err := s.db.Exec(`insert into users (email, display_name, slug, is_admin, created_at) values (?, ?, ?, ?, ?)`,
-		email, clip(name, maxShortField), slug, admin, now())
+		email, defaultDisplayName, slug, admin, now())
 	if err != nil {
 		return User{}, err
 	}
@@ -454,7 +449,7 @@ func (s *Store) CreateSession(tokenHash string, userID int64, remember bool) err
 	}
 	expires := time.Now().UTC().Add(life).Format(time.RFC3339)
 	_, err := s.db.Exec(`insert into sessions (token_hash, user_id, expires_at, remember) values (?, ?, ?, ?)`,
-		tokenHash, userID, expires, flag(remember))
+		tokenHash, userID, expires, boolInt(remember))
 	return err
 }
 
@@ -1381,6 +1376,45 @@ func (s *Store) RearmTrophy(id int64) error {
 }
 
 // Slugify turns free text into a lowercase hyphenated slug, ascii only.
+// New members get this name and a slug of builder, builder-2, and so on
+// until they choose their own in settings.
+const (
+	defaultDisplayName = "Builder"
+	defaultSlugBase    = "builder"
+	minSlugLength      = 3
+	maxSlugLength      = 40
+)
+
+var defaultSlugPattern = regexp.MustCompile(`^builder(-[0-9]+)?$`)
+
+// DefaultSlug reports whether a member still has the address they were given
+// on sign-up, the only time it may be changed.
+func DefaultSlug(slug string) bool {
+	return defaultSlugPattern.MatchString(slug)
+}
+
+// SetSlug lets a member choose their page address once, while it is still
+// the default. Addresses are otherwise permanent so shared links keep
+// working. A taken address surfaces as the unique constraint error.
+func (s *Store) SetSlug(userID int64, slug string) error {
+	if userID <= 0 || slug != Slugify(slug) || len(slug) < minSlugLength || len(slug) > maxSlugLength || DefaultSlug(slug) {
+		return errors.New("store: bad slug")
+	}
+	result, err := s.db.Exec(`update users set slug = ? where id = ? and (slug = ? or slug like ?)`,
+		slug, userID, defaultSlugBase, defaultSlugBase+"-%")
+	if err != nil {
+		return fmt.Errorf("store: set slug: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if changed == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func Slugify(text string) string {
 	var out strings.Builder
 	lastHyphen := true

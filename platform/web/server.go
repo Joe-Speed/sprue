@@ -90,7 +90,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.handleHome)
 	mux.HandleFunc("GET /login", s.handleLoginPage)
 	mux.HandleFunc("POST /auth/start", s.handleAuthStart)
-	mux.HandleFunc("GET /auth/verify", s.handleAuthVerify)
+	mux.HandleFunc("GET /auth/verify", s.handleAuthVerifyPage)
+	mux.HandleFunc("POST /auth/verify", s.handleAuthVerify)
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("GET /settings", s.handleSettingsPage)
 	mux.HandleFunc("POST /settings", s.handleSettingsSave)
@@ -312,12 +313,12 @@ func (s *Server) renderMeta(w http.ResponseWriter, r *http.Request, status int, 
 	if m.Image == "" {
 		m.Image = s.absolute(staticPath("apple-touch-icon.png"))
 	}
-	query := r.URL.Query()
+	note, errorText := readFlash(w, r)
 	p := page{
 		Title: title + " · sprue", Description: m.Description, Image: m.Image,
 		Canonical: s.absolute(r.URL.Path), NoIndex: noIndexPages[name],
 		Path: r.URL.Path, Mark: readMark(r), Data: data,
-		Error: clipMessage(query.Get("error")), Note: clipMessage(query.Get("note")),
+		Error: errorText, Note: note,
 		Site: site{
 			AnalyticsID: s.config.AnalyticsID,
 			DiscordURL:  s.config.DiscordURL, SupportEmail: s.config.SupportEmail,
@@ -372,16 +373,52 @@ func clipMessage(text string) string {
 func buildPage(id int64) string { return fmt.Sprintf("/builds/%d", id) }
 func buildEdit(id int64) string { return fmt.Sprintf("/builds/%d/edit", id) }
 
+// flashCookie carries one message across a redirect. A cookie rather than
+// the query string, so nobody can craft a link that puts words in the
+// site's green tick box.
+const flashCookie = "sprue_flash"
+
 // flashRedirect sends the reader to path with one message: an error if
 // errorText is set, otherwise a note.
 func flashRedirect(w http.ResponseWriter, r *http.Request, path, note, errorText string) {
-	query := url.Values{}
+	kind, text := "note", note
 	if errorText != "" {
-		query.Set("error", errorText)
-	} else if note != "" {
-		query.Set("note", note)
+		kind, text = "error", errorText
 	}
-	http.Redirect(w, r, path+"?"+query.Encode(), http.StatusSeeOther)
+	if text != "" {
+		http.SetCookie(w, &http.Cookie{
+			Name: flashCookie, Value: url.QueryEscape(kind + ":" + text), Path: "/", MaxAge: 60,
+			HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: requestIsSecure(r),
+		})
+	}
+	http.Redirect(w, r, path, http.StatusSeeOther)
+}
+
+// readFlash returns the pending message, if any, and clears it.
+func readFlash(w http.ResponseWriter, r *http.Request) (note, errorText string) {
+	cookie, err := r.Cookie(flashCookie)
+	if err != nil {
+		return "", ""
+	}
+	http.SetCookie(w, &http.Cookie{Name: flashCookie, Value: "", Path: "/", MaxAge: -1})
+	raw, err := url.QueryUnescape(cookie.Value)
+	if err != nil {
+		return "", ""
+	}
+	kind, text, ok := strings.Cut(raw, ":")
+	if !ok {
+		return "", ""
+	}
+	if kind == "error" {
+		return "", clipMessage(text)
+	}
+	return clipMessage(text), ""
+}
+
+// requestIsSecure is true when the reader arrived over HTTPS, directly or
+// through the platform's proxy.
+func requestIsSecure(r *http.Request) bool {
+	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 }
 
 func randomToken() (string, error) {

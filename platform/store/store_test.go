@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -54,16 +55,46 @@ func TestUserCreationAndSlugs(t *testing.T) {
 	if alice.Email != "alice@example.com" {
 		t.Fatalf("email not normalised: %s", alice.Email)
 	}
-	if alice.Slug != "alice" {
-		t.Fatalf("slug: %s", alice.Slug)
+	if alice.Slug != "builder" || alice.DisplayName != "Builder" {
+		t.Fatalf("new members should start neutral, got %s %s", alice.Slug, alice.DisplayName)
 	}
 	again := testUser(t, s, "alice@example.com")
 	if again.ID != alice.ID {
 		t.Fatal("same email created a second user")
 	}
 	other := testUser(t, s, "alice@other.com")
-	if other.Slug != "alice-2" {
+	if other.Slug != "builder-2" {
 		t.Fatalf("expected deduplicated slug, got %s", other.Slug)
+	}
+	if err := s.SetSlug(alice.ID, "alice-builds"); err != nil {
+		t.Fatalf("first choice of address: %v", err)
+	}
+	if err := s.SetSlug(alice.ID, "alice-again"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a chosen address must be permanent, got %v", err)
+	}
+	if err := s.SetSlug(other.ID, "alice-builds"); err == nil {
+		t.Error("a taken address was accepted")
+	}
+	for _, bad := range []string{"Alice", "ab", "builder-9", "has space", strings.Repeat("a", 41)} {
+		if err := s.SetSlug(other.ID, bad); err == nil {
+			t.Errorf("bad slug %q was accepted", bad)
+		}
+	}
+	renamed, err := s.userBy("id = ?", alice.ID)
+	if err != nil || renamed.Slug != "alice-builds" || !DefaultSlug(other.Slug) || DefaultSlug(renamed.Slug) {
+		t.Errorf("slug state: %v %s", err, renamed.Slug)
+	}
+}
+
+func TestAdminFollowsConfig(t *testing.T) {
+	s := testStore(t)
+	user, err := s.FindOrCreateUser("boss@example.com", true)
+	if err != nil || !user.IsAdmin {
+		t.Fatalf("admin on first sign-in: %v %v", err, user.IsAdmin)
+	}
+	user, err = s.FindOrCreateUser("boss@example.com", false)
+	if err != nil || user.IsAdmin {
+		t.Fatalf("admin should be withdrawn when the configuration changes: %v %v", err, user.IsAdmin)
 	}
 }
 

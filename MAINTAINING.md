@@ -34,11 +34,11 @@ Gates before calling any change done: `gofmt -l .` prints nothing, `go vet ./...
 
 The pixel look comes from three places. NES.css core is vendored at `platform/web/static/vendor/nes-core.min.css` and is never edited; upgrade it by replacing the file and its licence. `platform/web/static/style.css` holds the palette, layout, and every override, and is the only stylesheet you edit. The trophy badges and the airplane marks are plain SVG files under `platform/web/static/`, one path per colour on a pixel grid, and can be edited in any text editor or redrawn in a pixel editor. The mark comes in five colours. Clicking the plane in the header moves to the next colour and remembers it in a cookie; the colour list is `markColours` in `web/templates.go` and each entry needs a matching `mark-<colour>.svg`.
 
-Static files are served with a one year cache and a version parameter derived from the stylesheet, so a new binary always gets fresh assets. Run `go test ./...` after any template change; the web tests render every page.
+Static files are served with a one year cache and a version parameter that is a short hash of every static file, so a new binary always gets fresh assets. Run `go test ./...` after any template change; the web tests render every page.
 
 ## Operations
 
-`GET /healthz` returns `ok` when the database answers, for platform health checks. Every response carries a strict Content-Security-Policy (no scripts, same-origin styles, fonts, and images), nosniff, and frame denial. Text form posts are capped at 64KB; photo uploads at six files of 15MB each. Expired sessions and sign-in tokens are swept at startup and every hour, competitions advance by date in the same run, and due stash reminders go out. SIGTERM drains open requests for up to fifteen seconds before exit.
+`GET /healthz` returns `ok` when the database answers, for platform health checks. Every response carries a strict Content-Security-Policy (only the site's own script, plus Google's tag when analytics is configured; same-origin styles, fonts, and images), nosniff, and frame denial. Text form posts are capped at 64KB; photo uploads at six files of 15MB each. Expired sessions and sign-in tokens are swept at startup and every hour, competitions advance by date in the same run, and due stash reminders go out. SIGTERM drains open requests for up to fifteen seconds before exit.
 
 Builders can remove photos, choose the cover photo, and delete a build. A build that has entered a competition cannot be deleted because entries, votes, and trophies refer to it. Build IDs are never reused, so a link to a deleted build stays a 404.
 
@@ -145,5 +145,5 @@ Copy the three STL files into the volume once. Everything else, including the da
 
 ## Honest limits
 
-Magic links and votes are rate limited per address and email, and every upload is decoded and re-encoded server side, capped at 8 MB in and 1600 pixels on the long edge. Fixed caps everywhere: 200 builds per user, 12 photos per build, 64 entries per competition, 256 competitions. Hitting a cap is a clean error, never growth. Vote integrity is one account one vote; someone determined enough to register many email addresses can still cheat, and if that ever matters the next step is approving new accounts before they can vote.
+Magic links and votes are rate limited per address and email, and every upload is decoded and re-encoded server side, capped at 15 MB in and 1600 pixels on the long edge. Fixed caps everywhere: 200 builds per user, 12 photos per build, 64 entries per competition, 256 competitions. Hitting a cap is a clean error, never growth. Vote integrity is one account one vote; someone determined enough to register many email addresses can still cheat, and if that ever matters the next step is approving new accounts before they can vote.
 

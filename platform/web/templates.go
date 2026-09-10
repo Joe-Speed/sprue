@@ -15,7 +15,7 @@ import (
 // pageNames are the templates that render a whole page. Each is parsed with
 // base.html and partials.html so every page shares the same shell and cards.
 var pageNames = []string{
-	"home", "login", "check_email", "settings", "profile", "builds", "build", "build_form",
+	"home", "login", "check_email", "verify", "settings", "profile", "builds", "build", "build_form",
 	"competitions", "competition", "competition_form", "past", "stash", "stash_item", "members", "friends",
 	"terms", "privacy", "feedback", "support", "admin", "error",
 }
@@ -64,6 +64,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		"money":        money,
 		"currency":     func() string { return currency },
 		"neg":          func(n int) int { return -n },
+		"defaultSlug":  store.DefaultSlug,
 	}
 	templates := make(map[string]*template.Template, len(pageNames))
 	for _, name := range pageNames {
