@@ -168,6 +168,10 @@ create table if not exists trophies (
 	seen integer not null default 0,
 	unique(competition_id, place)
 );
+create table if not exists counters (
+	name text primary key,
+	count integer not null default 0
+);
 create table if not exists donations (
 	id integer primary key autoincrement,
 	external_id text not null unique,
@@ -224,8 +228,9 @@ func (s *Store) Ping() error {
 	return s.db.QueryRow(`select 1`).Scan(&one)
 }
 
-// Sweep removes expired sessions and spent or expired sign-in tokens. Run it
-// at startup and on a timer so the tables do not grow without bound.
+// Sweep removes expired sessions, spent or expired sign-in tokens, and
+// counters from earlier months. Run it at startup and on a timer so the
+// tables do not grow without bound.
 func (s *Store) Sweep() error {
 	current := now()
 	if _, err := s.db.Exec(`delete from sessions where expires_at < ?`, current); err != nil {
@@ -234,7 +239,34 @@ func (s *Store) Sweep() error {
 	if _, err := s.db.Exec(`delete from magic_tokens where used = 1 or expires_at < ?`, current); err != nil {
 		return fmt.Errorf("store: sweep tokens: %w", err)
 	}
+	if _, err := s.db.Exec(`delete from counters where name not like ?`, "%:"+thisMonth()); err != nil {
+		return fmt.Errorf("store: sweep counters: %w", err)
+	}
 	return nil
+}
+
+func thisMonth() string {
+	return time.Now().UTC().Format("2006-01")
+}
+
+// TakeMonthly counts one use of a metered outside service this calendar
+// month and reports whether it stayed within limit. The count survives
+// restarts, which is the point: it guards a bill, not a burst.
+func (s *Store) TakeMonthly(name string, limit int) (bool, error) {
+	if name == "" || limit <= 0 {
+		return false, errors.New("store: bad monthly counter")
+	}
+	key := name + ":" + thisMonth()
+	result, err := s.db.Exec(`insert into counters (name, count) values (?, 1)
+		on conflict(name) do update set count = count + 1 where count < ?`, key, limit)
+	if err != nil {
+		return false, fmt.Errorf("store: count %s: %w", name, err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return changed == 1, nil
 }
 
 func now() string {

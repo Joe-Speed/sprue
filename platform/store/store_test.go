@@ -667,3 +667,31 @@ func TestDeleteBuildMadeFromStash(t *testing.T) {
 		t.Fatalf("delete build from stash: %v", err)
 	}
 }
+
+func TestTakeMonthly(t *testing.T) {
+	s := testStore(t)
+	for i := 0; i < 3; i++ {
+		ok, err := s.TakeMonthly("vision", 3)
+		if err != nil || !ok {
+			t.Fatalf("use %d: %v %v", i+1, ok, err)
+		}
+	}
+	ok, err := s.TakeMonthly("vision", 3)
+	if err != nil || ok {
+		t.Fatalf("fourth use should be refused: %v %v", ok, err)
+	}
+	if ok, err := s.TakeMonthly("other", 3); err != nil || !ok {
+		t.Fatalf("a different counter is independent: %v %v", ok, err)
+	}
+	if _, err := s.db.Exec(`insert into counters (name, count) values ('vision:2001-01', 50)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Sweep(); err != nil {
+		t.Fatal(err)
+	}
+	var rows int
+	s.db.QueryRow(`select count(*) from counters`).Scan(&rows)
+	if rows != 2 {
+		t.Errorf("sweep should keep only this month's counters, left %d", rows)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -61,6 +62,12 @@ var visionEndpoint = "https://vision.googleapis.com/v1/images:annotate"
 
 var errUnsafePhoto = errors.New("web: photo refused by the image check")
 var errScreenUnavailable = errors.New("web: image check unavailable")
+var errScreenBudget = errors.New("web: image check budget spent for the month")
+
+// maxScreensPerMonth caps Vision calls under Google's free thousand a month.
+// The count lives in the database so a redeploy cannot reset it. Once spent,
+// uploads wait for next month rather than run up a bill.
+const maxScreensPerMonth = 900
 
 // screenPhoto asks SafeSearch about a processed photo and refuses anything
 // likely adult or violent. Without a key every photo passes. If the check
@@ -68,6 +75,15 @@ var errScreenUnavailable = errors.New("web: image check unavailable")
 func (s *Server) screenPhoto(jpeg []byte) error {
 	if s.config.VisionKey == "" {
 		return nil
+	}
+	within, err := s.store.TakeMonthly("vision", maxScreensPerMonth)
+	if err != nil {
+		log.Printf("web: vision counter: %v", err)
+		return errScreenUnavailable
+	}
+	if !within {
+		log.Printf("web: vision budget of %d checks spent this month", maxScreensPerMonth)
+		return errScreenBudget
 	}
 	request, err := json.Marshal(map[string]any{"requests": []any{map[string]any{
 		"image":    map[string]string{"content": base64.StdEncoding.EncodeToString(jpeg)},

@@ -149,3 +149,27 @@ func TestBadAnalyticsID(t *testing.T) {
 		t.Error("old style or malformed analytics ids should be refused")
 	}
 }
+
+func TestWWWRedirectAndHSTS(t *testing.T) {
+	server := testServer(t, "")
+	defer server.Close()
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/competitions?page=2", nil)
+	req.Host = "www.sprue.test"
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusMovedPermanently || res.Header.Get("Location") != "https://sprue.test/competitions?page=2" {
+		t.Errorf("www should redirect to the bare domain, got %d %s", res.StatusCode, res.Header.Get("Location"))
+	}
+	res, err = http.Get(server.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.Header.Get("Strict-Transport-Security") != hstsMaxAge {
+		t.Errorf("https site should send HSTS, got %q", res.Header.Get("Strict-Transport-Security"))
+	}
+}

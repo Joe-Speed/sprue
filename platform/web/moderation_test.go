@@ -40,6 +40,17 @@ func TestScreenPhoto(t *testing.T) {
 	if err := server.screenPhoto([]byte("jpeg")); err != errScreenUnavailable {
 		t.Errorf("failed check should refuse, got %v", err)
 	}
+	server.config.VisionKey = "secret"
+	verdict = "VERY_UNLIKELY"
+	used := 3
+	for i := used; i < maxScreensPerMonth; i++ {
+		if _, err := st.TakeMonthly("vision", maxScreensPerMonth); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := server.screenPhoto([]byte("jpeg")); err != errScreenBudget {
+		t.Errorf("spent budget should pause checks, got %v", err)
+	}
 	server.config.VisionKey = ""
 	if err := server.screenPhoto([]byte("jpeg")); err != nil {
 		t.Errorf("no key should skip the check: %v", err)

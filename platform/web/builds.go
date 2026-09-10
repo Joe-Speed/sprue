@@ -390,6 +390,8 @@ func uploadError(added, wanted int, failure error) string {
 		reason = "That photo was refused by the image check."
 	case errors.Is(failure, errScreenUnavailable):
 		reason = "The image check did not answer. Try again in a moment."
+	case errors.Is(failure, errScreenBudget):
+		reason = "Photo checks have reached this month's limit. Uploads reopen next month."
 	}
 	if added == 0 {
 		return reason

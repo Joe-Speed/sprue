@@ -54,6 +54,8 @@ type Server struct {
 	limiter   *rateLimiter
 	quota     *quota
 	csp       string
+	host      string // host part of BaseURL; the www form redirects here
+	secure    bool   // BaseURL is https, so browsers may be told to insist on it
 }
 
 const staticCacheControl = "public, max-age=31536000, immutable"
@@ -68,13 +70,17 @@ func New(st *store.Store, config Config) (*Server, error) {
 	if config.KofiURL != "" && !strings.HasPrefix(config.KofiURL, "https://") {
 		return nil, errors.New("web: ko-fi url must start with https://")
 	}
+	base, err := url.Parse(config.BaseURL)
+	if err != nil || base.Host == "" {
+		return nil, errors.New("web: base url must be a full address like https://sprue.uk")
+	}
 	templates, err := parseTemplates()
 	if err != nil {
 		return nil, err
 	}
 	return &Server{
 		store: st, config: config, templates: templates, limiter: newRateLimiter(), quota: newQuota(),
-		csp: contentSecurityPolicy(config.AnalyticsID),
+		csp: contentSecurityPolicy(config.AnalyticsID), host: base.Host, secure: base.Scheme == "https",
 	}, nil
 }
 
@@ -158,13 +164,26 @@ func withBodyLimit(next http.Handler) http.Handler {
 	})
 }
 
+// hstsMaxAge is one year: how long browsers remember to use https only.
+const hstsMaxAge = "max-age=31536000; includeSubDomains"
+
+// withSecurityHeaders sets the headers every response carries. Visitors on
+// the www form of the site are sent to the bare domain first, so there is
+// one address, one set of cookies, and one entry in search results.
 func (s *Server) withSecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Host == "www."+s.host {
+			http.Redirect(w, r, s.absolute(r.URL.RequestURI()), http.StatusMovedPermanently)
+			return
+		}
 		h := w.Header()
 		h.Set("Content-Security-Policy", s.csp)
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
 		h.Set("X-Frame-Options", "DENY")
+		if s.secure {
+			h.Set("Strict-Transport-Security", hstsMaxAge)
+		}
 		next.ServeHTTP(w, r)
 	})
 }
