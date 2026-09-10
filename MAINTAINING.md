@@ -24,6 +24,8 @@ go build -o sprue .
 SPRUE_ADMIN_EMAIL=you@example.com ./sprue
 ```
 
+Sign-in requests are limited: one per email address and one per visitor address every 30 seconds, six per visitor address an hour, and 200 for the whole site a day so Brevo's free allowance of 300 cannot be spent by a bot. The form also carries a hidden field that people never see; a request that fills it is shown the usual "check your email" page and nothing is sent.
+
 Without a mail provider configured, sign-in links are printed to the server log instead of emailed. Open the site, enter your email, copy the link from the log into the browser. Signing in with the address in `SPRUE_ADMIN_EMAIL` makes that account the admin.
 
 Gates before calling any change done: `gofmt -l .` prints nothing, `go vet ./...` is clean, `go test ./...` passes, and the flow you touched works in a browser or with curl against a locally running server.

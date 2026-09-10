@@ -196,6 +196,15 @@ h1 {
   font-size: 1.25rem;
 }
 
+/* The sign-in form's trap field: bots fill it, people never see it. */
+.trap {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
 /* Page icons: pixel art drawn on a 12 by 12 grid, one per section so the
    pages read differently at a glance. */
 h1 img.icon {

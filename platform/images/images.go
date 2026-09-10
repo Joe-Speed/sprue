@@ -24,20 +24,37 @@ const (
 var ErrTooLarge = errors.New("images: upload too large")
 var ErrBadImage = errors.New("images: not a decodable image")
 
+// decodeSlots bounds how many uploads decode at once. Go's decoders allocate
+// the whole frame up front, so a few 50 megapixel photos arriving together
+// would otherwise stack their buffers.
+var decodeSlots = make(chan struct{}, 2)
+
+// decode reads only the header first and refuses anything whose declared
+// size is over the cap, so a tiny file claiming huge dimensions never gets
+// its pixel buffer allocated. Then it decodes for real, one of a few at a time.
+func decode(data []byte) (image.Image, error) {
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil || config.Width <= 0 || config.Height <= 0 || config.Width*config.Height > MaxSourcePixels {
+		return nil, ErrBadImage
+	}
+	decodeSlots <- struct{}{}
+	defer func() { <-decodeSlots }()
+	source, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, ErrBadImage
+	}
+	return source, nil
+}
+
 // Process decodes an upload, downscales it so no edge exceeds MaxEdge, and
 // returns a fresh JPEG. The re-encode strips metadata and anything hostile.
 func Process(data []byte) ([]byte, error) {
 	if len(data) == 0 || len(data) > MaxUploadBytes {
 		return nil, ErrTooLarge
 	}
-	source, _, err := image.Decode(bytes.NewReader(data))
+	source, err := decode(data)
 	if err != nil {
-		return nil, ErrBadImage
-	}
-	bounds := source.Bounds()
-	width, height := bounds.Dx(), bounds.Dy()
-	if width <= 0 || height <= 0 || width*height > MaxSourcePixels {
-		return nil, ErrBadImage
+		return nil, err
 	}
 	scaled := Downscale(source, MaxEdge)
 	var out bytes.Buffer
@@ -53,15 +70,12 @@ func ProcessSquare(data []byte, size int) ([]byte, error) {
 	if len(data) == 0 || len(data) > MaxUploadBytes || size < 16 || size > MaxEdge {
 		return nil, ErrTooLarge
 	}
-	source, _, err := image.Decode(bytes.NewReader(data))
+	source, err := decode(data)
 	if err != nil {
-		return nil, ErrBadImage
+		return nil, err
 	}
 	bounds := source.Bounds()
 	width, height := bounds.Dx(), bounds.Dy()
-	if width <= 0 || height <= 0 || width*height > MaxSourcePixels {
-		return nil, ErrBadImage
-	}
 	side := min(width, height)
 	square := image.Rect(0, 0, side, side).Add(image.Pt(bounds.Min.X+(width-side)/2, bounds.Min.Y+(height-side)/2))
 	scaled := Downscale(crop{source, square}, size)

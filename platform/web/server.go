@@ -52,6 +52,7 @@ type Server struct {
 	config    Config
 	templates map[string]*template.Template
 	limiter   *rateLimiter
+	quota     *quota
 	csp       string
 }
 
@@ -72,7 +73,7 @@ func New(st *store.Store, config Config) (*Server, error) {
 		return nil, err
 	}
 	return &Server{
-		store: st, config: config, templates: templates, limiter: newRateLimiter(),
+		store: st, config: config, templates: templates, limiter: newRateLimiter(), quota: newQuota(),
 		csp: contentSecurityPolicy(config.AnalyticsID),
 	}, nil
 }
@@ -453,26 +454,78 @@ func (l *rateLimiter) allow(key string, minGap time.Duration) bool {
 		return false
 	}
 	if len(l.seen) >= maxRateSlots {
+		oldestKey, oldest := "", now
 		for k, when := range l.seen {
 			if now.Sub(when) > time.Hour {
 				delete(l.seen, k)
+			} else if when.Before(oldest) {
+				oldestKey, oldest = k, when
 			}
 		}
-		if len(l.seen) >= maxRateSlots {
-			return false
+		if len(l.seen) >= maxRateSlots && oldestKey != "" {
+			delete(l.seen, oldestKey)
 		}
 	}
 	l.seen[key] = now
 	return true
 }
 
+// clientKey is the visitor's address for rate limiting. Behind a proxy the
+// real address is the last entry of X-Forwarded-For, the one the proxy
+// appended; earlier entries are whatever the client chose to send.
 func clientKey(r *http.Request) string {
 	forwarded := r.Header.Get("X-Forwarded-For")
 	if forwarded != "" {
-		if comma := strings.IndexByte(forwarded, ','); comma > 0 {
-			return strings.TrimSpace(forwarded[:comma])
+		if comma := strings.LastIndexByte(forwarded, ','); comma >= 0 {
+			return strings.TrimSpace(forwarded[comma+1:])
 		}
 		return strings.TrimSpace(forwarded)
 	}
 	return r.RemoteAddr
+}
+
+// quota counts how many times a key acts inside a rolling window, with the
+// same bounded table as the rate limiter. It backs the daily mail ceiling
+// and the hourly per visitor sign-in cap, so one patient bot cannot spend
+// the day's email allowance.
+type quota struct {
+	mu   sync.Mutex
+	seen map[string]quotaSlot
+}
+
+type quotaSlot struct {
+	started time.Time
+	count   int
+}
+
+func newQuota() *quota {
+	return &quota{seen: make(map[string]quotaSlot, 64)}
+}
+
+// allow records one use of key and reports whether it stayed within limit
+// uses per window.
+func (q *quota) allow(key string, limit int, window time.Duration) bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	now := time.Now()
+	slot, ok := q.seen[key]
+	if !ok || now.Sub(slot.started) >= window {
+		if len(q.seen) >= maxRateSlots {
+			oldestKey, oldest := "", now
+			for k, old := range q.seen {
+				if now.Sub(old.started) >= window {
+					delete(q.seen, k)
+				} else if old.started.Before(oldest) {
+					oldestKey, oldest = k, old.started
+				}
+			}
+			if len(q.seen) >= maxRateSlots && oldestKey != "" {
+				delete(q.seen, oldestKey)
+			}
+		}
+		slot = quotaSlot{started: now}
+	}
+	slot.count++
+	q.seen[key] = slot
+	return slot.count <= limit
 }

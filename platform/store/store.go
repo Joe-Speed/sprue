@@ -647,6 +647,9 @@ func (s *Store) DeleteBuild(id, userID int64) ([]string, error) {
 	if _, err := tx.Exec(`delete from build_votes where build_id = ?`, id); err != nil {
 		return nil, err
 	}
+	if _, err := tx.Exec(`update stash set build_id = null where build_id = ?`, id); err != nil {
+		return nil, err
+	}
 	if _, err := tx.Exec(`delete from reports where build_id = ?`, id); err != nil {
 		return nil, err
 	}

@@ -600,3 +600,21 @@ func TestSlugify(t *testing.T) {
 		}
 	}
 }
+
+// A build made by finishing a stash kit keeps a link from the kit. Deleting
+// the build must clear that link rather than fail on the foreign key.
+func TestDeleteBuildMadeFromStash(t *testing.T) {
+	st := testStore(t)
+	user, _ := st.FindOrCreateUser("kit@example.com", false)
+	kitID, err := st.CreateStashItem(StashItem{UserID: user.ID, Title: "Lancaster"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildID, err := st.FinishStashItem(kitID, user.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DeleteBuild(buildID, user.ID); err != nil {
+		t.Fatalf("delete build from stash: %v", err)
+	}
+}

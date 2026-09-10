@@ -2,6 +2,7 @@
 <h1><img class="icon" src="{{static "icon-key.svg"}}" alt="" width="24" height="24">Sign in</h1>
 <p>Enter your email and we will send you a sign-in link. Your first sign-in creates your account.</p>
 <form method="post" action="/auth/start">
+<div class="nes-field trap" aria-hidden="true"><label for="website">Website</label><input id="website" type="text" name="website" tabindex="-1" autocomplete="off"></div>
 <div class="nes-field"><label for="email">Email</label><input class="nes-input" id="email" type="email" name="email" required maxlength="200" autocomplete="email"></div>
 <button class="nes-btn is-primary" type="submit">Send my link</button>
 </form>

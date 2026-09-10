@@ -11,7 +11,12 @@ import (
 	"github.com/Joe-Speed/sprue/platform/store"
 )
 
-const magicLinkMinGap = 30 * time.Second
+const (
+	magicLinkMinGap = 30 * time.Second
+	maxLinksPerHour = 6   // sign-in emails one visitor address may trigger in an hour
+	maxLinksPerDay  = 200 // sign-in emails the whole site sends in a day, under Brevo's 300
+	honeypotField   = "website"
+)
 
 func (s *Server) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 	if user, _, err := s.sessionUser(r); err == nil {
@@ -27,8 +32,20 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 		flashRedirect(w, r, "/login", "", "Enter a real email address.")
 		return
 	}
-	if !s.limiter.allow("email:"+email, magicLinkMinGap) || !s.limiter.allow("ip:"+clientKey(r), magicLinkMinGap) {
-		flashRedirect(w, r, "/login", "", "Too many attempts. Wait a moment and try again.")
+	if r.FormValue(honeypotField) != "" {
+		// A hidden field only a bot fills in. Pretend it worked and send nothing.
+		s.render(w, r, "check_email", "Check your email", email)
+		return
+	}
+	visitor := clientKey(r)
+	if !s.limiter.allow("email:"+email, magicLinkMinGap) || !s.limiter.allow("ip:"+visitor, magicLinkMinGap) ||
+		!s.quota.allow("links:"+visitor, maxLinksPerHour, time.Hour) {
+		flashRedirect(w, r, "/login", "", "Too many attempts. Wait a while and try again.")
+		return
+	}
+	if !s.quota.allow("links:day", maxLinksPerDay, 24*time.Hour) {
+		log.Printf("web: daily sign-in email ceiling of %d reached", maxLinksPerDay)
+		flashRedirect(w, r, "/login", "", "Sign-in emails are paused for today. Try again tomorrow.")
 		return
 	}
 	token, err := randomToken()

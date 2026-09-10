@@ -94,3 +94,16 @@ func TestProcessSquare(t *testing.T) {
 		t.Error("tiny sizes should be refused")
 	}
 }
+
+// A tiny file that declares a huge frame must be refused before the pixel
+// buffer is allocated. The PNG header below claims 20000 by 20000.
+func TestProcessRefusesHugeDeclaredSize(t *testing.T) {
+	header := []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 'I', 'H', 'D', 'R',
+		0, 0, 0x4e, 0x20, 0, 0, 0x4e, 0x20, 8, 6, 0, 0, 0}
+	if _, err := Process(header); err != ErrBadImage {
+		t.Errorf("huge declared size: %v", err)
+	}
+	if _, err := ProcessSquare(header, 256); err != ErrBadImage {
+		t.Errorf("huge declared size, square: %v", err)
+	}
+}

@@ -5,3 +5,4 @@ platform/sprue
 *.db
 .DS_Store
 assets/
+*.pdf
