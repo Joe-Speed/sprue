@@ -730,17 +730,34 @@ func TestDeleteBuildMadeFromStash(t *testing.T) {
 func TestTakeMonthly(t *testing.T) {
 	s := testStore(t)
 	for i := 0; i < 3; i++ {
-		ok, err := s.TakeMonthly("vision", 3)
+		ok, err := s.TakeMonthly("vision", 3, 1)
 		if err != nil || !ok {
 			t.Fatalf("use %d: %v %v", i+1, ok, err)
 		}
 	}
-	ok, err := s.TakeMonthly("vision", 3)
+	ok, err := s.TakeMonthly("vision", 3, 1)
 	if err != nil || ok {
 		t.Fatalf("fourth use should be refused: %v %v", ok, err)
 	}
-	if ok, err := s.TakeMonthly("other", 3); err != nil || !ok {
+	if ok, err := s.TakeMonthly("other", 3, 1); err != nil || !ok {
 		t.Fatalf("a different counter is independent: %v %v", ok, err)
+	}
+	if ok, err := s.TakeMonthly("batch", 10, 4); err != nil || !ok {
+		t.Fatalf("a batch of four should fit in ten: %v %v", ok, err)
+	}
+	if ok, err := s.TakeMonthly("batch", 10, 7); err != nil || ok {
+		t.Errorf("a batch that would go over the limit is refused whole: %v %v", ok, err)
+	}
+	if ok, err := s.TakeMonthly("batch", 10, 6); err != nil || !ok {
+		t.Errorf("a batch that just fits is taken: %v %v", ok, err)
+	}
+	var spent int
+	s.db.QueryRow(`select count from counters where name = ?`, "batch:"+thisMonth()).Scan(&spent)
+	if spent != 10 {
+		t.Errorf("batches should add up to 10, got %d", spent)
+	}
+	if _, err := s.TakeMonthly("bad", 10, 0); err == nil {
+		t.Error("a batch of none is a mistake")
 	}
 	if _, err := s.db.Exec(`insert into counters (name, count) values ('vision:2001-01', 50)`); err != nil {
 		t.Fatal(err)
@@ -750,7 +767,7 @@ func TestTakeMonthly(t *testing.T) {
 	}
 	var rows int
 	s.db.QueryRow(`select count(*) from counters`).Scan(&rows)
-	if rows != 2 {
+	if rows != 3 {
 		t.Errorf("sweep should keep only this month's counters, left %d", rows)
 	}
 }

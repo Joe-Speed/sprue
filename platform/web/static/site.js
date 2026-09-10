@@ -45,20 +45,95 @@ document.addEventListener("click", function (event) {
   }
 });
 
-// Chosen photos show as thumbnails before they upload.
+// Chosen photos show as thumbnails before they upload, in the order they
+// will be saved. The first is the cover, so the order can be changed by
+// dragging a photo or nudging it with the arrows. A file box cannot be
+// rewritten by script, so the chosen order is held here and the form is
+// built from it when the post goes out.
+var maxPreviews = 6;
+
+function orderedFiles(input) {
+  if (!input.ordered) {
+    input.ordered = [];
+  }
+  return input.ordered;
+}
+
+function drawPreviews(input, strip) {
+  var files = orderedFiles(input);
+  strip.replaceChildren();
+  files.forEach(function (file, index) {
+    var item = document.createElement("div");
+    item.className = "preview";
+    item.draggable = true;
+
+    var image = document.createElement("img");
+    image.alt = file.name;
+    image.src = URL.createObjectURL(file);
+    image.onload = function () { URL.revokeObjectURL(image.src); };
+    item.appendChild(image);
+
+    var row = document.createElement("p");
+    row.className = "order";
+    var label = document.createElement("span");
+    label.className = index === 0 ? "pos cover" : "pos";
+    label.textContent = index === 0 ? "cover" : String(index + 1);
+    row.appendChild(label);
+    [["\u2190", -1], ["\u2192", 1]].forEach(function (pair) {
+      var nudge = document.createElement("button");
+      nudge.type = "button";
+      nudge.className = "nudge";
+      nudge.textContent = pair[0];
+      nudge.title = pair[1] < 0 ? "Move earlier" : "Move later";
+      nudge.disabled = (pair[1] < 0 && index === 0) || (pair[1] > 0 && index === files.length - 1);
+      nudge.addEventListener("click", function () {
+        moveFile(input, strip, index, index + pair[1]);
+      });
+      row.appendChild(nudge);
+    });
+    item.appendChild(row);
+
+    item.addEventListener("dragstart", function (event) {
+      item.classList.add("dragging");
+      event.dataTransfer.setData("text/plain", String(index));
+      event.dataTransfer.effectAllowed = "move";
+    });
+    item.addEventListener("dragend", function () {
+      item.classList.remove("dragging");
+    });
+    item.addEventListener("dragover", function (event) {
+      event.preventDefault();
+      item.classList.add("over");
+    });
+    item.addEventListener("dragleave", function () {
+      item.classList.remove("over");
+    });
+    item.addEventListener("drop", function (event) {
+      event.preventDefault();
+      item.classList.remove("over");
+      moveFile(input, strip, parseInt(event.dataTransfer.getData("text/plain"), 10), index);
+    });
+    strip.appendChild(item);
+  });
+}
+
+function moveFile(input, strip, from, to) {
+  var files = orderedFiles(input);
+  if (isNaN(from) || from === to || from < 0 || to < 0 || from >= files.length || to >= files.length) {
+    return;
+  }
+  var moved = files.splice(from, 1)[0];
+  files.splice(to, 0, moved);
+  drawPreviews(input, strip);
+}
+
 document.querySelectorAll('input[type="file"][accept^="image"]').forEach(function (input) {
   var strip = document.createElement("div");
   strip.className = "previews";
   input.insertAdjacentElement("afterend", strip);
   input.addEventListener("change", function () {
-    strip.replaceChildren();
-    Array.from(input.files).slice(0, 6).forEach(function (file) {
-      var image = document.createElement("img");
-      image.alt = file.name;
-      image.src = URL.createObjectURL(file);
-      image.onload = function () { URL.revokeObjectURL(image.src); };
-      strip.appendChild(image);
-    });
+    input.ordered = Array.from(input.files).slice(0, maxPreviews);
+    drawPreviews(input, strip);
   });
 });
 
@@ -82,6 +157,18 @@ function busyWordFor(button) {
   return busyWords[first] || "Working";
 }
 
+// photosAreChecked reports whether this deployment screens photos, so the
+// strip can name that step instead of leaving a silent gap.
+function photosAreChecked() {
+  var shell = document.getElementById("busy-strip");
+  return !!shell && shell.dataset.screening === "yes";
+}
+
+// afterUploadWord is what the server is doing once the last byte is up.
+function afterUploadWord() {
+  return photosAreChecked() ? "Checking and saving photos" : "Saving";
+}
+
 // showBusy puts the strip under the button and hands back a function that
 // changes the word as the work moves on.
 function showBusy(form, button, word) {
@@ -101,7 +188,7 @@ function showBusy(form, button, word) {
 function chosenFiles(form) {
   var count = 0;
   form.querySelectorAll('input[type="file"]').forEach(function (input) {
-    count += input.files ? input.files.length : 0;
+    count += input.ordered ? input.ordered.length : (input.files ? input.files.length : 0);
   });
   return count;
 }
@@ -110,24 +197,116 @@ function chosenFiles(form) {
 // strip can say what is really happening: reading the files, sending the
 // bytes, then waiting while the server saves. A plain form post gives no
 // such signal. Anything unsupported falls back to the normal submit.
+// Photos leave the phone or camera far larger than the site keeps them, and
+// a home connection sends perhaps a third of a megabyte a second, so four
+// untouched photos can be a minute and a half of waiting. Shrinking them
+// here first cuts that by more than ten times and loses nothing, because the
+// server keeps them at this size anyway.
+var maxPhotoEdge = 1600;
+var shrinkAbove = 400 * 1024;
+var photoQuality = 0.85;
+
+function canShrink() {
+  return !!(window.createImageBitmap && window.Promise && document.createElement("canvas").toBlob);
+}
+
+// shrinkPhoto hands back a smaller photo, or the original if it is already
+// small enough or anything goes wrong. Reading the file with its own
+// orientation means a photo taken sideways is saved the right way up.
+function shrinkPhoto(file) {
+  return new Promise(function (resolve) {
+    if (!file.type || file.type.indexOf("image/") !== 0 || file.size <= shrinkAbove) {
+      resolve(file);
+      return;
+    }
+    createImageBitmap(file, { imageOrientation: "from-image" }).then(function (bitmap) {
+      var longest = Math.max(bitmap.width, bitmap.height);
+      var scale = longest > maxPhotoEdge ? maxPhotoEdge / longest : 1;
+      var canvas = document.createElement("canvas");
+      canvas.width = Math.round(bitmap.width * scale);
+      canvas.height = Math.round(bitmap.height * scale);
+      canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      canvas.toBlob(function (blob) {
+        if (!blob || blob.size >= file.size) {
+          resolve(file);
+          return;
+        }
+        resolve(new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" }));
+      }, "image/jpeg", photoQuality);
+    }).catch(function () {
+      resolve(file);
+    });
+  });
+}
+
+// shrinkChosen replaces every chosen photo with its smaller copy, in place,
+// so the post that follows sends the smaller ones.
+function shrinkChosen(form, say) {
+  if (!canShrink()) {
+    return Promise.resolve();
+  }
+  var inputs = Array.from(form.querySelectorAll('input[type="file"]'));
+  var work = [];
+  inputs.forEach(function (input) {
+    var files = input.ordered && input.ordered.length ? input.ordered : Array.from(input.files || []);
+    if (files.length === 0) {
+      return;
+    }
+    say("Shrinking photos");
+    work.push(Promise.all(files.map(shrinkPhoto)).then(function (smaller) {
+      input.ordered = smaller;
+    }));
+  });
+  return Promise.all(work);
+}
+
+// formPayload gathers a form the way the browser would, except that photos
+// go in the order the member arranged them.
+function formPayload(form) {
+  var data = new FormData();
+  form.querySelectorAll("input, textarea, select").forEach(function (field) {
+    if (!field.name || field.type === "file") {
+      return;
+    }
+    if (field.type === "checkbox" || field.type === "radio") {
+      if (field.checked) {
+        data.append(field.name, field.value);
+      }
+      return;
+    }
+    data.append(field.name, field.value);
+  });
+  form.querySelectorAll('input[type="file"]').forEach(function (input) {
+    var files = input.ordered && input.ordered.length ? input.ordered : Array.from(input.files || []);
+    files.forEach(function (file) {
+      data.append(input.name, file, file.name);
+    });
+  });
+  return data;
+}
+
+// canSendFromPage reports whether the browser can post the form itself, so
+// the decision is made before the submit is stopped.
+function canSendFromPage() {
+  if (!window.FormData || !window.XMLHttpRequest || !window.Promise) {
+    return false;
+  }
+  return !!new XMLHttpRequest().upload;
+}
+
 function sendWithProgress(form, say, done) {
-  if (!window.FormData || !window.XMLHttpRequest) {
-    return false;
-  }
   var request = new XMLHttpRequest();
-  if (!request.upload) {
-    return false;
-  }
   request.open(form.method || "post", form.action);
   request.upload.addEventListener("progress", function (event) {
     if (!event.lengthComputable) {
       return;
     }
     var percent = Math.round((event.loaded / event.total) * 100);
-    say(percent >= 100 ? "Saving" : "Sending photos " + percent + "%");
+    say(percent >= 100 ? afterUploadWord() : "Sending photos " + percent + "%");
   });
   request.upload.addEventListener("load", function () {
-    say("Saving");
+    say(afterUploadWord());
   });
   request.addEventListener("load", function () {
     // The handler answers with a redirect both when it takes the build and
@@ -148,8 +327,7 @@ function sendWithProgress(form, say, done) {
     say("The connection dropped. Try again.");
     done();
   });
-  request.send(new FormData(form));
-  return true;
+  request.send(formPayload(form));
 }
 
 // A part-typed build survives a refresh or a wander off the page. The text
@@ -287,8 +465,11 @@ document.querySelectorAll("form").forEach(function (form) {
     };
     // A form that keeps a draft is sent this way too, so the draft is only
     // thrown away once the server has answered that it took the build.
-    if ((photos > 0 || form.dataset.keep) && sendWithProgress(form, say, release)) {
+    if ((photos > 0 || form.dataset.keep) && canSendFromPage()) {
       event.preventDefault();
+      shrinkChosen(form, say).then(function () {
+        sendWithProgress(form, say, release);
+      });
     }
     // The form serialises before this runs, so a disabled button's value is
     // still sent. Disabling stops a second press.

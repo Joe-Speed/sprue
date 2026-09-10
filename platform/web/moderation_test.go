@@ -7,17 +7,32 @@ import (
 	"path/filepath"
 	"testing"
 
+	"encoding/json"
 	"github.com/Joe-Speed/sprue/platform/store"
+	"io"
+	"strings"
 )
 
 func TestScreenPhoto(t *testing.T) {
 	verdict := "VERY_UNLIKELY"
+	asked, calls := 0, 0
 	vision := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("key") != "secret" {
 			http.Error(w, "no key", http.StatusForbidden)
 			return
 		}
-		w.Write([]byte(`{"responses":[{"safeSearchAnnotation":{"adult":"` + verdict + `","violence":"VERY_UNLIKELY","racy":"POSSIBLE"}}]}`))
+		calls++
+		var sent struct {
+			Requests []any `json:"requests"`
+		}
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &sent)
+		asked = len(sent.Requests)
+		answers := make([]string, 0, asked)
+		for i := 0; i < asked; i++ {
+			answers = append(answers, `{"safeSearchAnnotation":{"adult":"`+verdict+`","violence":"VERY_UNLIKELY","racy":"POSSIBLE"}}`)
+		}
+		w.Write([]byte(`{"responses":[` + strings.Join(answers, ",") + `]}`))
 	}))
 	defer vision.Close()
 	visionEndpoint = vision.URL
@@ -41,11 +56,31 @@ func TestScreenPhoto(t *testing.T) {
 	if err := server.screenPhoto([]byte("jpeg")); err != errScreenUnavailable {
 		t.Errorf("failed check should refuse, got %v", err)
 	}
+	// A whole upload goes in one call, and one bad photo refuses the lot.
+	server.config.VisionKey = "secret"
+	verdict = "VERY_UNLIKELY"
+	before := calls
+	if err := server.screenPhotos([][]byte{[]byte("a"), []byte("b"), []byte("c")}); err != nil {
+		t.Errorf("a clean batch should pass: %v", err)
+	}
+	if asked != 3 {
+		t.Errorf("three photos should be one call carrying three, got %d", asked)
+	}
+	if calls != before+1 {
+		t.Errorf("the batch should be a single call, it made %d", calls-before)
+	}
+	verdict = "LIKELY"
+	if err := server.screenPhotos([][]byte{[]byte("a"), []byte("b")}); err != errUnsafePhoto {
+		t.Errorf("one refused photo should refuse the upload, got %v", err)
+	}
+	if err := server.screenPhotos(make([][]byte, maxScreenBatch+1)); err == nil {
+		t.Error("more photos than the checker takes at once should be an error")
+	}
 	server.config.VisionKey = "secret"
 	verdict = "VERY_UNLIKELY"
 	used := 3
 	for i := used; i < maxScreensPerMonth; i++ {
-		if _, err := st.TakeMonthly("vision", maxScreensPerMonth); err != nil {
+		if _, err := st.TakeMonthly("vision", maxScreensPerMonth, 1); err != nil {
 			t.Fatal(err)
 		}
 	}

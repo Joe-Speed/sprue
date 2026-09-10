@@ -260,16 +260,17 @@ func thisMonth() string {
 	return time.Now().UTC().Format("2006-01")
 }
 
-// TakeMonthly counts one use of a metered outside service this calendar
-// month and reports whether it stayed within limit. The count survives
+// TakeMonthly counts count uses of a metered outside service this calendar
+// month and reports whether they stayed within limit. The count survives
 // restarts, which is the point: it guards a bill, not a burst.
-func (s *Store) TakeMonthly(name string, limit int) (bool, error) {
-	if name == "" || limit <= 0 {
+func (s *Store) TakeMonthly(name string, limit, count int) (bool, error) {
+	if name == "" || limit <= 0 || count <= 0 || count > limit {
 		return false, errors.New("store: bad monthly counter")
 	}
 	key := name + ":" + thisMonth()
-	result, err := s.db.Exec(`insert into counters (name, count) values (?, 1)
-		on conflict(name) do update set count = count + 1 where count < ?`, key, limit)
+	result, err := s.db.Exec(`insert into counters (name, count) values (?, ?)
+		on conflict(name) do update set count = count + ? where count + ? <= ?`,
+		key, count, count, count, limit)
 	if err != nil {
 		return false, fmt.Errorf("store: count %s: %w", name, err)
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -69,14 +70,37 @@ var errScreenBudget = errors.New("web: image check budget spent for the month")
 // uploads wait for next month rather than run up a bill.
 const maxScreensPerMonth = 900
 
-// screenPhoto asks SafeSearch about a processed photo and refuses anything
-// likely adult or violent. Without a key every photo passes. If the check
-// cannot be reached the photo is refused, never quietly let through.
+// screenTimeout allows a base plus a share for every photo in the call.
+func screenTimeout(photos int) time.Duration {
+	return 10*time.Second + time.Duration(photos)*10*time.Second
+}
+
+// maxScreenBatch is how many photos go to the image checker in one call.
+// Google allows sixteen images per request; a build post carries at most
+// maxPhotosPerUpload.
+const maxScreenBatch = 6
+
+// screenPhoto asks SafeSearch about one processed photo.
 func (s *Server) screenPhoto(jpeg []byte) error {
+	return s.screenPhotos([][]byte{jpeg})
+}
+
+// screenPhotos asks SafeSearch about a whole upload in one call and refuses
+// anything likely adult or violent. Without a key every photo passes. If the
+// check cannot be reached the photos are refused, never quietly let through.
+// One call rather than one per photo, because each round trip to Google
+// costs the member about two seconds of waiting.
+func (s *Server) screenPhotos(photos [][]byte) error {
 	if s.config.VisionKey == "" {
 		return nil
 	}
-	within, err := s.store.TakeMonthly("vision", maxScreensPerMonth)
+	if len(photos) == 0 {
+		return nil
+	}
+	if len(photos) > maxScreenBatch {
+		return fmt.Errorf("web: %d photos is more than the image checker takes at once", len(photos))
+	}
+	within, err := s.store.TakeMonthly("vision", maxScreensPerMonth, len(photos))
 	if err != nil {
 		log.Printf("web: vision counter: %v", err)
 		return errScreenUnavailable
@@ -85,14 +109,21 @@ func (s *Server) screenPhoto(jpeg []byte) error {
 		log.Printf("web: vision budget of %d checks spent this month", maxScreensPerMonth)
 		return errScreenBudget
 	}
-	request, err := json.Marshal(map[string]any{"requests": []any{map[string]any{
-		"image":    map[string]string{"content": base64.StdEncoding.EncodeToString(jpeg)},
-		"features": []any{map[string]string{"type": "SAFE_SEARCH_DETECTION"}},
-	}}})
+	asked := make([]any, 0, len(photos))
+	for _, photo := range photos {
+		asked = append(asked, map[string]any{
+			"image":    map[string]string{"content": base64.StdEncoding.EncodeToString(photo)},
+			"features": []any{map[string]string{"type": "SAFE_SEARCH_DETECTION"}},
+		})
+	}
+	request, err := json.Marshal(map[string]any{"requests": asked})
 	if err != nil {
 		return err
 	}
-	client := &http.Client{Timeout: 10 * time.Second}
+	// Each photo adds its own upload and its own work at Google's end, so
+	// the cut-off grows with the number sent. A flat ten seconds refused
+	// whole uploads of four photos.
+	client := &http.Client{Timeout: screenTimeout(len(photos))}
 	res, err := client.Post(visionEndpoint+"?key="+s.config.VisionKey, "application/json", bytes.NewReader(request))
 	if err != nil {
 		return errScreenUnavailable
@@ -110,12 +141,14 @@ func (s *Server) screenPhoto(jpeg []byte) error {
 			} `json:"safeSearchAnnotation"`
 		} `json:"responses"`
 	}
-	if err := json.NewDecoder(io.LimitReader(res.Body, 64*1024)).Decode(&reply); err != nil || len(reply.Responses) == 0 {
+	if err := json.NewDecoder(io.LimitReader(res.Body, 256*1024)).Decode(&reply); err != nil || len(reply.Responses) != len(photos) {
 		return errScreenUnavailable
 	}
-	verdict := reply.Responses[0].SafeSearch
-	if likely(verdict.Adult) || likely(verdict.Violence) || verdict.Racy == "VERY_LIKELY" {
-		return errUnsafePhoto
+	for _, answer := range reply.Responses {
+		verdict := answer.SafeSearch
+		if likely(verdict.Adult) || likely(verdict.Violence) || verdict.Racy == "VERY_LIKELY" {
+			return errUnsafePhoto
+		}
 	}
 	return nil
 }

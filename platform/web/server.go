@@ -278,6 +278,7 @@ type site struct {
 	SupportEmail string
 	Feedback     bool // the feedback form is available
 	Donate       bool // the support page is available
+	Screening    bool // photos are checked by the image checker before saving
 	Year         int
 }
 
@@ -324,7 +325,8 @@ func (s *Server) renderMeta(w http.ResponseWriter, r *http.Request, status int, 
 		Site: site{
 			AnalyticsID: s.config.AnalyticsID,
 			DiscordURL:  s.config.DiscordURL, SupportEmail: s.config.SupportEmail,
-			Feedback: s.config.DiscordWebhook != "", Donate: s.config.KofiURL != "", Year: time.Now().UTC().Year(),
+			Feedback: s.config.DiscordWebhook != "", Donate: s.config.KofiURL != "",
+			Screening: s.config.VisionKey != "", Year: time.Now().UTC().Year(),
 		},
 	}
 	if name == "home" {

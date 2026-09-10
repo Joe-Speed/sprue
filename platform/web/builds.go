@@ -437,15 +437,52 @@ func (s *Server) handlePhotoUpload(w http.ResponseWriter, r *http.Request) {
 
 // savePhotos stores files in order and stops at the first failure, returning
 // how many made it and why it stopped.
+// savePhotos takes an upload in three passes: read and resize every photo,
+// send them all to the image checker in one call, then write them. Screening
+// each photo on its own cost a round trip to Google apiece, which a member
+// felt as a couple of seconds per photo.
 func (s *Server) savePhotos(buildID int64, files []*multipart.FileHeader) (int, error) {
-	added := 0
+	if len(files) > maxPhotosPerUpload {
+		return 0, store.ErrLimit
+	}
+	processed := make([][]byte, 0, len(files))
 	for _, header := range files {
-		if err := s.savePhoto(buildID, header); err != nil {
+		photo, err := readPhoto(header)
+		if err != nil {
+			return 0, err
+		}
+		processed = append(processed, photo)
+	}
+	if err := s.screenPhotos(processed); err != nil {
+		return 0, err
+	}
+	added := 0
+	for _, photo := range processed {
+		if err := s.writePhoto(buildID, photo); err != nil {
 			return added, err
 		}
 		added++
 	}
 	return added, nil
+}
+
+// readPhoto reads one uploaded file and re-encodes it, so nothing a browser
+// sent is ever stored as it arrived.
+func readPhoto(header *multipart.FileHeader) ([]byte, error) {
+	file, err := header.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	raw, err := io.ReadAll(io.LimitReader(file, images.MaxUploadBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	processed, err := images.Process(raw)
+	if err != nil {
+		return nil, errUnusablePhoto
+	}
+	return processed, nil
 }
 
 func uploadNote(added int) string {
@@ -480,23 +517,8 @@ func uploadError(added, wanted int, failure error) string {
 
 // savePhoto processes one upload, writes it under the build's photo folder,
 // and records it. A failed record removes the file again.
-func (s *Server) savePhoto(buildID int64, header *multipart.FileHeader) error {
-	file, err := header.Open()
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	raw, err := io.ReadAll(io.LimitReader(file, images.MaxUploadBytes+1))
-	if err != nil {
-		return err
-	}
-	processed, err := images.Process(raw)
-	if err != nil {
-		return errUnusablePhoto
-	}
-	if err := s.screenPhoto(processed); err != nil {
-		return err
-	}
+// writePhoto stores one processed photo and records it against the build.
+func (s *Server) writePhoto(buildID int64, processed []byte) error {
 	name, err := randomToken()
 	if err != nil {
 		return err

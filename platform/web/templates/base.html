@@ -69,7 +69,7 @@
 </nav>
 <p><span class="copyright">&copy;</span> {{.Site.Year}} sprue. Scale model builds and competitions.</p>
 </footer>
-<template id="busy-strip">
+<template id="busy-strip" data-screening="{{if .Site.Screening}}yes{{else}}no{{end}}">
 <p class="busy" role="status">
 <span class="word"></span>
 <span class="runway"><span class="flight"><span class="gust"></span><span class="gust"></span><span class="gust"></span><img class="plane" src="{{markPath .Mark}}" alt="" width="24" height="16"></span></span>
