@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Joe-Speed/sprue/platform/store"
@@ -91,10 +92,61 @@ var trophyFiles = [...]string{1: "first-place.stl", 2: "second-place.stl", 3: "t
 
 // advanceCompetitions moves competitions along by date before they are shown
 // or acted on. A failure is logged and the stored state is shown as is.
+// advanceCompetitions moves competitions on by date and writes to everyone
+// who entered any that were decided. Advancing needs no admin step, so a
+// result would otherwise be silent.
 func (s *Server) advanceCompetitions() {
-	if err := s.store.Advance(time.Now()); err != nil {
+	decided, err := s.store.Advance(time.Now())
+	if err != nil {
 		log.Printf("web: %v", err)
+		return
 	}
+	for _, comp := range decided {
+		s.tellEntrants(comp)
+	}
+}
+
+// tellEntrants writes to each member who entered a decided competition:
+// winners get their placing and the address of their trophy, everyone else
+// gets the result. Failures are logged; the result itself already stands.
+func (s *Server) tellEntrants(comp store.Competition) {
+	if !s.mailConfigured() {
+		return
+	}
+	entrants, err := s.store.Entrants(comp.ID)
+	if err != nil {
+		log.Printf("web: entrants of %s: %v", comp.Slug, err)
+		return
+	}
+	for _, entrant := range entrants {
+		if err := s.sendMail(entrant.Email, s.resultMessage(comp, entrant)); err != nil {
+			log.Printf("web: result mail for %s: %v", comp.Slug, err)
+		}
+	}
+}
+
+func (s *Server) resultMessage(comp store.Competition, entrant store.Entrant) mailMessage {
+	message := mailMessage{
+		Intro:  []string{fmt.Sprintf("Hello %s,", entrant.DisplayName)},
+		Action: "See the result",
+		Link:   s.absolute("/competitions/" + comp.Slug),
+	}
+	if entrant.Place == 0 {
+		message.Subject = comp.Title + " has been decided"
+		message.Intro = append(message.Intro,
+			fmt.Sprintf("Voting has closed on %s. Your build, %s, did not place this time.", comp.Title, entrant.BuildTitle),
+			"Thank you for entering. The podium is on the competition page.")
+		return message
+	}
+	place := strings.ToLower(placeName(entrant.Place))
+	message.Subject = fmt.Sprintf("You came %s in %s", place, comp.Title)
+	message.Intro = append(message.Intro,
+		fmt.Sprintf("Your build, %s, came %s in %s.", entrant.BuildTitle, place, comp.Title),
+		"Your trophy is a 3D printable file, yours alone and never published. The download works once, so save the file when you get it.")
+	message.Action = "Download your trophy"
+	message.Link = s.absolute(fmt.Sprintf("/trophies/%d/download", entrant.TrophyID))
+	message.Links = []mailLink{{Label: "The competition and its podium", URL: s.absolute("/competitions/" + comp.Slug)}}
+	return message
 }
 
 type competitionsData struct {

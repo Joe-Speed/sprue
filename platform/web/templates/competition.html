@@ -35,7 +35,7 @@
 
 <section class="nes-container with-title">
 <h2 class="title">Entries</h2>
-{{if not .Data.Entries}}<p class="quiet">No entries yet.</p>{{end}}
+{{if not .Data.Entries}}<p class="quiet">No entries yet. Whoever enters first sets the standard.</p>{{end}}
 {{if .Data.CanVote}}<form class="wide" method="post" action="/competitions/{{.Data.Competition.Slug}}/vote"><input type="hidden" name="csrf" value="{{.CSRF}}">{{end}}
 <ul class="cards">
 {{range .Data.Entries}}

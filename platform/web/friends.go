@@ -2,6 +2,8 @@ package web
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/Joe-Speed/sprue/platform/store"
@@ -67,6 +69,9 @@ func (s *Server) handleFriendAction(w http.ResponseWriter, r *http.Request) {
 	switch r.PathValue("action") {
 	case "request":
 		err = s.store.RequestFriend(user.ID, other.ID)
+		if err == nil {
+			s.tellAboutRequest(user, other)
+		}
 	case "accept":
 		err = s.store.AcceptFriend(user.ID, other.ID)
 	case "remove":
@@ -84,5 +89,22 @@ func (s *Server) handleFriendAction(w http.ResponseWriter, r *http.Request) {
 		flashRedirect(w, r, back, "", "Could not save.")
 	default:
 		flashRedirect(w, r, back, "Saved.", "")
+	}
+}
+
+// tellAboutRequest emails the member who has been asked. A friend request
+// is invisible until they next visit, so without this it may never be seen.
+// A failure is logged and nothing else: the request itself already stands.
+func (s *Server) tellAboutRequest(from, to store.User) {
+	if !s.mailConfigured() {
+		return
+	}
+	if err := s.sendMail(to.Email, mailMessage{
+		Subject: from.DisplayName + " wants to be friends on sprue",
+		Intro:   []string{fmt.Sprintf("Hello %s,", to.DisplayName), fmt.Sprintf("%s has asked to be friends. Friend lists are private, so only the two of you see it.", from.DisplayName)},
+		Action:  "Open your requests",
+		Link:    s.absolute("/friends"),
+	}); err != nil {
+		log.Printf("web: friend request mail: %v", err)
 	}
 }

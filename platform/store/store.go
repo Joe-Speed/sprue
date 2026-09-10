@@ -58,7 +58,8 @@ create table if not exists users (
 	nudged_at text not null default '',
 	flair text not null default '',
 	slug_chosen integer not null default 0,
-	avatar text not null default ''
+	avatar text not null default '',
+	bio text not null default ''
 );
 create table if not exists stash (
 	id integer primary key autoincrement,
@@ -200,6 +201,7 @@ var migrations = []string{
 	`alter table magic_tokens add column remember integer not null default 1`,
 	`alter table sessions add column remember integer not null default 1`,
 	`alter table users add column slug_chosen integer not null default 0`,
+	`alter table users add column bio text not null default ''`,
 }
 
 func migrate(db *sql.DB) error {
@@ -312,9 +314,10 @@ type User struct {
 	Flair       string // small picture beside the name, empty for the default
 	Avatar      string // file name of the profile picture, empty for none
 	SlugChosen  bool   // the member has picked their page address, so it is fixed
+	Bio         string // a line the member writes about what they build
 }
 
-const userColumns = `id, email, display_name, slug, is_admin, created_at, goal_count, goal_by, goal_set_at, nudge, nudged_at, flair, avatar, slug_chosen`
+const userColumns = `id, email, display_name, slug, is_admin, created_at, goal_count, goal_by, goal_set_at, nudge, nudged_at, flair, avatar, slug_chosen, bio`
 
 func scanUsers(rows *sql.Rows) ([]User, error) {
 	defer rows.Close()
@@ -323,7 +326,7 @@ func scanUsers(rows *sql.Rows) ([]User, error) {
 		var u User
 		var admin, chosen int
 		err := rows.Scan(&u.ID, &u.Email, &u.DisplayName, &u.Slug, &admin, &u.CreatedAt,
-			&u.GoalCount, &u.GoalBy, &u.GoalSetAt, &u.Nudge, &u.NudgedAt, &u.Flair, &u.Avatar, &chosen)
+			&u.GoalCount, &u.GoalBy, &u.GoalSetAt, &u.Nudge, &u.NudgedAt, &u.Flair, &u.Avatar, &chosen, &u.Bio)
 		if err != nil {
 			return nil, err
 		}
@@ -433,6 +436,42 @@ func (s *Store) userBy(where string, arg any) (User, error) {
 }
 
 func (s *Store) UserBySlug(slug string) (User, error) { return s.userBy("slug = ?", slug) }
+
+// MaxBioLength is how long a member's line about themselves may be.
+const MaxBioLength = 200
+
+// SetBio saves the line a member writes about what they build.
+func (s *Store) SetBio(id int64, bio string) error {
+	return s.updateOwned(`update users set bio = ? where id = ?`, clip(bio, MaxBioLength), id)
+}
+
+// MovePhoto shifts one photo one place earlier or later in a build's order.
+// The photo at the front is the cover, so moving to the front changes it.
+func (s *Store) MovePhoto(buildID int64, fileName string, later bool) error {
+	names, err := s.Photos(buildID)
+	if err != nil {
+		return err
+	}
+	at := -1
+	for index, name := range names {
+		if name == fileName {
+			at = index
+			break
+		}
+	}
+	if at < 0 {
+		return ErrNotFound
+	}
+	swap := at - 1
+	if later {
+		swap = at + 1
+	}
+	if swap < 0 || swap >= len(names) {
+		return nil
+	}
+	names[at], names[swap] = names[swap], names[at]
+	return s.writePhotoOrder(buildID, names)
+}
 
 // RenameUser saves the display name and flair. The caller validates the
 // flair against the pictures it can show.
@@ -1050,8 +1089,16 @@ func checkCompetitionDates(entriesClose, votingCloses string, today time.Time) e
 	return nil
 }
 
+func (s *Store) CompetitionByID(id int64) (Competition, error) {
+	return s.competitionBy("c.id = ?", id)
+}
+
 func (s *Store) CompetitionBySlug(slug string) (Competition, error) {
-	rows, err := s.db.Query(`select `+competitionColumns+` where c.slug = ?`, slug)
+	return s.competitionBy("c.slug = ?", slug)
+}
+
+func (s *Store) competitionBy(where string, arg any) (Competition, error) {
+	rows, err := s.db.Query(`select `+competitionColumns+` where `+where, arg)
 	if err != nil {
 		return Competition{}, err
 	}
@@ -1122,31 +1169,39 @@ func (s *Store) AdminUser() (User, error) {
 // Advance moves competitions along by date: open ones whose entry day has
 // passed start voting, voting ones whose voting day has passed are decided.
 // Call it on a timer and before showing competitions.
-func (s *Store) Advance(today time.Time) error {
+// Advance moves competitions on by date and returns the ones it decided in
+// this run, so the caller can tell the people who entered them.
+func (s *Store) Advance(today time.Time) ([]Competition, error) {
 	day := today.UTC().Format(dayLayout)
 	if _, err := s.db.Exec(`update competitions set status = 'voting' where status = 'open' and entries_close < ?`, day); err != nil {
-		return fmt.Errorf("store: advance to voting: %w", err)
+		return nil, fmt.Errorf("store: advance to voting: %w", err)
 	}
 	rows, err := s.db.Query(`select id from competitions where status = 'voting' and voting_closes < ? limit ?`, day, MaxCompetitions)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var due []int64
 	for rows.Next() {
 		var id int64
 		if err := rows.Scan(&id); err != nil {
 			rows.Close()
-			return err
+			return nil, err
 		}
 		due = append(due, id)
 	}
 	rows.Close()
+	decided := make([]Competition, 0, len(due))
 	for _, id := range due {
 		if err := s.Decide(id); err != nil {
-			return fmt.Errorf("store: decide %d: %w", id, err)
+			return nil, fmt.Errorf("store: decide %d: %w", id, err)
 		}
+		comp, err := s.CompetitionByID(id)
+		if err != nil {
+			return nil, err
+		}
+		decided = append(decided, comp)
 	}
-	return nil
+	return decided, nil
 }
 
 type Entry struct {
@@ -1401,6 +1456,42 @@ func (s *Store) DecidedCompetitions(limit int) ([]Competition, error) {
 		return nil, err
 	}
 	return scanCompetitions(rows)
+}
+
+// Entrant is one member who put a build into a competition, with the place
+// they took, for the email that goes out when a competition is decided.
+type Entrant struct {
+	Email       string
+	DisplayName string
+	BuildTitle  string
+	Place       int   // 0 for no placing
+	TrophyID    int64 // 0 unless they placed
+}
+
+// Entrants lists everyone who entered a competition, with any placing.
+// Bounded by the entry cap.
+func (s *Store) Entrants(competitionID int64) ([]Entrant, error) {
+	rows, err := s.db.Query(`select u.email, u.display_name, b.title,
+		coalesce(t.place, 0), coalesce(t.id, 0)
+		from entries e
+		join builds b on b.id = e.build_id
+		join users u on u.id = b.user_id
+		left join trophies t on t.competition_id = e.competition_id and t.build_id = b.id
+		where e.competition_id = ? order by coalesce(t.place, 4), e.id limit ?`,
+		competitionID, MaxEntriesPerComp)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []Entrant
+	for rows.Next() {
+		var one Entrant
+		if err := rows.Scan(&one.Email, &one.DisplayName, &one.BuildTitle, &one.Place, &one.TrophyID); err != nil {
+			return nil, err
+		}
+		list = append(list, one)
+	}
+	return list, rows.Err()
 }
 
 func (s *Store) TrophiesForUser(userID int64) ([]Trophy, error) {

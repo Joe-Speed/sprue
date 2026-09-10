@@ -6,7 +6,7 @@
 </form>
 <section class="nes-container with-title">
 <h2 class="title">{{if .Data.Query}}Matching "{{.Data.Query}}"{{else}}Newest members{{end}}</h2>
-{{if not .Data.Members}}<p class="quiet">No members found.</p>{{end}}
+{{if not .Data.Members}}<p class="quiet">{{if .Data.Query}}Nobody by that name. Try part of a name instead of all of it.{{else}}No members yet.{{end}}</p>{{end}}
 <ul class="rows">
 {{range .Data.Members}}{{template "member_row" .}}{{end}}
 </ul>

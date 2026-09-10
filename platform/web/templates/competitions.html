@@ -14,7 +14,7 @@
 </nav>
 <section class="nes-container with-title">
 <h2 class="title">{{if .Data.Category}}{{.Data.Category}}{{else}}All competitions{{end}}</h2>
-{{if not .Data.Competitions}}<p class="quiet">No competitions{{if .Data.Category}} in this category{{end}} yet.</p>{{end}}
+{{if not .Data.Competitions}}<p class="quiet">No competitions{{if .Data.Category}} in this category{{end}} yet. Any member can start one: pick a date for entries to close and a date for voting to close, and it runs itself.</p>{{end}}
 <ul class="rows">
 {{range .Data.Competitions}}
 <li>

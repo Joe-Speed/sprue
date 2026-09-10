@@ -37,9 +37,7 @@ func (s *Server) housekeep() {
 	if err := s.store.Sweep(); err != nil {
 		log.Printf("web: %v", err)
 	}
-	if err := s.store.Advance(time.Now()); err != nil {
-		log.Printf("web: %v", err)
-	}
+	s.advanceCompetitions()
 	s.startScheduledCompetitions(time.Now())
 	s.sendNudges()
 }

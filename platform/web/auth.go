@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"net/mail"
@@ -197,6 +198,17 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.RenameUser(user.ID, name, flair); err != nil {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not save your settings.")
 		return
+	}
+	bio := strings.TrimSpace(r.FormValue("bio"))
+	if len(bio) > store.MaxBioLength {
+		flashRedirect(w, r, "/settings", "", fmt.Sprintf("Keep your line under %d characters.", store.MaxBioLength))
+		return
+	}
+	if bio != user.Bio {
+		if err := s.store.SetBio(user.ID, bio); err != nil {
+			s.renderError(w, r, http.StatusInternalServerError, "Could not save your settings.")
+			return
+		}
 	}
 	if wanted := strings.TrimSpace(r.FormValue("slug")); wanted != "" && wanted != user.Slug {
 		if user.SlugChosen {

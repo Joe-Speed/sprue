@@ -30,7 +30,7 @@
 {{end}}
 <section class="nes-container with-title">
 <h2 class="title">Latest builds</h2>
-{{if not .Data.Builds}}<p class="quiet">No builds yet.</p>{{end}}
+{{if not .Data.Builds}}<p class="quiet">No builds yet. The first one posted will show up here, photos and all.</p>{{end}}
 <ul class="cards">
 {{range .Data.Builds}}{{template "build_card" (card . true)}}{{end}}
 </ul>

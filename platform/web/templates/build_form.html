@@ -5,8 +5,8 @@
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="nes-field"><label for="title">Title</label><input class="nes-input" id="title" type="text" name="title" value="{{.Data.Build.Title}}" required maxlength="200"></div>
 <div class="nes-field"><label for="kit">Kit</label><input class="nes-input" id="kit" type="text" name="kit" value="{{.Data.Build.Kit}}" required maxlength="200"></div>
-<div class="nes-field"><label for="brand">Brand</label><input class="nes-input" id="brand" type="text" name="brand" value="{{.Data.Build.Brand}}" maxlength="200"></div>
-<div class="nes-field"><label for="scale">Scale</label><input class="nes-input" id="scale" type="text" name="scale" value="{{.Data.Build.Scale}}" maxlength="200"></div>
+<div class="nes-field"><label for="brand">Brand</label><input class="nes-input" id="brand" type="text" name="brand" value="{{.Data.Build.Brand}}" maxlength="200" list="kit-brands"></div>
+<div class="nes-field"><label for="scale">Scale</label><input class="nes-input" id="scale" type="text" name="scale" value="{{.Data.Build.Scale}}" maxlength="200" list="kit-scales"></div>
 <div class="nes-field"><label for="built_on">Finished on</label><input class="nes-input" id="built_on" type="date" name="built_on" value="{{.Data.Build.BuiltOn}}"></div>
 <div class="nes-field"><label for="description">Notes</label><textarea class="nes-textarea" id="description" name="description" maxlength="2000" rows="6">{{.Data.Build.Description}}</textarea></div>
 <div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="pinned" {{if .Data.Build.Pinned}}checked{{end}}><span>Pin this build to the top of my profile</span></label></div>
@@ -23,7 +23,9 @@
 {{range $index, $name := .Data.Photos}}<li>
 <img src="/photos/{{$.Data.Build.ID}}/{{$name}}" alt="">
 <span class="thumb-actions">
-{{if eq $index 0}}<span class="tag">cover</span>{{else}}<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/cover"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish">Make cover</button></form>{{end}}
+{{if eq $index 0}}<span class="tag">cover</span>{{else}}<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/cover"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish">Make cover</button></form>
+<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/move/earlier"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish" title="Move earlier">&larr;</button></form>{{end}}
+{{if notLast $index (len $.Data.Photos)}}<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/move/later"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish" title="Move later">&rarr;</button></form>{{end}}
 <form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/delete"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish danger">Remove</button></form>
 </span>
 </li>{{end}}

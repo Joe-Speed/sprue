@@ -574,6 +574,23 @@ func (s *Server) handlePhotoCover(w http.ResponseWriter, r *http.Request) {
 	flashRedirect(w, r, editPath, "Cover changed.", "")
 }
 
+// handlePhotoMove shifts one photo one place earlier or later, so a build's
+// pictures can be put in the order they were taken. The one at the front is
+// the cover.
+func (s *Server) handlePhotoMove(w http.ResponseWriter, r *http.Request) {
+	build, name, ok := s.ownedBuildPhoto(w, r)
+	if !ok {
+		return
+	}
+	editPath := buildEdit(build.ID)
+	later := r.PathValue("way") == "later"
+	if err := s.store.MovePhoto(build.ID, name, later); err != nil {
+		flashRedirect(w, r, editPath, "", "Could not move that photo.")
+		return
+	}
+	flashRedirect(w, r, editPath, "Order changed.", "")
+}
+
 func (s *Server) handlePhotoDelete(w http.ResponseWriter, r *http.Request) {
 	build, name, ok := s.ownedBuildPhoto(w, r)
 	if !ok {

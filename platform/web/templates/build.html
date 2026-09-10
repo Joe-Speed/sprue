@@ -3,7 +3,7 @@
 <h1>{{.Data.Build.Title}}{{template "place_badge" .Data.Build.TrophyPlace}}</h1>
 <p class="meta">{{.Data.Build.Kit}}{{if .Data.Build.Brand}} · {{.Data.Build.Brand}}{{end}}{{if .Data.Build.Scale}} · {{.Data.Build.Scale}}{{end}}{{if .Data.Build.BuiltOn}} · built {{niceDate .Data.Build.BuiltOn}}{{end}}{{if .Data.IsOwner}} · <a href="/builds/{{.Data.Build.ID}}/edit">edit</a>{{end}}</p>
 <div class="votes">
-<span class="count"><img class="icon" src="{{static "icon-ballot.svg"}}" alt="" width="16" height="16">{{.Data.Build.Votes}} vote{{if ne .Data.Build.Votes 1}}s{{end}}</span>
+<span class="count"><img class="icon" src="{{static "icon-thumb.svg"}}" alt="" width="16" height="16">{{.Data.Build.Votes}} vote{{if ne .Data.Build.Votes 1}}s{{end}}</span>
 {{if .Data.CanVote}}
 <form method="post" action="/builds/{{.Data.Build.ID}}/vote"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn{{if not .Data.Voted}} is-primary{{end}}" type="submit">{{if .Data.Voted}}remove my vote{{else}}vote to feature{{end}}</button></form>
 {{else if not .User}}
@@ -11,7 +11,7 @@
 {{end}}
 </div>
 <div class="votes">
-<span class="count"><img class="icon" src="{{static "icon-thumb.svg"}}" alt="" width="16" height="16">{{.Data.Build.Likes}} like{{if ne .Data.Build.Likes 1}}s{{end}}</span>
+<span class="count"><img class="icon" src="{{static "icon-heart.svg"}}" alt="" width="16" height="16">{{.Data.Build.Likes}} like{{if ne .Data.Build.Likes 1}}s{{end}}</span>
 {{if .Data.CanVote}}
 <form method="post" action="/builds/{{.Data.Build.ID}}/like"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn{{if not .Data.Liked}} is-primary{{end}}" type="submit" data-busy="{{if .Data.Liked}}Taking it back{{else}}Liking{{end}}">{{if .Data.Liked}}take my like back{{else}}like this build{{end}}</button></form>
 {{else if not .User}}
@@ -24,7 +24,7 @@
 {{if .Data.Build.Description}}<p>{{.Data.Build.Description}}</p>{{end}}
 {{if .Data.Photos}}
 <div class="gallery">
-{{range .Data.Photos}}<img src="/photos/{{$.Data.Build.ID}}/{{.}}" alt="{{$.Data.Build.Title}}" loading="lazy">{{end}}
+{{range .Data.Photos}}<button class="shot" type="button"><img src="/photos/{{$.Data.Build.ID}}/{{.}}" alt="{{$.Data.Build.Title}}" loading="lazy"></button>{{end}}
 </div>
 {{else if .Data.IsOwner}}
 <p class="prompt">No photos yet. <a href="/builds/{{.Data.Build.ID}}/edit">Add some.</a></p>

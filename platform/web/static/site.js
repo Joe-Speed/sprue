@@ -478,3 +478,56 @@ document.querySelectorAll("form").forEach(function (form) {
     }, 0);
   });
 });
+
+// A photo opens full size. Escape or a click anywhere closes it, and the
+// button that opened it takes the focus back.
+function photoViewer() {
+  var shots = document.querySelectorAll(".gallery .shot");
+  if (shots.length === 0) {
+    return;
+  }
+  var frame = document.createElement("div");
+  frame.className = "viewer";
+  frame.hidden = true;
+  var full = document.createElement("img");
+  full.alt = "";
+  var close = document.createElement("button");
+  close.type = "button";
+  close.className = "nes-btn close";
+  close.textContent = "Close";
+  frame.append(full, close);
+  document.body.appendChild(frame);
+
+  var opener = null;
+  var shut = function () {
+    frame.hidden = true;
+    full.removeAttribute("src");
+    document.body.classList.remove("viewing");
+    if (opener) {
+      opener.focus();
+      opener = null;
+    }
+  };
+  frame.addEventListener("click", shut);
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && !frame.hidden) {
+      shut();
+    }
+  });
+  shots.forEach(function (shot) {
+    shot.addEventListener("click", function () {
+      var image = shot.querySelector("img");
+      if (!image) {
+        return;
+      }
+      opener = shot;
+      full.src = image.src;
+      full.alt = image.alt;
+      frame.hidden = false;
+      document.body.classList.add("viewing");
+      close.focus();
+    });
+  });
+}
+
+photoViewer();

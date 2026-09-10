@@ -4,6 +4,7 @@
 <div class="who">
 <h1>{{.Data.Owner.DisplayName}}<img class="flair" src="{{flairPath .Data.Owner.Flair .Data.Owner.ID}}" alt="" width="24" height="24"></h1>
 <p class="meta">{{.Data.BuildCount}} build{{if ne .Data.BuildCount 1}}s{{end}} · joined {{monthYear .Data.Owner.CreatedAt}}</p>
+{{if .Data.Owner.Bio}}<p class="bio">{{.Data.Owner.Bio}}</p>{{else if .Data.IsSelf}}<p class="meta"><a href="/settings">Say what you build</a></p>{{end}}
 </div>
 {{if and .User (not .Data.IsSelf)}}
 <div class="actions">

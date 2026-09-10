@@ -11,6 +11,7 @@ import (
 	"github.com/Joe-Speed/sprue/platform/store"
 	"io"
 	"strings"
+	"time"
 )
 
 func TestScreenPhoto(t *testing.T) {
@@ -168,5 +169,102 @@ func TestPhotosFollowBuildVisibility(t *testing.T) {
 	res.Body.Close()
 	if res.StatusCode != http.StatusNotFound {
 		t.Errorf("hidden build photo should stop serving to strangers, got %d", res.StatusCode)
+	}
+}
+
+// TestResultMailReachesEntrants covers the emails that go out when a
+// competition decides itself: the winner is told where the trophy is, and
+// everyone else is told the result.
+func TestResultMailReachesEntrants(t *testing.T) {
+	var sent []map[string]any
+	brevo := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var one map[string]any
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &one)
+		sent = append(sent, one)
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer brevo.Close()
+	brevoEndpoint = brevo.URL
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	cara, err := st.FindOrCreateUser("cara@example.com", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dan, err := st.FindOrCreateUser("dan@example.com", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	comp, err := st.CreateCompetition(store.Competition{
+		Title: "Autumn", CreatorID: cara.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20", Category: "fighter",
+	}, time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	winner, err := st.CreateBuild(store.Build{UserID: cara.ID, Title: "Spitfire", Kit: "Airfix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	also, err := st.CreateBuild(store.Build{UserID: dan.ID, Title: "Hurricane", Kit: "Airfix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.EnterCompetition(comp.ID, cara.ID, winner); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.EnterCompetition(comp.ID, dan.ID, also); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := st.EntriesWithVotes(comp.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.Build.ID == winner {
+			if err := st.Vote(comp.ID, dan.ID, entry.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	server, err := New(st, Config{DataDir: t.TempDir(), BaseURL: "https://sprue.test", BrevoKey: "secret", SMTPFrom: "hello@sprue.test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Voting closed, so asking for the page decides it and writes to both.
+	server.advanceCompetitions()
+	if len(sent) != 2 {
+		t.Fatalf("both entrants should be written to, got %d", len(sent))
+	}
+	var toWinner, toOther map[string]any
+	for _, message := range sent {
+		to, _ := message["to"].([]any)
+		first, _ := to[0].(map[string]any)
+		if first["email"] == "cara@example.com" {
+			toWinner = message
+		} else {
+			toOther = message
+		}
+	}
+	if toWinner == nil || toOther == nil {
+		t.Fatalf("one message each: %v", sent)
+	}
+	subject, _ := toWinner["subject"].(string)
+	text, _ := toWinner["textContent"].(string)
+	if !strings.Contains(subject, "came first") || !strings.Contains(text, "/trophies/") {
+		t.Errorf("the winner should be told where the trophy is: %q %q", subject, text)
+	}
+	subject, _ = toOther["subject"].(string)
+	if !strings.Contains(subject, "has been decided") {
+		t.Errorf("an unplaced entrant should get the result: %q", subject)
+	}
+	// Deciding happens once, so a second pass writes to nobody.
+	sent = nil
+	server.advanceCompetitions()
+	if len(sent) != 0 {
+		t.Errorf("a decided competition should not write again, sent %d", len(sent))
 	}
 }

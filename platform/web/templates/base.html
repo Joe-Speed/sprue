@@ -24,6 +24,7 @@
 <script src="{{static "analytics.js"}}" data-id="{{.Site.AnalyticsID}}"></script>{{end}}
 </head>
 <body>
+<a class="skip" href="#main">Skip to the page</a>
 <header class="site">
 <span class="brand"><a class="mark-link" href="/mark/next" title="Change the plane's colour"><img class="mark" src="{{markPath .Mark}}" alt="Change the plane's colour" width="61" height="40"></a><a href="/">sprue</a></span>
 <nav class="primary" aria-label="Site">
@@ -51,7 +52,7 @@
 {{end}}
 </nav>
 </header>
-<main class="panel">
+<main class="panel" id="main">
 {{if .Error}}<div class="toast error" role="alert"><img src="{{static "cross.svg"}}" alt="" width="16" height="16">{{.Error}}</div>{{end}}
 {{if .Note}}<div class="toast note" role="status"><img src="{{static "tick.svg"}}" alt="" width="16" height="16">{{.Note}}</div>{{end}}
 {{block "content" .}}{{end}}
@@ -69,6 +70,8 @@
 </nav>
 <p><span class="copyright">&copy;</span> {{.Site.Year}} sprue. Scale model builds and competitions.</p>
 </footer>
+<datalist id="kit-brands">{{range brands}}<option value="{{.}}"></option>{{end}}</datalist>
+<datalist id="kit-scales">{{range scales}}<option value="{{.}}"></option>{{end}}</datalist>
 <template id="busy-strip" data-screening="{{if .Site.Screening}}yes{{else}}no{{end}}">
 <p class="busy" role="status">
 <span class="word"></span>

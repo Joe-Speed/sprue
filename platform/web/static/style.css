@@ -1570,3 +1570,115 @@ button.linkish {
   cursor: default;
   opacity: 0.5;
 }
+
+/* A link for keyboard users, out of the way until it has the focus. */
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 30;
+  padding: 8px 12px;
+  border: 4px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 0.6rem;
+  text-decoration: none;
+}
+
+.skip:focus {
+  left: 8px;
+  top: 8px;
+}
+
+/* Whatever has the keyboard focus is obvious. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 4px solid var(--red);
+  outline-offset: 2px;
+}
+
+/* A line about what a member builds. */
+.bio {
+  margin: 0.4rem 0 0;
+  max-width: 46ch;
+}
+
+/* A photo full size. The gallery photo is a button so it can be reached by
+   keyboard; it must not look like one. */
+.gallery .shot {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  font: inherit;
+}
+
+body.viewing {
+  overflow: hidden;
+}
+
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(30, 42, 58, 0.92);
+  cursor: zoom-out;
+}
+
+.viewer img {
+  max-width: 100%;
+  max-height: calc(100vh - 6rem);
+  border: 4px solid var(--paper);
+  background: var(--ink);
+}
+
+.viewer .close {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 720px) {
+  header.site {
+    gap: 0.6rem 1rem;
+  }
+
+  .previews .preview,
+  .previews .preview img {
+    width: 96px;
+  }
+
+  .previews .preview img {
+    height: 72px;
+  }
+
+  .busy .runway {
+    max-width: 110px;
+  }
+
+  ul.thumbs .thumb-actions {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 420px) {
+  .votes {
+    gap: 0.5rem;
+  }
+
+  .viewer {
+    padding: 0.5rem;
+  }
+}

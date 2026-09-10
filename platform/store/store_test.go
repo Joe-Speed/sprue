@@ -271,13 +271,13 @@ func TestCompetitionLifecycle(t *testing.T) {
 		t.Fatalf("entries: %v %d", err, len(entries))
 	}
 
-	if err := s.Advance(testToday); err != nil {
+	if _, err := s.Advance(testToday); err != nil {
 		t.Fatal(err)
 	}
 	if c, _ := s.CompetitionBySlug("spring-classic"); c.Status != "open" {
 		t.Fatalf("advanced too early: %s", c.Status)
 	}
-	if err := s.Advance(time.Date(2026, 6, 11, 0, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := s.Advance(time.Date(2026, 6, 11, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	if c, _ := s.CompetitionBySlug("spring-classic"); c.Status != "voting" {
@@ -300,7 +300,7 @@ func TestCompetitionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.Advance(time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := s.Advance(time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	comp, err = s.CompetitionBySlug("spring-classic")
@@ -385,7 +385,7 @@ func TestRemoveEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 	entries, _ := s.EntriesWithVotes(comp.ID)
-	if err := s.Advance(time.Date(2026, 6, 11, 0, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := s.Advance(time.Date(2026, 6, 11, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Vote(comp.ID, alice.ID, entries[0].ID); err != nil {
@@ -403,7 +403,7 @@ func TestRemoveEntry(t *testing.T) {
 	if err := s.RemoveEntry(comp.ID, entries[0].ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("removing twice: %v", err)
 	}
-	if err := s.Advance(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := s.Advance(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.RemoveEntry(comp.ID, 999); !errors.Is(err, ErrInUse) {
@@ -438,7 +438,7 @@ func TestCompetitionRules(t *testing.T) {
 		t.Errorf("creator cap: %v", err)
 	}
 	// A competition nobody votes in still closes, with no trophies.
-	if err := s.Advance(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := s.Advance(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	list, _ := s.Competitions("")
@@ -836,5 +836,121 @@ func TestLikes(t *testing.T) {
 	s.db.QueryRow(`select count(*) from build_likes where build_id = ?`, first).Scan(&left)
 	if left != 0 {
 		t.Errorf("likes left behind after delete: %d", left)
+	}
+}
+
+func TestMovePhotoAndBio(t *testing.T) {
+	s := testStore(t)
+	sam := testUser(t, s, "sam@example.com")
+	build, err := s.CreateBuild(Build{UserID: sam.ID, Title: "Mosquito", Kit: "Tamiya"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"a.jpg", "b.jpg", "c.jpg"} {
+		if err := s.AddPhoto(build, name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	order := func() string {
+		names, err := s.Photos(build)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.Join(names, ",")
+	}
+	if order() != "a.jpg,b.jpg,c.jpg" {
+		t.Fatalf("photos start in the order added, got %s", order())
+	}
+	if err := s.MovePhoto(build, "c.jpg", false); err != nil {
+		t.Fatal(err)
+	}
+	if order() != "a.jpg,c.jpg,b.jpg" {
+		t.Errorf("moving earlier: %s", order())
+	}
+	if err := s.MovePhoto(build, "a.jpg", true); err != nil {
+		t.Fatal(err)
+	}
+	if order() != "c.jpg,a.jpg,b.jpg" {
+		t.Errorf("moving later: %s", order())
+	}
+	// The ends stay put rather than erroring.
+	if err := s.MovePhoto(build, "c.jpg", false); err != nil || order() != "c.jpg,a.jpg,b.jpg" {
+		t.Errorf("the first photo cannot move earlier: %v %s", err, order())
+	}
+	if err := s.MovePhoto(build, "b.jpg", true); err != nil || order() != "c.jpg,a.jpg,b.jpg" {
+		t.Errorf("the last photo cannot move later: %v %s", err, order())
+	}
+	if err := s.MovePhoto(build, "never.jpg", true); !errors.Is(err, ErrNotFound) {
+		t.Errorf("an unknown photo: %v", err)
+	}
+	if err := s.SetBio(sam.ID, "  Mostly 1/72 RAF aircraft  "); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := s.userBy("id = ?", sam.ID)
+	if err != nil || saved.Bio != "Mostly 1/72 RAF aircraft" {
+		t.Errorf("bio: %v %q", err, saved.Bio)
+	}
+	if err := s.SetBio(sam.ID, strings.Repeat("x", MaxBioLength+50)); err != nil {
+		t.Fatal(err)
+	}
+	saved, err = s.userBy("id = ?", sam.ID)
+	if err != nil || len(saved.Bio) != MaxBioLength {
+		t.Errorf("a long bio should be clipped to the cap, got %d", len(saved.Bio))
+	}
+}
+
+func TestEntrantsCarryPlacings(t *testing.T) {
+	s := testStore(t)
+	cara := testUser(t, s, "cara@example.com")
+	dan := testUser(t, s, "dan@example.com")
+	comp, err := s.CreateCompetition(Competition{
+		Title: "Autumn", CreatorID: cara.ID, EntriesClose: "2026-06-10", VotingCloses: "2026-06-20", Category: "fighter",
+	}, time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	winner, err := s.CreateBuild(Build{UserID: cara.ID, Title: "Spitfire", Kit: "Airfix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	also, err := s.CreateBuild(Build{UserID: dan.ID, Title: "Hurricane", Kit: "Airfix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnterCompetition(comp.ID, cara.ID, winner); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnterCompetition(comp.ID, dan.ID, also); err != nil {
+		t.Fatal(err)
+	}
+	entryID := int64(0)
+	entries, err := s.EntriesWithVotes(comp.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.Build.ID == winner {
+			entryID = entry.ID
+		}
+	}
+	if err := s.Vote(comp.ID, dan.ID, entryID); err != nil {
+		t.Fatal(err)
+	}
+	decided, err := s.Advance(time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC))
+	if err != nil || len(decided) != 1 || decided[0].ID != comp.ID {
+		t.Fatalf("advance should report what it decided: %v %d", err, len(decided))
+	}
+	entrants, err := s.Entrants(comp.ID)
+	if err != nil || len(entrants) != 2 {
+		t.Fatalf("entrants: %v %d", err, len(entrants))
+	}
+	if entrants[0].Email != "cara@example.com" || entrants[0].Place != 1 || entrants[0].TrophyID == 0 {
+		t.Errorf("the winner should come first with a trophy: %+v", entrants[0])
+	}
+	if entrants[1].Place != 0 || entrants[1].TrophyID != 0 {
+		t.Errorf("an unplaced entrant carries no trophy: %+v", entrants[1])
+	}
+	if entrants[0].BuildTitle != "Spitfire" {
+		t.Errorf("build title: %q", entrants[0].BuildTitle)
 	}
 }

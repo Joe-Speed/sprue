@@ -110,6 +110,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /builds/{id}/edit", s.handleBuildUpdate)
 	mux.HandleFunc("POST /builds/{id}/photos", s.handlePhotoUpload)
 	mux.HandleFunc("POST /builds/{id}/photos/{name}/cover", s.handlePhotoCover)
+	mux.HandleFunc("POST /builds/{id}/photos/{name}/move/{way}", s.handlePhotoMove)
 	mux.HandleFunc("POST /builds/{id}/photos/{name}/delete", s.handlePhotoDelete)
 	mux.HandleFunc("POST /builds/{id}/delete", s.handleBuildDelete)
 	mux.HandleFunc("POST /builds/{id}/vote", s.handleBuildVote)

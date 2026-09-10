@@ -65,6 +65,9 @@ func parseTemplates() (map[string]*template.Template, error) {
 		"currency":     func() string { return currency },
 		"neg":          func(n int) int { return -n },
 		"meter":        meterBlocks,
+		"notLast":      func(index, count int) bool { return index < count-1 },
+		"brands":       func() []string { return kitBrands },
+		"scales":       func() []string { return kitScales },
 	}
 	templates := make(map[string]*template.Template, len(pageNames))
 	for _, name := range pageNames {
@@ -77,6 +80,15 @@ func parseTemplates() (map[string]*template.Template, error) {
 	}
 	return templates, nil
 }
+
+// kitBrands and kitScales are offered on the build form. They are
+// suggestions, not a closed list: anything may still be typed.
+var kitBrands = []string{
+	"Airfix", "Tamiya", "Revell", "Eduard", "Hasegawa", "Italeri", "Academy",
+	"Zvezda", "ICM", "Trumpeter", "Dragon", "Bandai",
+}
+
+var kitScales = []string{"1/24", "1/32", "1/35", "1/48", "1/72", "1/144", "1/350"}
 
 // maxMeterBlocks is the width of a pixel vote meter, in blocks.
 const maxMeterBlocks = 12
