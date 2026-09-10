@@ -117,6 +117,9 @@ func TestPageMeta(t *testing.T) {
 		t.Error("login page should be noindex")
 	}
 	csp := res.Header.Get("Content-Security-Policy")
+	if !strings.Contains(csp, "connect-src 'self'") {
+		t.Errorf("the page must be allowed to post photos back to the site: %s", csp)
+	}
 	if !strings.Contains(csp, "default-src 'none'") || !strings.Contains(csp, "script-src 'self';") || strings.Contains(csp, "googletagmanager") {
 		t.Errorf("csp without analytics: %s", csp)
 	}
@@ -124,6 +127,9 @@ func TestPageMeta(t *testing.T) {
 
 func TestAnalyticsOptIn(t *testing.T) {
 	ts := testServer(t, "G-TEST1234")
+	if csp := contentSecurityPolicy("G-TEST1234"); !strings.Contains(csp, "connect-src 'self' ") {
+		t.Errorf("with analytics the page must still be allowed to post photos back: %s", csp)
+	}
 	res, home := get(t, ts, "/")
 	if !strings.Contains(home, `src="https://www.googletagmanager.com/gtag/js?id=G-TEST1234"`) {
 		t.Error("tag script missing")

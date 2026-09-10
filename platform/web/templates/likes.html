@@ -1,0 +1,11 @@
+{{define "content"}}
+<h1><img class="icon" src="{{static "icon-thumb.svg"}}" alt="" width="24" height="24">Likes</h1>
+<p>Builds you have liked, most recent first. A build that has since been made private or hidden is not shown.</p>
+{{if .Data}}
+<ul class="cards">
+{{range .Data}}{{template "build_card" (card . true)}}{{end}}
+</ul>
+{{else}}
+<p class="prompt">Nothing yet. Open a build you admire and press like.</p>
+{{end}}
+{{end}}

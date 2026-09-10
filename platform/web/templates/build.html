@@ -3,13 +3,22 @@
 <h1>{{.Data.Build.Title}}{{template "place_badge" .Data.Build.TrophyPlace}}</h1>
 <p class="meta">{{.Data.Build.Kit}}{{if .Data.Build.Brand}} · {{.Data.Build.Brand}}{{end}}{{if .Data.Build.Scale}} · {{.Data.Build.Scale}}{{end}}{{if .Data.Build.BuiltOn}} · built {{niceDate .Data.Build.BuiltOn}}{{end}}{{if .Data.IsOwner}} · <a href="/builds/{{.Data.Build.ID}}/edit">edit</a>{{end}}</p>
 <div class="votes">
-<span class="count">{{.Data.Build.Votes}} vote{{if ne .Data.Build.Votes 1}}s{{end}}</span>
+<span class="count"><img class="icon" src="{{static "icon-ballot.svg"}}" alt="" width="16" height="16">{{.Data.Build.Votes}} vote{{if ne .Data.Build.Votes 1}}s{{end}}</span>
 {{if .Data.CanVote}}
 <form method="post" action="/builds/{{.Data.Build.ID}}/vote"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn{{if not .Data.Voted}} is-primary{{end}}" type="submit">{{if .Data.Voted}}remove my vote{{else}}vote to feature{{end}}</button></form>
 {{else if not .User}}
 <span class="meta"><a href="/login">Sign in</a> to vote.</span>
 {{end}}
 </div>
+<div class="votes">
+<span class="count"><img class="icon" src="{{static "icon-thumb.svg"}}" alt="" width="16" height="16">{{.Data.Build.Likes}} like{{if ne .Data.Build.Likes 1}}s{{end}}</span>
+{{if .Data.CanVote}}
+<form method="post" action="/builds/{{.Data.Build.ID}}/like"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn{{if not .Data.Liked}} is-primary{{end}}" type="submit" data-busy="{{if .Data.Liked}}Taking it back{{else}}Liking{{end}}">{{if .Data.Liked}}take my like back{{else}}like this build{{end}}</button></form>
+{{else if not .User}}
+<span class="meta"><a href="/login">Sign in</a> to like builds.</span>
+{{end}}
+</div>
+<p class="meta">Votes decide the featured spot on the front page. Likes are just for saying you like it, and you can look back over the ones you have liked.</p>
 {{if .Data.Build.Hidden}}<p class="notice">Hidden after a report. Only you{{if .User.IsAdmin}} and the admin{{end}} can see this page.</p>
 {{else if .Data.Build.Private}}<p class="prompt">Private. Only you can see this build. <a href="/builds/{{.Data.Build.ID}}/edit">Edit</a> to post it.</p>{{end}}
 {{if .Data.Build.Description}}<p>{{.Data.Build.Description}}</p>{{end}}

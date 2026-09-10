@@ -39,6 +39,7 @@
 <div class="menu-list">
 <a href="/builds"{{if eq .Path "/builds"}} aria-current="page"{{end}}>Builds</a>
 <a href="/stash"{{if under .Path "/stash"}} aria-current="page"{{end}}>Stash</a>
+<a href="/likes"{{if eq .Path "/likes"}} aria-current="page"{{end}}>Likes</a>
 <a href="/friends"{{if under .Path "/friends"}} aria-current="page"{{end}}>Friends{{if .Requests}} <span class="tag next">{{.Requests}}</span>{{end}}</a>
 <a href="/settings"{{if eq .Path "/settings"}} aria-current="page"{{end}}>Settings</a>
 {{if .User.IsAdmin}}<a href="/admin"{{if under .Path "/admin"}} aria-current="page"{{end}}>Admin</a>{{end}}
@@ -68,5 +69,11 @@
 </nav>
 <p><span class="copyright">&copy;</span> {{.Site.Year}} sprue. Scale model builds and competitions.</p>
 </footer>
+<template id="busy-strip">
+<p class="busy" role="status">
+<span class="word"></span>
+<span class="runway"><span class="flight"><span class="gust"></span><span class="gust"></span><span class="gust"></span><img class="plane" src="{{markPath .Mark}}" alt="" width="24" height="16"></span></span>
+</p>
+</template>
 </body>
 </html>

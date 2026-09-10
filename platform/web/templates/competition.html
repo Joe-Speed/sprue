@@ -41,7 +41,7 @@
 {{range .Data.Entries}}
 <li class="card">
 {{if $.Data.CanVote}}{{if ne .Build.UserID $.User.ID}}<label class="votebox choice"><input class="nes-radio" type="radio" name="entry" value="{{.ID}}"><span>vote for this one</span></label>{{else}}<span class="votebox meta">your entry</span>{{end}}{{end}}
-{{if $.Data.ShowVotes}}<span class="votebox meta">{{.Votes}} vote{{if ne .Votes 1}}s{{end}}</span>{{end}}
+{{if $.Data.ShowVotes}}<span class="votebox meta">{{.Votes}} vote{{if ne .Votes 1}}s{{end}}{{template "vote_meter" (meter .Votes $.Data.TopVotes)}}</span>{{end}}
 {{if $.Data.CanModerate}}<form class="votebox" method="post" action="/admin/competitions/{{$.Data.Competition.Slug}}/entries/{{.ID}}/remove"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish danger" type="submit">Remove entry</button></form>{{end}}
 {{template "build_card_body" (card .Build true)}}
 </li>

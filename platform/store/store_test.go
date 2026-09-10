@@ -72,6 +72,9 @@ func TestUserCreationAndSlugs(t *testing.T) {
 	if err := s.SetSlug(alice.ID, "alice-again"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("a chosen address must be permanent, got %v", err)
 	}
+	if picked, err := s.userBy("id = ?", alice.ID); err != nil || !picked.SlugChosen {
+		t.Errorf("choosing should mark the address chosen: %v", err)
+	}
 	if err := s.SetSlug(other.ID, "alice-builds"); err == nil {
 		t.Error("a taken address was accepted")
 	}
@@ -81,8 +84,33 @@ func TestUserCreationAndSlugs(t *testing.T) {
 		}
 	}
 	renamed, err := s.userBy("id = ?", alice.ID)
-	if err != nil || renamed.Slug != "alice-builds" || !DefaultSlug(other.Slug) || DefaultSlug(renamed.Slug) {
+	if err != nil || renamed.Slug != "alice-builds" || other.SlugChosen {
 		t.Errorf("slug state: %v %s", err, renamed.Slug)
+	}
+}
+
+// Members who joined before addresses were pickable have a slug taken from
+// their email. They start unchosen like everyone else, so they get one
+// chance to replace it.
+func TestEarlyMemberCanStillPickAnAddress(t *testing.T) {
+	s := testStore(t)
+	early := testUser(t, s, "joe.speed@example.com")
+	if _, err := s.db.Exec(`update users set slug = 'joe.speed', slug_chosen = 0 where id = ?`, early.ID); err != nil {
+		t.Fatal(err)
+	}
+	early, err := s.userBy("id = ?", early.ID)
+	if err != nil || early.SlugChosen {
+		t.Fatalf("an early member should start unchosen: %v", err)
+	}
+	if err := s.SetSlug(early.ID, "joe-builds"); err != nil {
+		t.Fatalf("early member should get one choice: %v", err)
+	}
+	moved, err := s.userBy("id = ?", early.ID)
+	if err != nil || moved.Slug != "joe-builds" || !moved.SlugChosen {
+		t.Errorf("after choosing: %v %s %v", err, moved.Slug, moved.SlugChosen)
+	}
+	if err := s.SetSlug(early.ID, "joe-again"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("only one choice, got %v", err)
 	}
 }
 
@@ -724,5 +752,72 @@ func TestTakeMonthly(t *testing.T) {
 	s.db.QueryRow(`select count(*) from counters`).Scan(&rows)
 	if rows != 2 {
 		t.Errorf("sweep should keep only this month's counters, left %d", rows)
+	}
+}
+
+func TestLikes(t *testing.T) {
+	s := testStore(t)
+	sam := testUser(t, s, "sam@example.com")
+	ravi := testUser(t, s, "ravi@example.com")
+	first, err := s.CreateBuild(Build{UserID: sam.ID, Title: "Spitfire", Kit: "Airfix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := s.CreateBuild(Build{UserID: sam.ID, Title: "Lancaster", Kit: "Airfix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.LikeBuild(first, sam.ID); err == nil {
+		t.Error("liking your own build should be refused")
+	}
+	if err := s.LikeBuild(first, ravi.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.LikeBuild(first, ravi.ID); err != nil {
+		t.Fatal(err)
+	}
+	build, err := s.BuildByID(first)
+	if err != nil || build.Likes != 1 {
+		t.Fatalf("one member liking twice is one like: %v %d", err, build.Likes)
+	}
+	if liked, err := s.HasLikedBuild(first, ravi.ID); err != nil || !liked {
+		t.Errorf("has liked: %v %v", err, liked)
+	}
+	if err := s.LikeBuild(second, ravi.ID); err != nil {
+		t.Fatal(err)
+	}
+	list, err := s.LikedBuilds(ravi.ID, MaxLikesShown)
+	if err != nil || len(list) != 2 {
+		t.Fatalf("liked builds: %v %d", err, len(list))
+	}
+	// A build that goes private drops out of someone else's likes.
+	if err := s.UpdateBuild(Build{ID: second, UserID: sam.ID, Title: "Lancaster", Kit: "Airfix", Private: true}); err != nil {
+		t.Fatal(err)
+	}
+	list, err = s.LikedBuilds(ravi.ID, MaxLikesShown)
+	if err != nil || len(list) != 1 || list[0].ID != first {
+		t.Errorf("a private build should drop out: %v %d", err, len(list))
+	}
+	if err := s.UnlikeBuild(first, ravi.ID); err != nil {
+		t.Fatal(err)
+	}
+	build, err = s.BuildByID(first)
+	if err != nil || build.Likes != 0 {
+		t.Errorf("after taking the like back: %v %d", err, build.Likes)
+	}
+	if list, err := s.LikedBuilds(ravi.ID, MaxLikesShown); err != nil || len(list) != 0 {
+		t.Errorf("likes list should be empty: %v %d", err, len(list))
+	}
+	// Deleting a build takes its likes with it.
+	if err := s.LikeBuild(first, ravi.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.DeleteBuild(first, sam.ID); err != nil {
+		t.Fatalf("a liked build should still delete: %v", err)
+	}
+	var left int
+	s.db.QueryRow(`select count(*) from build_likes where build_id = ?`, first).Scan(&left)
+	if left != 0 {
+		t.Errorf("likes left behind after delete: %d", left)
 	}
 }

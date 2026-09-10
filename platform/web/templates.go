@@ -16,7 +16,7 @@ import (
 // base.html and partials.html so every page shares the same shell and cards.
 var pageNames = []string{
 	"home", "login", "check_email", "verify", "settings", "profile", "builds", "build", "build_form",
-	"competitions", "competition", "competition_form", "past", "stash", "stash_item", "members", "friends",
+	"competitions", "competition", "competition_form", "past", "stash", "stash_item", "members", "friends", "likes",
 	"terms", "privacy", "feedback", "support", "admin", "error",
 }
 
@@ -64,7 +64,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		"money":        money,
 		"currency":     func() string { return currency },
 		"neg":          func(n int) int { return -n },
-		"defaultSlug":  store.DefaultSlug,
+		"meter":        meterBlocks,
 	}
 	templates := make(map[string]*template.Template, len(pageNames))
 	for _, name := range pageNames {
@@ -76,6 +76,34 @@ func parseTemplates() (map[string]*template.Template, error) {
 		templates[name] = t
 	}
 	return templates, nil
+}
+
+// maxMeterBlocks is the width of a pixel vote meter, in blocks.
+const maxMeterBlocks = 12
+
+// meterBlocks lays out a vote meter as filled and empty blocks. With no
+// scale each vote takes one block, up to the width of the meter. With a
+// scale, that many votes fill the whole meter, which turns a competition's
+// entries into a poll anyone can read at a glance.
+func meterBlocks(votes, scale int) []bool {
+	blocks := make([]bool, maxMeterBlocks)
+	if votes <= 0 {
+		return blocks
+	}
+	filled := votes
+	if scale > 0 {
+		filled = votes * maxMeterBlocks / scale
+		if filled == 0 {
+			filled = 1
+		}
+	}
+	if filled > maxMeterBlocks {
+		filled = maxMeterBlocks
+	}
+	for i := 0; i < filled; i++ {
+		blocks[i] = true
+	}
+	return blocks
 }
 
 // cardView is what the build_card partial renders. ShowOwner is on for mixed

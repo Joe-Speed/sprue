@@ -136,7 +136,7 @@ func (s *Server) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.setSessionCookie(w, session, remember)
-	if store.DefaultSlug(user.Slug) {
+	if !user.SlugChosen {
 		flashRedirect(w, r, "/settings", "Welcome to sprue. Pick a display name and your page address.", "")
 		return
 	}
@@ -199,7 +199,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if wanted := strings.TrimSpace(r.FormValue("slug")); wanted != "" && wanted != user.Slug {
-		if !store.DefaultSlug(user.Slug) {
+		if user.SlugChosen {
 			flashRedirect(w, r, "/settings", "", "Your page address is set and cannot change.")
 			return
 		}

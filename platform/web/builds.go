@@ -238,6 +238,7 @@ type buildPageData struct {
 	IsOwner bool
 	CanVote bool // signed in and not the owner; also allows reporting
 	Voted   bool
+	Liked   bool
 }
 
 func (s *Server) handleBuildPage(w http.ResponseWriter, r *http.Request) {
@@ -265,6 +266,9 @@ func (s *Server) handleBuildPage(w http.ResponseWriter, r *http.Request) {
 		data.CanVote = !data.IsOwner && !build.Private
 		if voted, err := s.store.HasVotedBuild(build.ID, viewer.ID); err == nil {
 			data.Voted = voted
+		}
+		if liked, err := s.store.HasLikedBuild(build.ID, viewer.ID); err == nil {
+			data.Liked = liked
 		}
 	}
 	m := meta{Description: fmt.Sprintf("%s, built by %s.", build.Kit, build.OwnerName)}
@@ -320,6 +324,66 @@ func (s *Server) handleBuildVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	flashRedirect(w, r, page, "Vote recorded.", "")
+}
+
+// handleBuildLike turns a member's like on or off. Likes are appreciation
+// and nothing else: the featured spot is decided by votes.
+func (s *Server) handleBuildLike(w http.ResponseWriter, r *http.Request) {
+	user, ok := s.requireUser(w, r)
+	if !ok {
+		return
+	}
+	build, err := s.store.BuildByID(parseID(r.PathValue("id")))
+	if err != nil {
+		s.renderError(w, r, http.StatusNotFound, "No such build.")
+		return
+	}
+	page := buildPage(build.ID)
+	if !visibleTo(build, &user) || build.Private {
+		s.renderError(w, r, http.StatusNotFound, "No such build.")
+		return
+	}
+	if build.UserID == user.ID {
+		flashRedirect(w, r, page, "", "You cannot like your own build.")
+		return
+	}
+	liked, err := s.store.HasLikedBuild(build.ID, user.ID)
+	if err != nil {
+		s.renderError(w, r, http.StatusInternalServerError, "Could not record the like.")
+		return
+	}
+	if liked {
+		err = s.store.UnlikeBuild(build.ID, user.ID)
+	} else {
+		err = s.store.LikeBuild(build.ID, user.ID)
+	}
+	if errors.Is(err, store.ErrLimit) {
+		flashRedirect(w, r, page, "", fmt.Sprintf("You have liked %d builds, which is as many as sprue keeps. Take a like back to make room.", store.MaxLikesPerMember))
+		return
+	}
+	if err != nil {
+		s.renderError(w, r, http.StatusInternalServerError, "Could not record the like.")
+		return
+	}
+	if liked {
+		flashRedirect(w, r, page, "Like taken back.", "")
+		return
+	}
+	flashRedirect(w, r, page, "Liked.", "")
+}
+
+// handleLikes lists the builds a member has liked, newest first.
+func (s *Server) handleLikes(w http.ResponseWriter, r *http.Request) {
+	user, ok := s.requireUser(w, r)
+	if !ok {
+		return
+	}
+	builds, err := s.store.LikedBuilds(user.ID, store.MaxLikesShown)
+	if err != nil {
+		s.renderError(w, r, http.StatusInternalServerError, "Could not load your likes.")
+		return
+	}
+	s.render(w, r, "likes", "Likes", builds)
 }
 
 // maxPhotosPerUpload bounds one request. A build holds MaxPhotosPerBuild

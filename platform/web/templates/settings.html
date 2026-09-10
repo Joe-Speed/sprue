@@ -1,11 +1,12 @@
 {{define "content"}}
 <h1><img class="icon" src="{{static "icon-gear.svg"}}" alt="" width="24" height="24">Settings</h1>
+{{if not .Data.SlugChosen}}<p class="setup"><strong>Finish setting up.</strong> Choose the name other builders see and the address of your page. The address is picked once and then never changes, so links to your builds keep working.</p>{{end}}
 <section class="nes-container with-title">
 <h2 class="title">Profile</h2>
 <form method="post" action="/settings">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
-<div class="nes-field"><label for="display_name">Display name</label><input class="nes-input" id="display_name" type="text" name="display_name" value="{{.Data.DisplayName}}" required maxlength="100">
-{{if defaultSlug .Data.Slug}}<p class="meta">Your page is at /u/{{.Data.Slug}} until you pick an address below.</p></div>
+<div class="nes-field"><label for="display_name">Display name</label><input class="nes-input" id="display_name" type="text" name="display_name" value="{{if .Data.SlugChosen}}{{.Data.DisplayName}}{{end}}" placeholder="{{if not .Data.SlugChosen}}Your name{{end}}" required maxlength="100">
+{{if not .Data.SlugChosen}}<p class="meta">Your page is at /u/{{.Data.Slug}} until you pick an address below.</p></div>
 <div class="nes-field"><label for="slug">Page address</label><input class="nes-input" id="slug" type="text" name="slug" value="" placeholder="{{.Data.Slug}}" minlength="3" maxlength="40" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocomplete="off">
 <p class="meta">Lowercase letters, numbers, and hyphens. Chosen once, then it never changes so your links keep working.</p></div>
 {{else}}<p class="meta">Your page stays at /u/{{.Data.Slug}}</p></div>{{end}}

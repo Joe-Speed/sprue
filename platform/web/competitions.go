@@ -200,6 +200,7 @@ type competitionData struct {
 	CanVote     bool
 	HasVoted    bool
 	ShowVotes   bool
+	TopVotes    int  // votes on the leading entry, the scale for the poll meters
 	CanModerate bool // admin, while the competition is still running
 }
 
@@ -216,6 +217,11 @@ func (s *Server) handleCompetition(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := competitionData{Competition: comp, Entries: entries, ShowVotes: comp.Status == "decided"}
+	for _, entry := range entries {
+		if entry.Votes > data.TopVotes {
+			data.TopVotes = entry.Votes
+		}
+	}
 	if comp.Status == "decided" {
 		trophies, err := s.store.TrophiesForCompetition(comp.ID)
 		if err != nil {

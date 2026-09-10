@@ -24,23 +24,25 @@ type meta struct {
 // pages, and error pages.
 var noIndexPages = map[string]bool{
 	"login": true, "check_email": true, "verify": true, "settings": true, "builds": true, "build_form": true, "feedback": true,
-	"competition_form": true, "admin": true, "error": true,
+	"competition_form": true, "admin": true, "error": true, "likes": true,
 }
 
 var analyticsIDPattern = regexp.MustCompile(`^G-[A-Z0-9]{4,16}$`)
 
 // contentSecurityPolicy builds the header for this deployment. Only the
 // site's own script may run, plus Google's tag when an analytics ID is set.
-// blob: images are the photo previews before upload.
+// blob: images are the photo previews before upload. connect-src allows the
+// site itself because photo posts are sent from the page so it can show how
+// far the upload has gone.
 func contentSecurityPolicy(analyticsID string) string {
 	if analyticsID == "" {
 		return "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; script-src 'self'; " +
-			"form-action 'self'; base-uri 'self'; frame-ancestors 'none'"
+			"connect-src 'self'; form-action 'self'; base-uri 'self'; frame-ancestors 'none'"
 	}
 	return "default-src 'none'; style-src 'self'; font-src 'self'; " +
 		"img-src 'self' data: blob: https://*.google-analytics.com https://*.googletagmanager.com; " +
 		"script-src 'self' https://www.googletagmanager.com; " +
-		"connect-src https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; " +
+		"connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; " +
 		"form-action 'self'; base-uri 'self'; frame-ancestors 'none'"
 }
 

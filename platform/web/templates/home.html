@@ -4,7 +4,7 @@
 {{if .User}}
 <section class="nes-container with-title">
 <h2 class="title">Post a build</h2>
-<form class="wide post" method="post" action="/builds/new" enctype="multipart/form-data">
+<form data-keep="quick-build" class="wide post" method="post" action="/builds/new" enctype="multipart/form-data">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="post-fields">
 <div class="nes-field"><label for="post-title">Title</label><input class="nes-input" id="post-title" type="text" name="title" required maxlength="200"></div>

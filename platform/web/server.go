@@ -113,6 +113,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /builds/{id}/photos/{name}/delete", s.handlePhotoDelete)
 	mux.HandleFunc("POST /builds/{id}/delete", s.handleBuildDelete)
 	mux.HandleFunc("POST /builds/{id}/vote", s.handleBuildVote)
+	mux.HandleFunc("POST /builds/{id}/like", s.handleBuildLike)
+	mux.HandleFunc("GET /likes", s.handleLikes)
 	mux.HandleFunc("POST /builds/{id}/report", s.handleReport)
 	mux.HandleFunc("GET /photos/{build}/{name}", s.handlePhoto)
 	mux.HandleFunc("GET /stash", s.handleStash)
@@ -459,6 +461,15 @@ func (s *Server) requireUser(w http.ResponseWriter, r *http.Request) (store.User
 		return store.User{}, false
 	}
 	if r.Method == http.MethodPost && r.FormValue("csrf") != csrfToken(token) {
+		// Every form carries the field, so an empty one means the body never
+		// arrived in full. On a photo post that is a slow or dropped upload,
+		// not a stale page, and saying "expired" would send the member to
+		// look in the wrong place.
+		if r.FormValue("csrf") == "" && strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
+			s.renderError(w, r, http.StatusRequestTimeout,
+				"The upload did not finish. Try again with fewer photos, or smaller ones.")
+			return store.User{}, false
+		}
 		s.renderError(w, r, http.StatusForbidden, "That form expired. Go back and try again.")
 		return store.User{}, false
 	}

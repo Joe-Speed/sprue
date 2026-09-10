@@ -26,6 +26,8 @@ const (
 	FeaturedWindowDays = 30  // votes this recent count toward the featured spot
 	MaxFeatured        = 3
 	MaxSlugAttempts    = 100
+	MaxLikesPerMember  = 5000                // builds one member may have liked at once
+	MaxLikesShown      = 200                 // liked builds listed on the likes page
 	sessionLifetime    = 90 * 24 * time.Hour // remembered sessions, renewed while the member keeps visiting
 	shortSessionLife   = 24 * time.Hour      // sessions the member asked not to remember
 	magicTokenLifetime = 15 * time.Minute
@@ -55,6 +57,7 @@ create table if not exists users (
 	nudge text not null default 'off',
 	nudged_at text not null default '',
 	flair text not null default '',
+	slug_chosen integer not null default 0,
 	avatar text not null default ''
 );
 create table if not exists stash (
@@ -111,6 +114,12 @@ create table if not exists reports (
 	unique(build_id, user_id)
 );
 create table if not exists build_votes (
+	build_id integer not null references builds(id),
+	user_id integer not null references users(id),
+	created_at text not null,
+	primary key (build_id, user_id)
+);
+create table if not exists build_likes (
 	build_id integer not null references builds(id),
 	user_id integer not null references users(id),
 	created_at text not null,
@@ -190,6 +199,7 @@ create table if not exists donations (
 var migrations = []string{
 	`alter table magic_tokens add column remember integer not null default 1`,
 	`alter table sessions add column remember integer not null default 1`,
+	`alter table users add column slug_chosen integer not null default 0`,
 }
 
 func migrate(db *sql.DB) error {
@@ -300,22 +310,24 @@ type User struct {
 	NudgedAt    string
 	Flair       string // small picture beside the name, empty for the default
 	Avatar      string // file name of the profile picture, empty for none
+	SlugChosen  bool   // the member has picked their page address, so it is fixed
 }
 
-const userColumns = `id, email, display_name, slug, is_admin, created_at, goal_count, goal_by, goal_set_at, nudge, nudged_at, flair, avatar`
+const userColumns = `id, email, display_name, slug, is_admin, created_at, goal_count, goal_by, goal_set_at, nudge, nudged_at, flair, avatar, slug_chosen`
 
 func scanUsers(rows *sql.Rows) ([]User, error) {
 	defer rows.Close()
 	var users []User
 	for rows.Next() {
 		var u User
-		var admin int
+		var admin, chosen int
 		err := rows.Scan(&u.ID, &u.Email, &u.DisplayName, &u.Slug, &admin, &u.CreatedAt,
-			&u.GoalCount, &u.GoalBy, &u.GoalSetAt, &u.Nudge, &u.NudgedAt, &u.Flair, &u.Avatar)
+			&u.GoalCount, &u.GoalBy, &u.GoalSetAt, &u.Nudge, &u.NudgedAt, &u.Flair, &u.Avatar, &chosen)
 		if err != nil {
 			return nil, err
 		}
 		u.IsAdmin = admin != 0
+		u.SlugChosen = chosen != 0
 		users = append(users, u)
 	}
 	return users, rows.Err()
@@ -511,6 +523,7 @@ type Build struct {
 	CoverPhoto  string
 	TrophyPlace int // 0 = none, else 1..3 best placing this build has won
 	Votes       int // community votes toward the featured spot
+	Likes       int // members who liked the build, appreciation only
 }
 
 func (s *Store) CreateBuild(b Build) (int64, error) {
@@ -572,8 +585,19 @@ const buildColumns = `
 	u.display_name, u.slug, u.flair, u.avatar,
 	coalesce((select p.file_name from photos p where p.build_id = b.id order by p.position limit 1), ''),
 	coalesce((select min(t.place) from trophies t where t.build_id = b.id), 0),
-	(select count(*) from build_votes v where v.build_id = b.id)
+	(select count(*) from build_votes v where v.build_id = b.id),
+	(select count(*) from build_likes l where l.build_id = b.id)
 `
+
+// buildTargets says where each column of buildColumns lands, in the same
+// order. Every reader of those columns uses it, so the two lists cannot
+// drift apart when a column is added.
+func buildTargets(b *Build, pinned, private, hidden *int) []any {
+	return []any{&b.ID, &b.UserID, &b.Title, &b.Kit, &b.Brand, &b.Scale, &b.Description,
+		&b.BuiltOn, pinned, private, hidden, &b.CreatedAt,
+		&b.OwnerName, &b.OwnerSlug, &b.OwnerFlair, &b.OwnerAvatar,
+		&b.CoverPhoto, &b.TrophyPlace, &b.Votes, &b.Likes}
+}
 
 func (s *Store) scanBuilds(rows *sql.Rows) ([]Build, error) {
 	defer rows.Close()
@@ -581,8 +605,7 @@ func (s *Store) scanBuilds(rows *sql.Rows) ([]Build, error) {
 	for rows.Next() {
 		var b Build
 		var pinned, private, hidden int
-		err := rows.Scan(&b.ID, &b.UserID, &b.Title, &b.Kit, &b.Brand, &b.Scale, &b.Description,
-			&b.BuiltOn, &pinned, &private, &hidden, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.OwnerFlair, &b.OwnerAvatar, &b.CoverPhoto, &b.TrophyPlace, &b.Votes)
+		err := rows.Scan(buildTargets(&b, &pinned, &private, &hidden)...)
 		if err != nil {
 			return nil, err
 		}
@@ -718,6 +741,9 @@ func (s *Store) DeleteBuild(id, userID int64) ([]string, error) {
 	if _, err := tx.Exec(`delete from photos where build_id = ?`, id); err != nil {
 		return nil, err
 	}
+	if _, err := tx.Exec(`delete from build_likes where build_id = ?`, id); err != nil {
+		return nil, err
+	}
 	if _, err := tx.Exec(`delete from build_votes where build_id = ?`, id); err != nil {
 		return nil, err
 	}
@@ -767,6 +793,60 @@ func (s *Store) VoteBuild(buildID, userID int64) error {
 func (s *Store) UnvoteBuild(buildID, userID int64) error {
 	_, err := s.db.Exec(`delete from build_votes where build_id = ? and user_id = ?`, buildID, userID)
 	return err
+}
+
+// LikeBuild records that a member likes a build. A like is appreciation
+// only: it says nothing about the featured spot, which votes decide. Nobody
+// likes their own build, and one like per build each.
+func (s *Store) LikeBuild(buildID, userID int64) error {
+	build, err := s.BuildByID(buildID)
+	if err != nil {
+		return err
+	}
+	if build.UserID == userID {
+		return errors.New("store: no liking your own build")
+	}
+	var count int
+	if err := s.db.QueryRow(`select count(*) from build_likes where user_id = ?`, userID).Scan(&count); err != nil {
+		return err
+	}
+	if count >= MaxLikesPerMember {
+		return ErrLimit
+	}
+	_, err = s.db.Exec(`insert or ignore into build_likes (build_id, user_id, created_at) values (?, ?, ?)`,
+		buildID, userID, now())
+	return err
+}
+
+func (s *Store) UnlikeBuild(buildID, userID int64) error {
+	_, err := s.db.Exec(`delete from build_likes where build_id = ? and user_id = ?`, buildID, userID)
+	return err
+}
+
+func (s *Store) HasLikedBuild(buildID, userID int64) (bool, error) {
+	var count int
+	err := s.db.QueryRow(`select count(*) from build_likes where build_id = ? and user_id = ?`, buildID, userID).Scan(&count)
+	return count > 0, err
+}
+
+// LikedBuilds returns the builds a member has liked, most recently liked
+// first. A build that has since gone private or been hidden drops out.
+func (s *Store) LikedBuilds(userID int64, limit int) ([]Build, error) {
+	if userID <= 0 {
+		return nil, ErrNotFound
+	}
+	if limit <= 0 || limit > MaxLikesShown {
+		limit = MaxLikesShown
+	}
+	rows, err := s.db.Query(`select `+buildColumns+` from build_likes l
+		join builds b on b.id = l.build_id
+		join users u on u.id = b.user_id
+		where l.user_id = ? and b.hidden = 0 and (b.private = 0 or b.user_id = ?)
+		order by l.created_at desc, b.id desc limit ?`, userID, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	return s.scanBuilds(rows)
 }
 
 func (s *Store) HasVotedBuild(buildID, userID int64) (bool, error) {
@@ -1156,8 +1236,8 @@ func (s *Store) EntriesWithVotes(competitionID int64) ([]Entry, error) {
 		var entry Entry
 		var pinned, private, hidden int
 		b := &entry.Build
-		err := rows.Scan(&entry.ID, &b.ID, &b.UserID, &b.Title, &b.Kit, &b.Brand, &b.Scale, &b.Description,
-			&b.BuiltOn, &pinned, &private, &hidden, &b.CreatedAt, &b.OwnerName, &b.OwnerSlug, &b.OwnerFlair, &b.OwnerAvatar, &b.CoverPhoto, &b.TrophyPlace, &b.Votes, &entry.Votes)
+		targets := append([]any{&entry.ID}, buildTargets(b, &pinned, &private, &hidden)...)
+		err := rows.Scan(append(targets, &entry.Votes)...)
 		if err != nil {
 			return nil, err
 		}
@@ -1385,23 +1465,21 @@ const (
 	maxSlugLength      = 40
 )
 
-var defaultSlugPattern = regexp.MustCompile(`^builder(-[0-9]+)?$`)
+// reservedSlugPattern is the shape given out on sign-up. Nobody may take
+// one, so the next new member always has a free address waiting.
+var reservedSlugPattern = regexp.MustCompile(`^builder(-[0-9]+)?$`)
 
-// DefaultSlug reports whether a member still has the address they were given
-// on sign-up, the only time it may be changed.
-func DefaultSlug(slug string) bool {
-	return defaultSlugPattern.MatchString(slug)
-}
-
-// SetSlug lets a member choose their page address once, while it is still
-// the default. Addresses are otherwise permanent so shared links keep
-// working. A taken address surfaces as the unique constraint error.
+// SetSlug lets a member choose their page address once. Every account
+// starts unchosen, including those made before addresses were pickable, so
+// each member gets exactly one choice. After that it is permanent and
+// shared links keep working. A taken address surfaces as the unique
+// constraint error.
 func (s *Store) SetSlug(userID int64, slug string) error {
-	if userID <= 0 || slug != Slugify(slug) || len(slug) < minSlugLength || len(slug) > maxSlugLength || DefaultSlug(slug) {
+	if userID <= 0 || slug != Slugify(slug) || len(slug) < minSlugLength || len(slug) > maxSlugLength || reservedSlugPattern.MatchString(slug) {
 		return errors.New("store: bad slug")
 	}
-	result, err := s.db.Exec(`update users set slug = ? where id = ? and (slug = ? or slug like ?)`,
-		slug, userID, defaultSlugBase, defaultSlugBase+"-%")
+	result, err := s.db.Exec(`update users set slug = ?, slug_chosen = 1 where id = ? and slug_chosen = 0`,
+		slug, userID)
 	if err != nil {
 		return fmt.Errorf("store: set slug: %w", err)
 	}

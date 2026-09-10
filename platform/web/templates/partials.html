@@ -12,7 +12,13 @@
 <strong>{{.Build.Title}}{{template "place_badge" .Build.TrophyPlace}}{{if .Build.Private}} <span class="tag private">private</span>{{end}}{{if .Build.Hidden}} <span class="tag">hidden</span>{{end}}</strong>
 <em>{{.Build.Kit}}</em>
 {{if .ShowOwner}}<span class="meta byline">{{if .Build.OwnerAvatar}}<img class="avatar tiny" src="/avatars/{{.Build.OwnerAvatar}}" alt="" width="20" height="20">{{end}}{{.Build.OwnerName}}<img class="flair" src="{{flairPath .Build.OwnerFlair .Build.UserID}}" alt="" width="16" height="16"></span>{{else if .Build.BuiltOn}}<span class="meta">built {{niceDate .Build.BuiltOn}}</span>{{end}}
+{{if or .Build.Votes .Build.Likes}}<span class="meta tally">{{if .Build.Votes}}{{.Build.Votes}} vote{{if ne .Build.Votes 1}}s{{end}}{{end}}{{if and .Build.Votes .Build.Likes}} · {{end}}{{if .Build.Likes}}{{.Build.Likes}} like{{if ne .Build.Likes 1}}s{{end}}{{end}}</span>{{end}}
 </a>{{end}}
+
+{{/* vote_meter draws a row of pixel blocks for a vote count. Expects the
+     slice from the meter template function. The number is always beside it,
+     so the meter is decoration the screen reader can skip. */}}
+{{define "vote_meter"}}<span class="meter" aria-hidden="true">{{range .}}<span class="{{if .}}on{{else}}off{{end}}"></span>{{end}}</span>{{end}}
 
 {{/* place_badge shows the pixel trophy for a placing, or nothing for zero. */}}
 {{define "place_badge"}}{{if .}} <img class="badge" src="{{placeBadge .}}" alt="{{placeName .}} place" width="20" height="20">{{end}}{{end}}
