@@ -11,7 +11,7 @@
 <p class="meta">Lowercase letters, numbers, and hyphens. Chosen once, then it never changes so your links keep working.</p></div>
 {{else}}<p class="meta">Your page stays at /u/{{.Data.Slug}}</p></div>{{end}}
 <div class="nes-field"><label for="bio">What you build</label><input class="nes-input" id="bio" type="text" name="bio" value="{{.Data.Bio}}" maxlength="200" placeholder="Mostly 1/72 RAF aircraft">
-<p class="meta">One line, shown on your page. Leave it empty for nothing.</p></div>
+<p class="meta">Tell the community about your favourite things to build!</p></div>
 <div class="nes-field"><span class="label">Flair, shown beside your name</span>
 <div class="flair-picker">
 {{range flairs}}<label><input type="radio" name="flair" value="{{.}}"{{if eq (flairPath $.Data.Flair $.Data.ID) (flairPath . 0)}} checked{{end}}><img class="flair" src="{{flairPath . 0}}" alt="{{.}}" width="32" height="32"></label>{{end}}

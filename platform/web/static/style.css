@@ -76,11 +76,15 @@ body {
 body {
   min-height: 100vh;
   margin: 0;
+  padding: 0 0.75rem;
   font-size: 1.125rem;
   line-height: 1.5;
   color: var(--ink);
   background: linear-gradient(var(--sky-top), var(--sky-bottom) 60vh, var(--sky-bottom));
   -webkit-font-smoothing: auto;
+  /* Titles, kit names and display names are typed by members and can be one
+     unbroken word. Break them rather than let them push the page sideways. */
+  overflow-wrap: anywhere;
 }
 
 /* Photos are not pixelated. Only the badges and the mark are. */
@@ -304,6 +308,8 @@ header.site nav form {
 }
 
 .menu summary {
+  display: flex;
+  align-items: center;
   list-style: none;
   padding-bottom: 2px;
   color: var(--ink);
@@ -315,9 +321,25 @@ header.site nav form {
   display: none;
 }
 
+/* The picture, flair and request count keep their size; the name gives way
+   and ends in an ellipsis. The whole name is on the member's own page. */
+.menu summary > img,
+.menu summary > .tag {
+  flex: none;
+}
+
+.menu summary .name {
+  min-width: 0;
+  max-width: 14ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .menu summary::after {
   content: "";
   display: inline-block;
+  flex: none;
   margin-left: 0.5rem;
   border: 5px solid transparent;
   border-top-color: var(--ink);
@@ -344,6 +366,7 @@ header.site nav form {
   display: flex;
   flex-direction: column;
   min-width: 14rem;
+  max-width: calc(100vw - 3rem);
   padding: 0.6rem 0;
   background: var(--paper);
   border: 4px solid var(--ink);
@@ -431,13 +454,6 @@ main.panel {
   background: var(--paper);
   border: 4px solid var(--ink);
   box-shadow: 8px 8px 0 var(--shadow);
-}
-
-@media (max-width: 720px) {
-  main.panel {
-    margin: 0.6rem 0.5rem 2rem;
-    padding: 1rem;
-  }
 }
 
 footer.site {
@@ -685,7 +701,7 @@ section.nes-container > :last-child {
   top: calc(100% + 0.6rem);
   z-index: 10;
   width: 22rem;
-  max-width: 90vw;
+  max-width: calc(100vw - 3rem);
   margin: 0;
   padding: 0.6rem 0.9rem;
   list-style: none;
@@ -758,6 +774,12 @@ section.nes-container > :last-child {
   opacity: 0.45;
 }
 
+.flair-picker .locked::after {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
 /* Tooltips: any element with a data-tip shows it above itself on hover, on
    keyboard focus, or after a tap, which toggles it. */
 [data-tip] {
@@ -773,7 +795,7 @@ section.nes-container > :last-child {
   z-index: 10;
   display: none;
   width: max-content;
-  max-width: 16rem;
+  max-width: min(16rem, calc(100vw - 3rem));
   padding: 0.4rem 0.7rem;
   font-family: var(--body);
   font-size: 0.95rem;
@@ -800,7 +822,7 @@ ul.cards {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
   gap: 1.25rem;
 }
 
@@ -866,7 +888,7 @@ li.card img.badge {
 }
 
 ul.cards.featured {
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
 }
 
 ul.cards.featured li.card .cover {
@@ -933,7 +955,7 @@ li.card .cardlink {
 /* Quick post form on the community page: fields in a row on wide screens. */
 form.post .post-fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 0 1rem;
 }
 
@@ -1028,16 +1050,16 @@ details.report form {
 
 ul.thumbs {
   list-style: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr));
   gap: 0.75rem;
-  flex-wrap: wrap;
   margin: 0 0 1rem;
   padding: 0;
 }
 
 ul.thumbs img {
   display: block;
-  width: 140px;
+  width: 100%;
   height: 100px;
   object-fit: cover;
   border: 4px solid var(--ink);
@@ -1060,6 +1082,7 @@ ul.thumbs img {
 ul.thumbs .thumb-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.6rem;
   margin-top: 0.3rem;
   font-size: 0.9rem;
@@ -1127,7 +1150,7 @@ ol.donors li::before {
   font-family: var(--display);
   font-size: 0.7rem;
   min-width: 1.6rem;
-  color: var(--roundel-blue);
+  color: var(--blue);
 }
 
 ol.donors strong {
@@ -1289,6 +1312,14 @@ form.wide {
   font-size: 1.05rem;
   color: var(--ink);
   background: #fffdf7;
+}
+
+/* A file picker and a date box carry their own idea of how wide they are,
+   which on a phone is wider than the field holding them. */
+.nes-input,
+.nes-textarea,
+input[type="file"] {
+  max-width: 100%;
 }
 
 .nes-select select {
@@ -1641,7 +1672,10 @@ body.viewing {
 
 .viewer img {
   max-width: 100%;
+  /* The second line is the same measure against the screen a phone actually
+     leaves for the page, once its own bars are counted. */
   max-height: calc(100vh - 6rem);
+  max-height: calc(100dvh - 6rem);
   border: 4px solid var(--paper);
   background: var(--ink);
 }
@@ -1667,18 +1701,111 @@ body.viewing {
   .busy .runway {
     max-width: 110px;
   }
+}
 
-  ul.thumbs .thumb-actions {
-    flex-wrap: wrap;
+/* Phones. The display font is wide and the panels nest, so headings and nav
+   step down a size, the panels give back some side padding, and anything
+   that was sharing a line with three other things takes a line of its own.
+   Pixel art keeps the size it was drawn at: scaled by anything but a whole
+   number it smears. */
+@media (max-width: 600px) {
+  h1 {
+    font-size: 1rem;
+  }
+
+  .lede {
+    font-size: 1.15rem;
+  }
+
+  header.site {
+    padding: 0.8rem 0.25rem 0.5rem;
+  }
+
+  header.site nav {
+    font-size: 0.6rem;
+  }
+
+  footer.site {
+    padding: 2rem 0.25rem 2.5rem;
+  }
+
+  main.panel {
+    padding: 1rem 0.8rem 1.5rem;
+  }
+
+  section.nes-container {
+    margin-top: 1.5rem;
+    padding: 1.5rem 0.8rem 1rem;
+  }
+
+  .menu summary .name {
+    max-width: 8ch;
+  }
+
+  /* The title keeps its line; the buttons take the next one. */
+  .page-head .actions {
+    flex: 1 1 100%;
+  }
+
+  /* Bench head: picture and name together, friend buttons under them. */
+  .bench-head .avatar {
+    width: 56px;
+    height: 56px;
+  }
+
+  .bench-head .actions,
+  .bench-head > .meta {
+    flex: 1 1 100%;
+  }
+
+  /* List rows: name and tags, then the details, then the buttons. */
+  ul.rows .meta,
+  ol.rows .meta {
+    flex: 1 1 100%;
+  }
+
+  /* A field squeezed to a third of a phone cannot be typed into. */
+  form.inline-fields .nes-field {
+    flex: 1 1 100%;
+  }
+
+  /* One column of cards, so the cover has the whole width to itself. */
+  ul.cards.featured li.card .cover {
+    height: 170px;
+  }
+
+  /* Nothing is raised when the podium is a single column. */
+  .podium .place-1 .cover {
+    height: 120px;
+  }
+
+  .filters .past {
+    margin-left: 0;
   }
 }
 
 @media (max-width: 420px) {
+  h1 {
+    font-size: 0.9rem;
+  }
+
   .votes {
     gap: 0.5rem;
   }
 
   .viewer {
     padding: 0.5rem;
+  }
+
+  /* A toast across the top, rather than a narrow box in the corner. */
+  .toast {
+    top: 0.5rem;
+    left: 0.5rem;
+    right: 0.5rem;
+    max-width: none;
+  }
+
+  ul.thumbs img {
+    height: 80px;
   }
 }
