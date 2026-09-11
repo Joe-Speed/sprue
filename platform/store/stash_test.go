@@ -120,6 +120,18 @@ func TestGoalAndNudges(t *testing.T) {
 	if done, _ := s.FinishedSince(alice.ID, user.GoalSetAt); done != 1 {
 		t.Fatalf("finished since goal: %d", done)
 	}
+	// Changing a running goal keeps the day it started, so the kit already
+	// finished still counts towards it.
+	if err := s.SetGoal(alice.ID, 4, "2030-02-01"); err != nil {
+		t.Fatal(err)
+	}
+	changed, _ := s.UserBySlug(alice.Slug)
+	if changed.GoalCount != 4 || changed.GoalBy != "2030-02-01" || changed.GoalSetAt != user.GoalSetAt {
+		t.Fatalf("changed goal lost its start: %+v", changed)
+	}
+	if done, _ := s.FinishedSince(alice.ID, changed.GoalSetAt); done != 1 {
+		t.Fatalf("progress lost when the goal changed: %d", done)
+	}
 	if err := s.SetGoal(alice.ID, 0, ""); err != nil {
 		t.Fatal(err)
 	}

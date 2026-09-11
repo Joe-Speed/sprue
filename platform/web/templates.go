@@ -52,6 +52,7 @@ func parseTemplates() (map[string]*template.Template, error) {
 		"static":       staticPath,
 		"markPath":     markPath,
 		"flairPath":    flairPath,
+		"avatarPath":   avatarPath,
 		"flairs":       func() []string { return flairs },
 		"trophyFlairs": func() []string { return trophyFlairs[1:] },
 		"trophyPlace":  trophyPlace,
@@ -59,6 +60,9 @@ func parseTemplates() (map[string]*template.Template, error) {
 		"card":         newCardView,
 		"under":        under,
 		"niceDate":     niceDate,
+		"niceTime":     niceTime,
+		"today":        today,
+		"inc":          func(n int) int { return n + 1 },
 		"monthYear":    monthYear,
 		"daysSince":    daysSince,
 		"money":        money,
@@ -84,11 +88,18 @@ func parseTemplates() (map[string]*template.Template, error) {
 // kitBrands and kitScales are offered on the build form. They are
 // suggestions, not a closed list: anything may still be typed.
 var kitBrands = []string{
-	"Airfix", "Tamiya", "Revell", "Eduard", "Hasegawa", "Italeri", "Academy",
-	"Zvezda", "ICM", "Trumpeter", "Dragon", "Bandai",
+	"Academy", "AFV Club", "Airfix", "Arma Hobby", "Bandai", "Border Model",
+	"Dragon", "Eduard", "Hasegawa", "Heller", "Hobby Boss", "ICM", "Italeri",
+	"Meng", "MiniArt", "Monogram", "Revell", "Rye Field Model",
+	"Special Hobby", "Takom", "Tamiya", "Trumpeter", "Zvezda",
 }
 
-var kitScales = []string{"1/24", "1/32", "1/35", "1/48", "1/72", "1/144", "1/350"}
+// Largest first, the way a modeller reads them: cars and bikes, armour and
+// figures, aircraft, then airliners and ships.
+var kitScales = []string{
+	"1/12", "1/16", "1/20", "1/24", "1/32", "1/35", "1/48", "1/72",
+	"1/100", "1/144", "1/200", "1/350", "1/700",
+}
 
 // maxMeterBlocks is the width of a pixel vote meter, in blocks.
 const maxMeterBlocks = 12
@@ -151,6 +162,21 @@ func niceDate(value string) string {
 		return t.Format("2 Jan 2006")
 	}
 	return value
+}
+
+// niceTime shows the day and the hour, for journal entries where several
+// can land on one day.
+func niceTime(value string) string {
+	if t, ok := parseStoredDate(value); ok {
+		return t.UTC().Format("2 Jan 2006, 15:04")
+	}
+	return value
+}
+
+// today is the date a date field should not look past, such as the day a
+// build was finished.
+func today() string {
+	return time.Now().UTC().Format("2006-01-02")
 }
 
 func daysSince(value string) int {

@@ -95,6 +95,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("GET /settings", s.handleSettingsPage)
 	mux.HandleFunc("POST /settings", s.handleSettingsSave)
+	mux.HandleFunc("POST /settings/reminders", s.handleRemindersSave)
 	mux.HandleFunc("POST /settings/avatar", s.handleAvatarUpload)
 	mux.HandleFunc("POST /settings/avatar/remove", s.handleAvatarRemove)
 	mux.HandleFunc("GET /avatars/{name}", s.handleAvatar)

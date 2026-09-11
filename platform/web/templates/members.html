@@ -6,7 +6,8 @@
 </form>
 <section class="nes-container with-title">
 <h2 class="title">{{if .Data.Query}}Matching "{{.Data.Query}}"{{else}}Newest members{{end}}</h2>
-{{if not .Data.Members}}<p class="quiet">{{if .Data.Query}}Nobody by that name. Try part of a name instead of all of it.{{else}}No members yet.{{end}}</p>{{end}}
+{{if not .Data.Members}}<p class="quiet">{{if .Data.Query}}Nobody by that name. Try part of a name instead of all of it.{{else}}No members yet.{{end}}</p>
+{{else}}<p class="meta">{{len .Data.Members}} member{{if ne (len .Data.Members) 1}}s{{end}}{{if .Data.Capped}}, as many as one search shows. Narrow it with a name.{{end}}</p>{{end}}
 <ul class="rows">
 {{range .Data.Members}}{{template "member_row" .}}{{end}}
 </ul>

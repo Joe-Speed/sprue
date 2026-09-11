@@ -479,10 +479,11 @@ document.querySelectorAll("form").forEach(function (form) {
   });
 });
 
-// A photo opens full size. Escape or a click anywhere closes it, and the
-// button that opened it takes the focus back.
+// A photo opens full size, with a way through the rest of the build's
+// pictures. Escape or a click on the backdrop closes it, the arrow keys
+// step through, and the button that opened it takes the focus back.
 function photoViewer() {
-  var shots = document.querySelectorAll(".gallery .shot");
+  var shots = Array.prototype.slice.call(document.querySelectorAll(".gallery .shot"));
   if (shots.length === 0) {
     return;
   }
@@ -491,14 +492,49 @@ function photoViewer() {
   frame.hidden = true;
   var full = document.createElement("img");
   full.alt = "";
+  var bar = document.createElement("p");
+  bar.className = "viewer-bar";
+  var back = document.createElement("button");
+  back.type = "button";
+  back.className = "nes-btn step";
+  back.textContent = "\u2190";
+  back.title = "Previous photo";
+  var on = document.createElement("button");
+  on.type = "button";
+  on.className = "nes-btn step";
+  on.textContent = "\u2192";
+  on.title = "Next photo";
+  var count = document.createElement("span");
+  count.className = "count";
   var close = document.createElement("button");
   close.type = "button";
   close.className = "nes-btn close";
   close.textContent = "Close";
-  frame.append(full, close);
+  if (shots.length > 1) {
+    bar.append(back, count, on);
+  }
+  bar.appendChild(close);
+  frame.append(full, bar);
   document.body.appendChild(frame);
 
   var opener = null;
+  var at = 0;
+  var show = function (index) {
+    if (index < 0 || index >= shots.length) {
+      return;
+    }
+    var image = shots[index].querySelector("img");
+    if (!image) {
+      return;
+    }
+    at = index;
+    opener = shots[index];
+    full.src = image.src;
+    full.alt = image.alt;
+    count.textContent = (index + 1) + " of " + shots.length;
+    back.disabled = index === 0;
+    on.disabled = index === shots.length - 1;
+  };
   var shut = function () {
     frame.hidden = true;
     full.removeAttribute("src");
@@ -508,21 +544,32 @@ function photoViewer() {
       opener = null;
     }
   };
+  // The backdrop closes. The controls sit inside it, so they keep their
+  // clicks to themselves.
   frame.addEventListener("click", shut);
+  [back, on, count, close].forEach(function (control) {
+    control.addEventListener("click", function (event) {
+      event.stopPropagation();
+    });
+  });
+  close.addEventListener("click", shut);
+  back.addEventListener("click", function () { show(at - 1); });
+  on.addEventListener("click", function () { show(at + 1); });
   document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape" && !frame.hidden) {
+    if (frame.hidden) {
+      return;
+    }
+    if (event.key === "Escape") {
       shut();
+    } else if (event.key === "ArrowLeft") {
+      show(at - 1);
+    } else if (event.key === "ArrowRight") {
+      show(at + 1);
     }
   });
-  shots.forEach(function (shot) {
+  shots.forEach(function (shot, index) {
     shot.addEventListener("click", function () {
-      var image = shot.querySelector("img");
-      if (!image) {
-        return;
-      }
-      opener = shot;
-      full.src = image.src;
-      full.alt = image.alt;
+      show(index);
       frame.hidden = false;
       document.body.classList.add("viewing");
       close.focus();
@@ -531,3 +578,261 @@ function photoViewer() {
 }
 
 photoViewer();
+
+// A browser draws its own list for a <select> and for the suggestions
+// behind a <datalist>, in the style of Windows, macOS or the phone, and no
+// stylesheet can reach inside it. Both are replaced here with a list the
+// site draws itself, so the pixel look holds everywhere. Without
+// JavaScript the plain control is still there and still works.
+var maxOptionsDrawn = 60;
+var maxSuggestionsDrawn = 8;
+var dropCount = 0;
+
+// dropList makes the empty popup both widgets share.
+function dropList(owner) {
+  var list = document.createElement("ul");
+  list.className = "droplist";
+  list.id = "droplist-" + owner;
+  list.setAttribute("role", "listbox");
+  list.hidden = true;
+  return list;
+}
+
+// dropOption makes one line in a popup.
+function dropOption(text, owner, index) {
+  var option = document.createElement("li");
+  option.className = "dropoption";
+  option.id = "dropoption-" + owner + "-" + index;
+  option.setAttribute("role", "option");
+  option.setAttribute("aria-selected", "false");
+  option.textContent = text;
+  return option;
+}
+
+// markChoice moves the highlight to one line and brings it into view.
+function markChoice(list, at) {
+  var options = list.querySelectorAll(".dropoption");
+  for (var i = 0; i < options.length; i++) {
+    var chosen = i === at;
+    options[i].setAttribute("aria-selected", chosen ? "true" : "false");
+    options[i].classList.toggle("on", chosen);
+    if (chosen && options[i].scrollIntoView) {
+      options[i].scrollIntoView({ block: "nearest" });
+    }
+  }
+}
+
+// stepBy works out the line an arrow key lands on, staying inside the list.
+function stepBy(at, way, count) {
+  if (count === 0) {
+    return -1;
+  }
+  if (at < 0) {
+    return way > 0 ? 0 : count - 1;
+  }
+  var next = at + way;
+  if (next < 0) {
+    return 0;
+  }
+  if (next >= count) {
+    return count - 1;
+  }
+  return next;
+}
+
+// pixelSelect draws a list in front of a select. The select itself stays
+// in the form, hidden, so it is still what gets posted.
+function pixelSelect(select) {
+  if (select.multiple || select.options.length === 0) {
+    return;
+  }
+  var owner = "s" + dropCount++;
+  var shell = document.createElement("div");
+  shell.className = "drop";
+  var button = document.createElement("button");
+  button.type = "button";
+  button.className = "nes-btn droptoggle";
+  button.setAttribute("aria-haspopup", "listbox");
+  button.setAttribute("aria-expanded", "false");
+  var label = document.createElement("span");
+  label.className = "dropvalue";
+  label.textContent = select.options[select.selectedIndex].text;
+  button.appendChild(label);
+  var list = dropList(owner);
+  button.setAttribute("aria-controls", list.id);
+  var at = select.selectedIndex;
+  var options = Array.prototype.slice.call(select.options, 0, maxOptionsDrawn);
+
+  var open = function (show) {
+    list.hidden = !show;
+    button.setAttribute("aria-expanded", show ? "true" : "false");
+    if (show) {
+      markChoice(list, at);
+    }
+  };
+  var choose = function (index) {
+    if (index < 0 || index >= options.length) {
+      return;
+    }
+    at = index;
+    select.selectedIndex = index;
+    label.textContent = options[index].text;
+    markChoice(list, at);
+    open(false);
+    button.focus();
+    // Anything watching the select for a change hears it as usual.
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
+  options.forEach(function (option, index) {
+    var line = dropOption(option.text, owner, index);
+    line.addEventListener("click", function () {
+      choose(index);
+    });
+    list.appendChild(line);
+  });
+
+  button.addEventListener("click", function () {
+    open(list.hidden);
+  });
+  button.addEventListener("keydown", function (event) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (list.hidden) {
+        open(true);
+        return;
+      }
+      at = stepBy(at, event.key === "ArrowDown" ? 1 : -1, options.length);
+      markChoice(list, at);
+    } else if (event.key === "Enter" && !list.hidden) {
+      event.preventDefault();
+      choose(at);
+    } else if (event.key === "Escape") {
+      open(false);
+    }
+  });
+  document.addEventListener("click", function (event) {
+    if (!list.hidden && !shell.contains(event.target)) {
+      open(false);
+    }
+  });
+
+  // A select the browser cannot see is a select it refuses to point at
+  // when the form is wrong, and the submit then fails in silence. So the
+  // real control stays where it is, sized down to nothing behind the drawn
+  // one, and its complaint is shown on the button instead. The NES wrapper
+  // draws a box and an arrow of its own, so the whole wrapper goes with it.
+  var native = select.closest(".nes-select") || select;
+  native.parentNode.insertBefore(shell, native);
+  shell.appendChild(button);
+  shell.appendChild(list);
+  shell.appendChild(native);
+  native.classList.add("behind");
+  native.setAttribute("aria-hidden", "true");
+  select.tabIndex = -1;
+  select.addEventListener("invalid", function () {
+    shell.classList.add("bad");
+  });
+  select.addEventListener("change", function () {
+    shell.classList.remove("bad");
+  });
+}
+
+// pixelSuggest offers the values behind a datalist as a drawn list under a
+// text box. Anything may still be typed: the list only saves keystrokes.
+function pixelSuggest(input) {
+  var source = document.getElementById(input.getAttribute("list"));
+  if (!source) {
+    return;
+  }
+  var values = Array.prototype.slice.call(source.options).map(function (option) {
+    return option.value;
+  });
+  if (values.length === 0) {
+    return;
+  }
+  var owner = "g" + dropCount++;
+  var shell = document.createElement("div");
+  shell.className = "drop suggest";
+  var list = dropList(owner);
+  var at = -1;
+  var shown = [];
+
+  var open = function (show) {
+    list.hidden = !show;
+    input.setAttribute("aria-expanded", show ? "true" : "false");
+    if (!show) {
+      at = -1;
+      input.removeAttribute("aria-activedescendant");
+    }
+  };
+  var fill = function (index) {
+    if (index < 0 || index >= shown.length) {
+      return;
+    }
+    input.value = shown[index];
+    open(false);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  var draw = function () {
+    var typed = input.value.trim().toLowerCase();
+    shown = values.filter(function (value) {
+      return typed === "" || value.toLowerCase().indexOf(typed) !== -1;
+    }).slice(0, maxSuggestionsDrawn);
+    list.replaceChildren();
+    shown.forEach(function (value, index) {
+      var line = dropOption(value, owner, index);
+      line.addEventListener("mousedown", function (event) {
+        // Down, not click: the box must not lose focus before the fill.
+        event.preventDefault();
+        fill(index);
+      });
+      list.appendChild(line);
+    });
+    at = -1;
+    open(shown.length > 0);
+  };
+
+  input.addEventListener("input", draw);
+  input.addEventListener("focus", draw);
+  input.addEventListener("blur", function () {
+    open(false);
+  });
+  input.addEventListener("keydown", function (event) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (list.hidden) {
+        draw();
+        return;
+      }
+      event.preventDefault();
+      at = stepBy(at, event.key === "ArrowDown" ? 1 : -1, shown.length);
+      markChoice(list, at);
+      if (at >= 0) {
+        input.setAttribute("aria-activedescendant", "dropoption-" + owner + "-" + at);
+      }
+    } else if (event.key === "Enter" && !list.hidden && at >= 0) {
+      event.preventDefault();
+      fill(at);
+    } else if (event.key === "Escape") {
+      open(false);
+    }
+  });
+
+  input.parentNode.insertBefore(shell, input);
+  shell.appendChild(input);
+  shell.appendChild(list);
+  // The browser's own suggestion popup would sit on top of this one.
+  input.removeAttribute("list");
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-expanded", "false");
+  input.setAttribute("aria-controls", list.id);
+  input.setAttribute("aria-autocomplete", "list");
+  input.setAttribute("autocomplete", "off");
+}
+
+document.querySelectorAll("select").forEach(function (select) {
+  pixelSelect(select);
+});
+document.querySelectorAll("input[list]").forEach(function (input) {
+  pixelSuggest(input);
+});

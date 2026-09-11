@@ -36,7 +36,7 @@
 {{if .User}}
 <a class="nes-btn is-primary" href="/builds/new">Add a build</a>
 <details class="menu">
-<summary>{{if .User.Avatar}}<img class="avatar tiny" src="/avatars/{{.User.Avatar}}" alt="" width="24" height="24">{{end}}<span class="name">{{.User.DisplayName}}</span><img class="flair" src="{{flairPath .User.Flair .User.ID}}" alt="" width="16" height="16">{{if .Requests}} <span class="tag next">{{.Requests}}</span>{{end}}</summary>
+<summary><img class="avatar tiny" src="{{avatarPath .User.Avatar}}" alt="" width="24" height="24"><span class="name">{{.User.DisplayName}}</span><img class="flair" src="{{flairPath .User.Flair .User.ID}}" alt="" width="16" height="16">{{if .Requests}} <span class="tag next">{{.Requests}}</span>{{end}}</summary>
 <div class="menu-list">
 <a href="/builds"{{if eq .Path "/builds"}} aria-current="page"{{end}}>Builds</a>
 <a href="/stash"{{if under .Path "/stash"}} aria-current="page"{{end}}>Stash</a>

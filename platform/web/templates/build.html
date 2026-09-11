@@ -24,7 +24,7 @@
 {{if .Data.Build.Description}}<p>{{.Data.Build.Description}}</p>{{end}}
 {{if .Data.Photos}}
 <div class="gallery">
-{{range .Data.Photos}}<button class="shot" type="button"><img src="/photos/{{$.Data.Build.ID}}/{{.}}" alt="{{$.Data.Build.Title}}" loading="lazy"></button>{{end}}
+{{range $index, $name := .Data.Photos}}<button class="shot" type="button"><img src="/photos/{{$.Data.Build.ID}}/{{$name}}" alt="{{$.Data.Build.Title}}, photo {{inc $index}} of {{len $.Data.Photos}}" loading="lazy"></button>{{end}}
 </div>
 {{else if .Data.IsOwner}}
 <p class="prompt">No photos yet. <a href="/builds/{{.Data.Build.ID}}/edit">Add some.</a></p>

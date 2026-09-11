@@ -12,6 +12,7 @@ import (
 type membersData struct {
 	Query   string
 	Members []store.Member
+	Capped  bool // the search filled the page, so there may be more to find
 }
 
 func (s *Server) handleMembers(w http.ResponseWriter, r *http.Request) {
@@ -21,7 +22,8 @@ func (s *Server) handleMembers(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not search members.")
 		return
 	}
-	s.render(w, r, "members", "Members", membersData{Query: clipMessage(query), Members: members})
+	data := membersData{Query: clipMessage(query), Members: members, Capped: len(members) == store.MaxSearchResults}
+	s.render(w, r, "members", "Members", data)
 }
 
 type friendsData struct {

@@ -54,10 +54,41 @@ func summarise(items []store.StashItem, user store.User, goalDone int, now time.
 	return summary
 }
 
+// stashFilters are the states a stash can be narrowed to. An empty filter
+// shows every kit.
+var stashFilters = []string{"unbuilt", "building", "built"}
+
 type stashData struct {
 	Items    []store.StashItem
 	Summary  stashSummary
 	Tomorrow string
+	Filter   string
+	Filters  []string
+	Page     listPage
+}
+
+// stashFilter keeps only a filter the page offers.
+func stashFilter(wanted string) string {
+	for _, known := range stashFilters {
+		if wanted == known {
+			return wanted
+		}
+	}
+	return ""
+}
+
+// matchingKits narrows a stash to one state.
+func matchingKits(items []store.StashItem, filter string) []store.StashItem {
+	if filter == "" {
+		return items
+	}
+	kept := make([]store.StashItem, 0, len(items))
+	for _, item := range items {
+		if item.Status == filter {
+			kept = append(kept, item)
+		}
+	}
+	return kept
 }
 
 func (s *Server) handleStash(w http.ResponseWriter, r *http.Request) {
@@ -75,7 +106,15 @@ func (s *Server) handleStash(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not load your stash.")
 		return
 	}
-	data := stashData{Items: items, Summary: summary, Tomorrow: time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02")}
+	data := stashData{
+		Summary:  summary,
+		Tomorrow: time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02"),
+		Filter:   stashFilter(r.URL.Query().Get("show")),
+		Filters:  stashFilters,
+	}
+	// The summary counts the whole stash, so it is worked out before the
+	// list is narrowed to one state and cut into pages.
+	data.Items, data.Page = pageOf(matchingKits(items, data.Filter), r, rowsPerPage)
 	s.render(w, r, "stash", "My stash", data)
 }
 

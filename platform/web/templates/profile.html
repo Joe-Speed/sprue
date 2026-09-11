@@ -1,6 +1,6 @@
 {{define "content"}}
 <div class="page-head bench-head">
-{{if .Data.Owner.Avatar}}<img class="avatar" src="/avatars/{{.Data.Owner.Avatar}}" alt="" width="72" height="72">{{end}}
+<img class="avatar" src="{{avatarPath .Data.Owner.Avatar}}" alt="" width="72" height="72">
 <div class="who">
 <h1>{{.Data.Owner.DisplayName}}<img class="flair" src="{{flairPath .Data.Owner.Flair .Data.Owner.ID}}" alt="" width="24" height="24"></h1>
 <p class="meta">{{.Data.BuildCount}} build{{if ne .Data.BuildCount 1}}s{{end}} · joined {{monthYear .Data.Owner.CreatedAt}}</p>
@@ -45,5 +45,6 @@
 <ul class="cards">
 {{range .Data.Builds}}<li class="card">{{template "build_card_body" (card . false)}}{{if $.Data.IsSelf}}<a class="cardlink" href="/builds/{{.ID}}/edit">Edit</a>{{end}}</li>{{end}}
 </ul>
+{{template "pager" .Data.Page}}
 </section>
 {{end}}

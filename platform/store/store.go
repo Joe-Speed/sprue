@@ -701,6 +701,33 @@ func (s *Store) RecentBuilds(beforeID int64, limit int) ([]Build, error) {
 	return s.scanBuilds(rows)
 }
 
+// NewerBuilds pages back up the feed. It returns the builds immediately
+// newer than the given ID, newest first, so a reader who has paged down can
+// climb back one page at a time.
+func (s *Store) NewerBuilds(afterID int64, limit int) ([]Build, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 24
+	}
+	if afterID <= 0 {
+		return nil, nil
+	}
+	rows, err := s.db.Query(`select `+buildColumns+` from builds b join users u on u.id = b.user_id
+		where b.id > ? and b.private = 0 and b.hidden = 0 order by b.id asc limit ?`, afterID, limit)
+	if err != nil {
+		return nil, err
+	}
+	builds, err := s.scanBuilds(rows)
+	if err != nil {
+		return nil, err
+	}
+	// The query climbs towards the newest, and every list on the site reads
+	// newest first, so the page is turned over before it goes out.
+	for front, back := 0, len(builds)-1; front < back; front, back = front+1, back-1 {
+		builds[front], builds[back] = builds[back], builds[front]
+	}
+	return builds, nil
+}
+
 type SitemapBuild struct {
 	ID        int64
 	CreatedAt string
@@ -743,6 +770,26 @@ func (s *Store) UserSlugs(limit int) ([]string, error) {
 }
 
 // BuildHasEntries reports whether a build has ever entered a competition.
+// BuildsWithEntries lists which of a member's builds are already in a
+// competition, so the entry picker can say so before they pick one.
+func (s *Store) BuildsWithEntries(userID int64) (map[int64]bool, error) {
+	rows, err := s.db.Query(`select distinct e.build_id from entries e
+		join builds b on b.id = e.build_id where b.user_id = ? limit ?`, userID, MaxBuildsPerUser)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	entered := make(map[int64]bool)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		entered[id] = true
+	}
+	return entered, rows.Err()
+}
+
 func (s *Store) BuildHasEntries(id int64) (bool, error) {
 	var entries int
 	if err := s.db.QueryRow(`select count(*) from entries where build_id = ?`, id).Scan(&entries); err != nil {

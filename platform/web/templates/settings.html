@@ -17,11 +17,11 @@
 {{range flairs}}<label><input type="radio" name="flair" value="{{.}}"{{if eq (flairPath $.Data.Flair $.Data.ID) (flairPath . 0)}} checked{{end}}><img class="flair" src="{{flairPath . 0}}" alt="{{.}}" width="32" height="32"></label>{{end}}
 {{range trophyFlairs}}{{if index $.Data.Won (trophyPlace .)}}<label><input type="radio" name="flair" value="{{.}}"{{if eq $.Data.Flair .}} checked{{end}}><img class="flair" src="{{flairPath . 0}}" alt="{{.}}" width="32" height="32"></label>{{else}}<span class="locked" data-tip="Place {{placeName (trophyPlace .) | lower}} in a competition to unlock" tabindex="0"><img class="flair" src="{{flairPath . 0}}" alt="" width="32" height="32"></span>{{end}}{{end}}
 </div></div>
-<button class="nes-btn is-primary" type="submit">Save</button>
+<button class="nes-btn is-primary" type="submit">Save profile</button>
 </form>
 <form class="avatar-form" method="post" action="/settings/avatar" enctype="multipart/form-data">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
-{{if .Data.Avatar}}<img class="avatar" src="/avatars/{{.Data.Avatar}}" alt="" width="96" height="96">{{end}}
+<img class="avatar" src="{{avatarPath .Data.Avatar}}" alt="" width="96" height="96">
 <div class="nes-field"><label for="avatar">Profile picture</label><input id="avatar" type="file" name="avatar" accept="image/jpeg,image/png,image/gif" required>
 <p class="meta">Cropped to a square. Shown on your profile and in member lists.</p></div>
 <button class="nes-btn" type="submit">Upload</button>
@@ -30,11 +30,8 @@
 </section>
 <section class="nes-container with-title">
 <h2 class="title">Reminders</h2>
-<form method="post" action="/settings">
+<form method="post" action="/settings/reminders">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
-<input type="hidden" name="display_name" value="{{.Data.DisplayName}}">
-<input type="hidden" name="flair" value="{{.Data.Flair}}">
-<input type="hidden" name="bio" value="{{.Data.Bio}}">
 <div class="nes-field"><label for="nudge">Stash reminders by email</label>
 <div class="nes-select"><select id="nudge" name="nudge">
 <option value="off"{{if eq .Data.Nudge "off"}} selected{{end}}>off</option>
@@ -42,7 +39,7 @@
 <option value="monthly"{{if eq .Data.Nudge "monthly"}} selected{{end}}>monthly</option>
 </select></div>
 <p class="meta">A short email about your unbuilt kits and your goal. Nothing else is sent.</p></div>
-<button class="nes-btn is-primary" type="submit">Save</button>
+<button class="nes-btn is-primary" type="submit">Save reminders</button>
 </form>
 </section>
 {{end}}

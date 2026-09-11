@@ -645,6 +645,47 @@ func TestRecentBuildsPaging(t *testing.T) {
 	}
 }
 
+func TestNewerBuildsClimbsBackUp(t *testing.T) {
+	s := testStore(t)
+	user := testUser(t, s, "climb@example.com")
+	for i := 0; i < 5; i++ {
+		testBuild(t, s, user.ID, "Build")
+	}
+	// Standing on the page holding builds 2 and 1, the page above holds 4
+	// and 3, newest first.
+	back, err := s.NewerBuilds(2, 2)
+	if err != nil || len(back) != 2 || back[0].ID != 4 || back[1].ID != 3 {
+		t.Fatalf("page above: %v %v", back, err)
+	}
+	// Asking for more than is left stops at the newest build.
+	top, err := s.NewerBuilds(3, 5)
+	if err != nil || len(top) != 2 || top[0].ID != 5 || top[1].ID != 4 {
+		t.Fatalf("top page: %v %v", top, err)
+	}
+	none, err := s.NewerBuilds(5, 5)
+	if err != nil || len(none) != 0 {
+		t.Fatalf("nothing newer than the newest: %v %v", none, err)
+	}
+}
+
+func TestBuildsWithEntries(t *testing.T) {
+	s := testStore(t)
+	user := testUser(t, s, "entered@example.com")
+	inComp := testBuild(t, s, user.ID, "Entered")
+	spare := testBuild(t, s, user.ID, "Spare")
+	comp := testCompetition(t, s, user.ID, "Summer sprint")
+	if err := s.EnterCompetition(comp.ID, inComp, user.ID); err != nil {
+		t.Fatal(err)
+	}
+	entered, err := s.BuildsWithEntries(user.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !entered[inComp] || entered[spare] {
+		t.Fatalf("wrong builds marked as entered: %v", entered)
+	}
+}
+
 func TestSweep(t *testing.T) {
 	s := testStore(t)
 	user := testUser(t, s, "sweep@example.com")

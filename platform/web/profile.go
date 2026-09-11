@@ -76,6 +76,15 @@ func (s *Server) wonPlaces(userID int64) ([4]bool, error) {
 	return won, nil
 }
 
+// avatarPath is a member's picture, or the pixel stand-in for those who
+// have not added one, so lists line up whether or not there is a photo.
+func avatarPath(fileName string) string {
+	if fileName == "" {
+		return staticPath("avatar-default.svg")
+	}
+	return "/avatars/" + fileName
+}
+
 func (s *Server) avatarDir() string {
 	return filepath.Join(s.config.DataDir, "avatars")
 }

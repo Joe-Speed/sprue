@@ -243,11 +243,18 @@ func (s *Server) handleCompetitionCreate(w http.ResponseWriter, r *http.Request)
 	flashRedirect(w, r, "/competitions/"+created.Slug, "Competition created. Entries are open.", "")
 }
 
+// buildChoice is one of a member's builds offered to a competition, with a
+// note of whether it is in another competition already.
+type buildChoice struct {
+	Build   store.Build
+	Entered bool
+}
+
 type competitionData struct {
 	Competition store.Competition
 	Entries     []store.Entry
 	Trophies    []store.Trophy
-	MyBuilds    []store.Build
+	MyBuilds    []buildChoice
 	CanEnter    bool
 	CanVote     bool
 	HasVoted    bool
@@ -308,9 +315,13 @@ func (s *Server) fillViewerState(data *competitionData, user store.User) {
 			if err != nil {
 				return
 			}
+			elsewhere, err := s.store.BuildsWithEntries(user.ID)
+			if err != nil {
+				return
+			}
 			for _, build := range builds {
 				if !build.Private && !build.Hidden {
-					data.MyBuilds = append(data.MyBuilds, build)
+					data.MyBuilds = append(data.MyBuilds, buildChoice{Build: build, Entered: elsewhere[build.ID]})
 				}
 			}
 			data.CanEnter = len(data.MyBuilds) > 0

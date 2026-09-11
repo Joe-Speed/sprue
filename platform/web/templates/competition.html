@@ -19,10 +19,13 @@
 <h2 class="title">Enter</h2>
 <form method="post" action="/competitions/{{.Data.Competition.Slug}}/enter">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
-<div class="nes-field"><label for="build">Pick one of your builds</label>
-<div class="nes-select"><select id="build" name="build">
-{{range .Data.MyBuilds}}<option value="{{.ID}}">{{.Title}} ({{.Kit}})</option>{{end}}
-</select></div></div>
+<div class="nes-field"><span class="label">Pick one of your builds</span>
+<ul class="picker">
+{{range $index, $choice := .Data.MyBuilds}}<li><label class="choice">
+<input class="nes-radio" type="radio" name="build" value="{{$choice.Build.ID}}"{{if eq $index 0}} checked{{end}}>
+<span>{{if $choice.Build.CoverPhoto}}<img class="thumb" src="/photos/{{$choice.Build.ID}}/{{$choice.Build.CoverPhoto}}" alt="" width="64" height="48" loading="lazy">{{end}}<strong>{{$choice.Build.Title}}</strong><span class="meta">{{$choice.Build.Kit}}{{if $choice.Entered}} · already in a competition{{end}}</span></span>
+</label></li>{{end}}
+</ul></div>
 <div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="confirm" required><span>This build meets the brief above.</span></label></div>
 <button class="nes-btn is-primary" type="submit">Enter</button>
 </form>

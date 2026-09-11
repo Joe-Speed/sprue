@@ -1,10 +1,12 @@
 {{define "content"}}
 <h1><img class="icon" src="{{static "icon-heart.svg"}}" alt="" width="24" height="24">Likes</h1>
 <p>Builds you have liked, most recent first. A build that has since been made private or hidden is not shown.</p>
-{{if .Data}}
+{{if .Data.Builds}}
+<p class="meta">{{.Data.Page.Total}} build{{if ne .Data.Page.Total 1}}s{{end}} liked.</p>
 <ul class="cards">
-{{range .Data}}{{template "build_card" (card . true)}}{{end}}
+{{range .Data.Builds}}{{template "build_card" (card . true)}}{{end}}
 </ul>
+{{template "pager" .Data.Page}}
 {{else}}
 <p class="prompt">Nothing yet. Open a build you admire and press like.</p>
 {{end}}

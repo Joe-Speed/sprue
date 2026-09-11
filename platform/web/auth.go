@@ -220,11 +220,22 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if nudge := r.FormValue("nudge"); nudge != "" && nudge != user.Nudge {
+	flashRedirect(w, r, "/settings", "Profile saved.", "")
+}
+
+// handleRemindersSave takes the stash reminder setting on its own, so
+// saving it never touches the profile fields above it on the page.
+func (s *Server) handleRemindersSave(w http.ResponseWriter, r *http.Request) {
+	user, ok := s.requireUser(w, r)
+	if !ok {
+		return
+	}
+	nudge := r.FormValue("nudge")
+	if nudge != user.Nudge {
 		if err := s.store.SetNudge(user.ID, nudge); err != nil {
 			flashRedirect(w, r, "/settings", "", "Pick off, weekly, or monthly for reminders.")
 			return
 		}
 	}
-	flashRedirect(w, r, "/settings", "Saved.", "")
+	flashRedirect(w, r, "/settings", "Reminders saved.", "")
 }

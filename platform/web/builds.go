@@ -24,21 +24,34 @@ const homePageSize = 24
 type homeData struct {
 	Featured []store.Build // most voted in the featured window, shown on the first page only
 	Builds   []store.Build
-	Older    int64 // ID to page from, zero when this is the last page
+	Older    int64 // ID to page down from, zero when this is the last page
+	Newer    int64 // ID to page up from, zero when nothing newer is left
+	Paged    bool  // the reader has moved off the first page
 }
 
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 	before := parseID(r.URL.Query().Get("before"))
-	builds, err := s.store.RecentBuilds(before, homePageSize)
+	after := parseID(r.URL.Query().Get("after"))
+	data := homeData{Paged: before > 0 || after > 0}
+	var err error
+	if after > 0 {
+		data.Builds, data.Newer, err = s.newerPage(after)
+	} else {
+		data.Builds, err = s.store.RecentBuilds(before, homePageSize)
+		if err == nil && before > 0 && len(data.Builds) > 0 {
+			data.Newer = data.Builds[0].ID
+		}
+	}
 	if err != nil {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not load the community page.")
 		return
 	}
-	data := homeData{Builds: builds}
-	if len(builds) == homePageSize {
-		data.Older = builds[len(builds)-1].ID
+	// Paging down needs a full page to be sure there is more below. Coming
+	// back up, the page below is the one the reader just left.
+	if len(data.Builds) > 0 && (len(data.Builds) == homePageSize || after > 0) {
+		data.Older = data.Builds[len(data.Builds)-1].ID
 	}
-	if before == 0 {
+	if !data.Paged {
 		since := time.Now().Add(-store.FeaturedWindowDays * 24 * time.Hour)
 		data.Featured, err = s.store.FeaturedBuilds(since, store.MaxFeatured)
 		if err != nil {
@@ -49,6 +62,20 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "home", "The community", data)
 }
 
+// newerPage returns the page of builds immediately newer than an ID, and the
+// ID to climb another page from when one is there. It asks for one more
+// build than a page holds: if that one comes back, a page sits above this.
+func (s *Server) newerPage(after int64) ([]store.Build, int64, error) {
+	builds, err := s.store.NewerBuilds(after, homePageSize+1)
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(builds) <= homePageSize {
+		return builds, 0, nil
+	}
+	return builds[1:], builds[1].ID, nil
+}
+
 type profileData struct {
 	Owner      store.User
 	Builds     []store.Build
@@ -57,6 +84,7 @@ type profileData struct {
 	BuildCount int
 	IsSelf     bool
 	Friendship string // viewer's standing with the owner, empty when none or signed out
+	Page       listPage
 }
 
 func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
@@ -97,8 +125,21 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 			data.Builds = append(data.Builds, build)
 		}
 	}
+	data.Builds, data.Page = pageOf(data.Builds, r, cardsPerPage)
 	description := fmt.Sprintf("%d build%s by %s on sprue.", data.BuildCount, plural(data.BuildCount), owner.DisplayName)
 	s.renderMeta(w, r, http.StatusOK, "profile", owner.DisplayName, data, meta{Description: description})
+}
+
+// buildFilters are the states a member can narrow their own builds to. An
+// empty filter shows everything.
+var buildFilters = []string{"public", "private", "hidden"}
+
+type myBuildsData struct {
+	Builds    []store.Build
+	Filter    string
+	Filters   []string
+	AnyHidden bool // a hidden build exists, so the filter for it is worth showing
+	Page      listPage
 }
 
 // handleMyBuilds lists everything the member has added, whatever its state,
@@ -113,7 +154,50 @@ func (s *Server) handleMyBuilds(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not load your builds.")
 		return
 	}
-	s.render(w, r, "builds", "My builds", builds)
+	data := myBuildsData{Filter: buildFilter(r.URL.Query().Get("show")), Filters: buildFilters}
+	for _, build := range builds {
+		if build.Hidden {
+			data.AnyHidden = true
+			break
+		}
+	}
+	data.Builds, data.Page = pageOf(matchingBuilds(builds, data.Filter), r, cardsPerPage)
+	s.render(w, r, "builds", "My builds", data)
+}
+
+// buildFilter keeps only a filter the page offers.
+func buildFilter(wanted string) string {
+	for _, known := range buildFilters {
+		if wanted == known {
+			return wanted
+		}
+	}
+	return ""
+}
+
+// matchingBuilds narrows a member's own builds to one state.
+func matchingBuilds(builds []store.Build, filter string) []store.Build {
+	if filter == "" {
+		return builds
+	}
+	kept := make([]store.Build, 0, len(builds))
+	for _, build := range builds {
+		switch filter {
+		case "public":
+			if !build.Private && !build.Hidden {
+				kept = append(kept, build)
+			}
+		case "private":
+			if build.Private {
+				kept = append(kept, build)
+			}
+		case "hidden":
+			if build.Hidden {
+				kept = append(kept, build)
+			}
+		}
+	}
+	return kept
 }
 
 type buildFormData struct {
@@ -372,6 +456,11 @@ func (s *Server) handleBuildLike(w http.ResponseWriter, r *http.Request) {
 	flashRedirect(w, r, page, "Liked.", "")
 }
 
+type likesData struct {
+	Builds []store.Build
+	Page   listPage
+}
+
 // handleLikes lists the builds a member has liked, newest first.
 func (s *Server) handleLikes(w http.ResponseWriter, r *http.Request) {
 	user, ok := s.requireUser(w, r)
@@ -383,7 +472,9 @@ func (s *Server) handleLikes(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not load your likes.")
 		return
 	}
-	s.render(w, r, "likes", "Likes", builds)
+	var data likesData
+	data.Builds, data.Page = pageOf(builds, r, cardsPerPage)
+	s.render(w, r, "likes", "Likes", data)
 }
 
 // maxPhotosPerUpload bounds one request. A build holds MaxPhotosPerBuild

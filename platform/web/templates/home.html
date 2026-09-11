@@ -34,6 +34,10 @@
 <ul class="cards">
 {{range .Data.Builds}}{{template "build_card" (card . true)}}{{end}}
 </ul>
-{{if .Data.Older}}<p class="pager"><a class="nes-btn" href="/?before={{.Data.Older}}">Older builds</a></p>{{end}}
+{{if or .Data.Older .Data.Newer .Data.Paged}}<nav class="pager" aria-label="Pages">
+{{if .Data.Newer}}<a class="nes-btn" href="/?after={{.Data.Newer}}">Newer builds</a>{{end}}
+{{if .Data.Paged}}<a class="nes-btn" href="/">Latest</a>{{end}}
+{{if .Data.Older}}<a class="nes-btn" href="/?before={{.Data.Older}}">Older builds</a>{{end}}
+</nav>{{end}}
 </section>
 {{end}}

@@ -18,7 +18,14 @@
 {{if .User.GoalCount}}
 <p>Finish <strong>{{.User.GoalCount}}</strong> by {{niceDate .User.GoalBy}}. <strong>{{.Data.Summary.GoalDone}} done</strong>,
 {{if lt .Data.Summary.GoalDaysLeft 0}}{{printf "%d" (neg .Data.Summary.GoalDaysLeft)}} days past the date.{{else}}{{.Data.Summary.GoalDaysLeft}} days left.{{end}}</p>
-<form method="post" action="/goal"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="count" value="0"><button class="nes-btn" type="submit">Clear goal</button></form>
+<form class="wide inline-fields" method="post" action="/goal">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<div class="nes-field"><label for="goal-count">Kits to finish</label><input class="nes-input" id="goal-count" type="number" name="count" min="1" max="500" value="{{.User.GoalCount}}" required></div>
+<div class="nes-field"><label for="goal-by">By</label><input class="nes-input" id="goal-by" type="date" name="by" value="{{.User.GoalBy}}" required></div>
+<button class="nes-btn is-primary" type="submit">Update goal</button>
+</form>
+<p class="meta">Changing a goal keeps the kits you have already finished towards it.</p>
+<form method="post" action="/goal"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="count" value="0"><button class="linkish danger" type="submit">Clear goal</button></form>
 {{else}}
 <form class="wide inline-fields" method="post" action="/goal">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
@@ -34,15 +41,20 @@
 <form class="wide inline-fields" method="post" action="/stash">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="nes-field"><label for="title">Kit</label><input class="nes-input" id="title" type="text" name="title" required maxlength="200"></div>
-<div class="nes-field"><label for="brand">Brand</label><input class="nes-input" id="brand" type="text" name="brand" maxlength="200"></div>
-<div class="nes-field"><label for="scale">Scale</label><input class="nes-input" id="scale" type="text" name="scale" maxlength="200"></div>
-<div class="nes-field"><label for="cost">Cost</label><input class="nes-input" id="cost" type="text" name="cost" inputmode="decimal" maxlength="12"></div>
+<div class="nes-field"><label for="brand">Brand</label><input class="nes-input" id="brand" type="text" name="brand" maxlength="200" list="kit-brands"></div>
+<div class="nes-field"><label for="scale">Scale</label><input class="nes-input" id="scale" type="text" name="scale" maxlength="200" list="kit-scales"></div>
+<div class="nes-field"><label for="cost">Cost ({{currency}})</label><input class="nes-input" id="cost" type="text" name="cost" inputmode="decimal" maxlength="12"></div>
 <button class="nes-btn is-primary" type="submit">Add</button>
 </form>
 </section>
+<nav class="filters" aria-label="Show">
+<a href="/stash"{{if not .Data.Filter}} aria-current="page"{{end}}>All</a>
+{{range .Data.Filters}}<a href="/stash?show={{.}}"{{if eq . $.Data.Filter}} aria-current="page"{{end}}>{{.}}</a>{{end}}
+</nav>
 <section class="nes-container with-title">
-<h2 class="title">Kits</h2>
-{{if not .Data.Items}}<p class="quiet">Nothing here yet. Add your unbuilt kits above.</p>{{end}}
+<h2 class="title">{{if .Data.Filter}}Showing {{.Data.Filter}}{{else}}Kits{{end}}</h2>
+{{if not .Data.Items}}<p class="quiet">{{if .Data.Filter}}No kits in that state.{{else}}Nothing here yet. Add your unbuilt kits above.{{end}}</p>{{end}}
+{{if .Data.Items}}<p class="meta">{{.Data.Page.Total}} kit{{if ne .Data.Page.Total 1}}s{{end}}.</p>{{end}}
 <ul class="rows">
 {{range .Data.Items}}
 <li>
@@ -51,5 +63,6 @@
 </li>
 {{end}}
 </ul>
+{{template "pager" .Data.Page}}
 </section>
 {{end}}

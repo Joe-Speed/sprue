@@ -257,7 +257,10 @@ func (s *Store) SetGoal(userID int64, count int, by string) error {
 	if _, err := time.Parse(dayLayout, by); err != nil {
 		return ErrBadDates
 	}
-	return s.updateOwned(`update users set goal_count = ?, goal_by = ?, goal_set_at = ? where id = ?`, count, by, now(), userID)
+	// Changing a goal that is already running keeps the day it started, so
+	// kits already finished still count towards it.
+	return s.updateOwned(`update users set goal_count = ?, goal_by = ?,
+		goal_set_at = case when goal_count > 0 then goal_set_at else ? end where id = ?`, count, by, now(), userID)
 }
 
 // FinishedSince counts kits the member finished on or after a stamp, which

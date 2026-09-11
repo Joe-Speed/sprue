@@ -895,6 +895,13 @@ ul.cards.featured li.card .cover {
   height: 220px;
 }
 
+/* A tag on the member's own card, such as a pinned build, outside the
+   main link so the whole card still leads to the build. */
+li.card .cardtag {
+  display: inline-block;
+  margin: 0.6rem 0.6rem 0;
+}
+
 /* Owner-only edit link in a card's footer, outside the main link. */
 li.card .cardlink {
   display: block;
@@ -1065,6 +1072,34 @@ ul.thumbs img {
   border: 4px solid var(--ink);
 }
 
+/* Picking a build to enter in a competition: cover, title, and kit. */
+ul.picker {
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+ul.picker label.choice > span {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+ul.picker .thumb {
+  width: 64px;
+  height: 48px;
+  object-fit: cover;
+  border: 4px solid var(--ink);
+}
+
+ul.picker .meta {
+  font-size: 0.95rem;
+}
+
 .previews {
   display: flex;
   gap: 0.6rem;
@@ -1102,8 +1137,12 @@ button.linkish.danger {
 }
 
 .pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
   margin: 1.5rem 0 0;
-  text-align: center;
 }
 
 section.nes-container.danger {
@@ -1684,6 +1723,28 @@ body.viewing {
   flex: 0 0 auto;
 }
 
+/* The row under a full size photo: which one it is, the way to the next,
+   and the way out. */
+.viewer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 0;
+  color: var(--paper);
+  cursor: auto;
+}
+
+.viewer-bar .count {
+  font-family: var(--display);
+  font-size: 0.6rem;
+}
+
+.viewer .step {
+  padding: 0 0.7rem;
+}
+
 @media (max-width: 720px) {
   header.site {
     gap: 0.6rem 1rem;
@@ -1808,4 +1869,167 @@ body.viewing {
   ul.thumbs img {
     height: 80px;
   }
+}
+
+/* Pixel scrollbars. The browser's own are round and grey on every system,
+   which fights the rest of the page. Chrome and Safari take the pieces
+   below; Firefox has no such pieces and takes the colours instead. */
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--paper-deep);
+  border: 4px solid var(--ink);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--blue);
+  border: 4px solid var(--ink);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--blue-deep);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--paper-deep);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--blue) var(--paper-deep);
+  }
+}
+
+/* The last few pieces of native furniture: the spinner on a number box,
+   the clear cross in a search box, the button inside a file box, and the
+   little calendar the date box hangs on its right. */
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+
+input[type="file"]::file-selector-button {
+  margin-right: 0.6rem;
+  padding: 0.4rem 0.7rem;
+  font-family: var(--display);
+  font-size: 0.55rem;
+  color: var(--ink);
+  background: var(--paper);
+  border: 4px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--shadow);
+  cursor: inherit;
+}
+
+input[type="file"]::file-selector-button:active {
+  box-shadow: none;
+  transform: translate(3px, 3px);
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  background: var(--blue);
+  border: 3px solid var(--ink);
+  cursor: inherit;
+}
+
+/* Lists the site draws itself, in place of the ones the browser draws for
+   a select or for typing suggestions. */
+.drop {
+  position: relative;
+  display: block;
+}
+
+.drop.suggest {
+  display: block;
+}
+
+/* The real control, kept where the browser can still point at it when the
+   form is wrong, but taking up no room and showing nothing. */
+.drop .behind {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.drop.bad .droptoggle {
+  outline: 4px solid var(--red);
+}
+
+.droptoggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+  text-align: left;
+}
+
+.droptoggle::after {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid var(--ink);
+}
+
+.droptoggle[aria-expanded="true"]::after {
+  border-top: 0;
+  border-bottom: 8px solid var(--ink);
+}
+
+.droplist {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--paper);
+  border: 4px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+
+.dropoption {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 4px solid var(--paper-deep);
+  cursor: inherit;
+}
+
+.dropoption:last-child {
+  border-bottom: 0;
+}
+
+.dropoption:hover,
+.dropoption.on {
+  color: var(--paper);
+  background: var(--blue);
 }

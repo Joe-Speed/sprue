@@ -7,17 +7,21 @@
 </div>
 </div>
 <p class="meta">Everything you have added, public and private. Only you can see this page. Your public profile is what other members see.</p>
+<nav class="filters" aria-label="Show">
+<a href="/builds"{{if not .Data.Filter}} aria-current="page"{{end}}>All</a>
+<a href="/builds?show=public"{{if eq .Data.Filter "public"}} aria-current="page"{{end}}>Public</a>
+<a href="/builds?show=private"{{if eq .Data.Filter "private"}} aria-current="page"{{end}}>Private</a>
+{{if .Data.AnyHidden}}<a href="/builds?show=hidden"{{if eq .Data.Filter "hidden"}} aria-current="page"{{end}}>Hidden</a>{{end}}
+</nav>
 <section class="nes-container with-title">
-<h2 class="title">Builds</h2>
-{{if not .Data}}<p class="quiet">Nothing here yet. <a href="/builds/new">Post your first build</a>, or keep it private until you are happy with it.</p>{{end}}
-<ul class="rows">
-{{range .Data}}
-<li>
-<a href="/builds/{{.ID}}">{{.Title}}</a>{{if .Pinned}}<span class="tag next">pinned</span>{{end}}{{if .Private}}<span class="tag private">private</span>{{end}}{{if .Hidden}}<span class="tag">hidden</span>{{end}}{{template "place_badge" .TrophyPlace}}
-<span class="meta">{{.Kit}}{{if .BuiltOn}} · built {{niceDate .BuiltOn}}{{end}} · {{.Votes}} vote{{if ne .Votes 1}}s{{end}}</span>
-<a class="nes-btn" href="/builds/{{.ID}}/edit">Edit</a>
-</li>
-{{end}}
+<h2 class="title">{{if .Data.Filter}}Showing {{.Data.Filter}}{{else}}Builds{{end}}</h2>
+{{if not .Data.Builds}}<p class="quiet">{{if .Data.Filter}}Nothing {{.Data.Filter}} here.{{else}}Nothing here yet. <a href="/builds/new">Post your first build</a>, or keep it private until you are happy with it.{{end}}</p>{{end}}
+{{if .Data.Builds}}<p class="meta">{{.Data.Page.Total}} build{{if ne .Data.Page.Total 1}}s{{end}}.</p>{{end}}
+<ul class="cards">
+{{range .Data.Builds}}<li class="card">{{template "build_card_body" (card . false)}}
+{{if .Pinned}}<span class="cardtag tag next">pinned</span>{{end}}
+<a class="cardlink" href="/builds/{{.ID}}/edit">Edit</a></li>{{end}}
 </ul>
+{{template "pager" .Data.Page}}
 </section>
 {{end}}

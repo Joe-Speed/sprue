@@ -22,7 +22,7 @@
 </form>
 {{if .Data.Journal}}
 <ul class="journal">
-{{range .Data.Journal}}<li><span class="meta">{{niceDate .CreatedAt}}</span><p>{{.Text}}</p></li>{{end}}
+{{range .Data.Journal}}<li><span class="meta">{{niceTime .CreatedAt}}</span><p>{{.Text}}</p></li>{{end}}
 </ul>
 {{end}}
 </section>
