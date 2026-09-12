@@ -658,6 +658,11 @@ function pixelSelect(select) {
   label.className = "dropvalue";
   label.textContent = select.options[select.selectedIndex].text;
   button.appendChild(label);
+  // A real element, because NES.css draws the button's pixel border with
+  // the ::after slot and an arrow put there would take the border's place.
+  var arrow = document.createElement("span");
+  arrow.className = "droparrow";
+  button.appendChild(arrow);
   var list = dropList(owner);
   button.setAttribute("aria-controls", list.id);
   var at = select.selectedIndex;

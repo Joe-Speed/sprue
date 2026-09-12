@@ -1940,13 +1940,18 @@ input[type="file"]::file-selector-button:active {
   transform: translate(3px, 3px);
 }
 
+/* Sized to the icon's own 12 by 12 grid, so every pixel lands square. */
 input[type="date"]::-webkit-calendar-picker-indicator {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   padding: 0;
-  background: var(--blue);
-  border: 3px solid var(--ink);
+  background: url("icon-calendar.svg") center / contain no-repeat;
+  border: 0;
   cursor: inherit;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 0.7;
 }
 
 /* Lists the site draws itself, in place of the ones the browser draws for
@@ -1988,8 +1993,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   text-align: left;
 }
 
-.droptoggle::after {
-  content: "";
+.droparrow {
+  flex: 0 0 auto;
   width: 0;
   height: 0;
   border-left: 6px solid transparent;
@@ -1997,7 +2002,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   border-top: 8px solid var(--ink);
 }
 
-.droptoggle[aria-expanded="true"]::after {
+.droptoggle[aria-expanded="true"] .droparrow {
   border-top: 0;
   border-bottom: 8px solid var(--ink);
 }
