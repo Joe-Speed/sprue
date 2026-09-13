@@ -2038,3 +2038,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   color: var(--paper);
   background: var(--blue);
 }
+
+/* A photo field takes a drop as well as a click, and says so while
+   something is held over it. */
+.dropzone.over {
+  outline: 4px dashed var(--blue);
+  outline-offset: 4px;
+}
+
+/* A card's own control, such as taking a like back, under the linked part. */
+li.card .cardform {
+  padding: 0 0.6rem 0.5rem;
+}

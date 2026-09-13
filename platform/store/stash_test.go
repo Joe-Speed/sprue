@@ -171,3 +171,37 @@ func TestGoalAndNudges(t *testing.T) {
 		t.Fatal("nudged while off")
 	}
 }
+
+func TestEditStashItemKeepsItsJournal(t *testing.T) {
+	s := testStore(t)
+	alice := testUser(t, s, "alice@example.com")
+	bob := testUser(t, s, "bob@example.com")
+	id, err := s.CreateStashItem(StashItem{UserID: alice.ID, Title: "Lancastre", CostPence: 1299})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddJournalEntry(id, alice.ID, "Primed."); err != nil {
+		t.Fatal(err)
+	}
+	edit := StashItem{ID: id, UserID: alice.ID, Title: "Lancaster", Brand: "Airfix", Scale: "1/72", Note: "Missing decals", CostPence: 1499}
+	if err := s.UpdateStashItem(edit); err != nil {
+		t.Fatal(err)
+	}
+	item, err := s.StashItemFor(id, alice.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Title != "Lancaster" || item.Brand != "Airfix" || item.Scale != "1/72" || item.Note != "Missing decals" || item.CostPence != 1499 {
+		t.Fatalf("kit not saved: %+v", item)
+	}
+	if journal, err := s.JournalFor(id); err != nil || len(journal) != 1 {
+		t.Fatalf("journal lost in the edit: %+v %v", journal, err)
+	}
+	// Somebody else's kit, and a kit with no title, both refuse.
+	if err := s.UpdateStashItem(StashItem{ID: id, UserID: bob.ID, Title: "Mine now"}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("edited another member's kit: %v", err)
+	}
+	if err := s.UpdateStashItem(StashItem{ID: id, UserID: alice.ID, Title: "  "}); err == nil {
+		t.Fatal("saved a kit with no title")
+	}
+}

@@ -4,19 +4,29 @@ import "errors"
 
 const maxReportReason = 500
 
-// ReportBuild records that a member flagged a build. One report per member
-// per build; a second attempt is ignored.
-func (s *Store) ReportBuild(buildID, userID int64, reason string) error {
+// ReportBuild records one member's report of a build. It reports whether the
+// report was new: a member who reports the same build twice already has one
+// on file.
+func (s *Store) ReportBuild(buildID, userID int64, reason string) (bool, error) {
 	build, err := s.BuildByID(buildID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if build.UserID == userID {
-		return errors.New("store: cannot report your own build")
+		return false, errors.New("store: cannot report your own build")
 	}
-	_, err = s.db.Exec(`insert or ignore into reports (build_id, user_id, reason, created_at) values (?, ?, ?, ?)`,
+	result, err := s.db.Exec(`insert or ignore into reports (build_id, user_id, reason, created_at) values (?, ?, ?, ?)`,
 		buildID, userID, clip(reason, maxReportReason), now())
-	return err
+	if err != nil {
+		return false, err
+	}
+	// One report per member per build. A second one is ignored, and saying
+	// so beats a thank you that hides the fact.
+	added, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return added > 0, nil
 }
 
 // Report is one build's open reports, for the admin page.

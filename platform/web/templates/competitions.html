@@ -19,7 +19,7 @@
 {{range .Data.Competitions}}
 <li>
 <a href="/competitions/{{.Slug}}">{{.Title}}</a>{{if .Official}}<span class="tag official">sprue</span>{{end}}<span class="tag category">{{.Category}}</span>{{template "status_tag" .Status}}
-<span class="meta">{{template "competition_dates" .}} · by {{.CreatorName}}</span>
+<span class="meta">{{.Entries}} entr{{if eq .Entries 1}}y{{else}}ies{{end}} · {{template "competition_dates" .}} · by {{.CreatorName}}</span>
 </li>
 {{end}}
 </ul>

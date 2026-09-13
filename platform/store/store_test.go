@@ -995,3 +995,90 @@ func TestEntrantsCarryPlacings(t *testing.T) {
 		t.Errorf("build title: %q", entrants[0].BuildTitle)
 	}
 }
+
+func TestWithdrawOwnEntry(t *testing.T) {
+	s := testStore(t)
+	alice := testUser(t, s, "alice@example.com")
+	bob := testUser(t, s, "bob@example.com")
+	build := testBuild(t, s, alice.ID, "Spitfire")
+	comp := testCompetition(t, s, alice.ID, "Summer sprint")
+	if err := s.EnterCompetition(comp.ID, build, alice.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.WithdrawEntry(comp.ID, bob.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("withdrew somebody else's entry: %v", err)
+	}
+	if err := s.WithdrawEntry(comp.ID, alice.ID); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := s.EntriesWithVotes(comp.ID)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("entry still there: %v %v", entries, err)
+	}
+	// Entered again, the entry stays put once voting has started.
+	if err := s.EnterCompetition(comp.ID, build, alice.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Advance(testToday.AddDate(0, 0, 15)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.WithdrawEntry(comp.ID, alice.ID); !errors.Is(err, ErrInUse) {
+		t.Fatalf("withdrew after entries closed: %v", err)
+	}
+}
+
+func TestCompetitionEntryCountAndBuildCompetitions(t *testing.T) {
+	s := testStore(t)
+	alice := testUser(t, s, "alice@example.com")
+	build := testBuild(t, s, alice.ID, "Spitfire")
+	spare := testBuild(t, s, alice.ID, "Lancaster")
+	comp := testCompetition(t, s, alice.ID, "Summer sprint")
+	if list, err := s.Competitions(""); err != nil || len(list) != 1 || list[0].Entries != 0 {
+		t.Fatalf("empty competition counts entries: %+v %v", list, err)
+	}
+	if err := s.EnterCompetition(comp.ID, build, alice.ID); err != nil {
+		t.Fatal(err)
+	}
+	if list, err := s.Competitions(""); err != nil || len(list) != 1 || list[0].Entries != 1 {
+		t.Fatalf("entry not counted: %+v %v", list, err)
+	}
+	running, err := s.CompetitionsForBuild(build)
+	if err != nil || len(running) != 1 || running[0].Slug != comp.Slug {
+		t.Fatalf("build does not know its competition: %+v %v", running, err)
+	}
+	if none, err := s.CompetitionsForBuild(spare); err != nil || len(none) != 0 {
+		t.Fatalf("build in a competition it never entered: %+v %v", none, err)
+	}
+}
+
+func TestSearchBuilds(t *testing.T) {
+	s := testStore(t)
+	alice := testUser(t, s, "alice@example.com")
+	spit, err := s.CreateBuild(Build{UserID: alice.ID, Title: "Spitfire Mk.I", Kit: "Airfix 1/72", Brand: "Airfix", Scale: "1/72"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateBuild(Build{UserID: alice.ID, Title: "Tiger I", Kit: "Tamiya 1/35", Brand: "Tamiya", Scale: "1/35"}); err != nil {
+		t.Fatal(err)
+	}
+	hidden, err := s.CreateBuild(Build{UserID: alice.ID, Title: "Secret Spitfire", Kit: "Airfix 1/48", Private: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, search := range []struct {
+		query string
+		want  int
+	}{{"spitfire", 1}, {"SPIT", 1}, {"airfix", 1}, {"1/35", 1}, {"", 0}, {"messerschmitt", 0}} {
+		found, err := s.SearchBuilds(search.query, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(found) != search.want {
+			t.Errorf("search %q found %d, wanted %d", search.query, len(found), search.want)
+		}
+	}
+	found, _ := s.SearchBuilds("spitfire", 0)
+	if len(found) != 1 || found[0].ID != spit || found[0].ID == hidden {
+		t.Fatalf("a private build turned up in a search: %+v", found)
+	}
+}

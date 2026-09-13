@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Joe-Speed/sprue/platform/store"
 )
@@ -173,4 +174,82 @@ func fetch(t *testing.T, url string) string {
 		t.Fatalf("%s: %d", url, res.StatusCode)
 	}
 	return string(body)
+}
+
+// The words beside a date, and the phrase for how long a competition has.
+func TestAgoAndDaysUntil(t *testing.T) {
+	day := 24 * time.Hour
+	now := time.Now().UTC()
+	stamp := func(d time.Duration) string { return now.Add(d).Format(time.RFC3339) }
+	for _, want := range []struct {
+		value string
+		words string
+	}{
+		{stamp(-2 * time.Hour), "today"},
+		{stamp(-25 * time.Hour), "yesterday"},
+		{stamp(-3 * day), "3 days ago"},
+		{stamp(-8 * day), "a week ago"},
+		{stamp(-20 * day), "2 weeks ago"},
+		{"not a date", "not a date"},
+	} {
+		if got := ago(want.value); got != want.words {
+			t.Errorf("ago(%s) = %q, wanted %q", want.value, got, want.words)
+		}
+	}
+	// Anything older than a month reads better as its date.
+	old := now.Add(-90 * day).Format("2006-01-02")
+	if ago(old) != niceDate(old) {
+		t.Errorf("an old date should read as a date, got %q", ago(old))
+	}
+	if got := daysUntil(now.Add(3 * day).Format("2006-01-02")); got != 3 {
+		t.Errorf("three days off counted as %d", got)
+	}
+	if got := daysUntil(now.Format("2006-01-02")); got != 0 {
+		t.Errorf("today counted as %d", got)
+	}
+	if got := daysUntil(now.Add(-2 * day).Format("2006-01-02")); got != -2 {
+		t.Errorf("two days past counted as %d", got)
+	}
+}
+
+// The community page answers a search with matches in place of the feed.
+func TestHomeSearchesBuilds(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	user, err := st.FindOrCreateUser("search@example.com", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, build := range []store.Build{
+		{UserID: user.ID, Title: "Spitfire Mk.I", Kit: "Airfix 1/72", Brand: "Airfix"},
+		{UserID: user.ID, Title: "Tiger I", Kit: "Tamiya 1/35", Brand: "Tamiya"},
+	} {
+		if _, err := st.CreateBuild(build); err != nil {
+			t.Fatal(err)
+		}
+	}
+	server, err := New(st, Config{DataDir: t.TempDir(), BaseURL: "https://sprue.test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(server.Handler())
+	defer ts.Close()
+	found := fetch(t, ts.URL+"/?q=spitfire")
+	if !strings.Contains(found, "Spitfire Mk.I") || strings.Contains(found, "Tiger I") {
+		t.Fatal("a search should show the matches and nothing else")
+	}
+	if !strings.Contains(found, `Matching "spitfire"`) {
+		t.Fatal("a search does not say what it searched for")
+	}
+	none := fetch(t, ts.URL+"/?q=messerschmitt")
+	if !strings.Contains(none, "Nothing matches") {
+		t.Fatal("an empty search says nothing useful")
+	}
+	feed := fetch(t, ts.URL+"/")
+	if !strings.Contains(feed, "Spitfire Mk.I") || !strings.Contains(feed, "Tiger I") {
+		t.Fatal("the feed should be back with no search")
+	}
 }

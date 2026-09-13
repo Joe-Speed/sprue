@@ -65,4 +65,8 @@
 </details>{{end}}
 
 {{/* competition_dates states the date that matters for the current status. */}}
-{{define "competition_dates"}}{{if eq .Status "open"}}entries close {{niceDate .EntriesClose}}, voting closes {{niceDate .VotingCloses}}{{else if eq .Status "voting"}}voting closes {{niceDate .VotingCloses}}{{else}}decided {{niceDate .VotingCloses}}{{end}}{{end}}
+{{define "competition_dates"}}{{if eq .Status "open"}}entries close {{niceDate .EntriesClose}}{{template "days_left" (daysUntil .EntriesClose)}}, voting closes {{niceDate .VotingCloses}}{{else if eq .Status "voting"}}voting closes {{niceDate .VotingCloses}}{{template "days_left" (daysUntil .VotingCloses)}}{{else}}decided {{niceDate .VotingCloses}}{{end}}{{end}}
+
+{{/* days_left turns a count of days into the phrase beside a closing date.
+     A date already past says nothing: the status has moved on by then. */}}
+{{define "days_left"}}{{if eq . 0}} (closes today){{else if eq . 1}} (1 day left){{else if gt . 1}} ({{.}} days left){{end}}{{end}}

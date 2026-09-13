@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -101,6 +102,22 @@ func (s *Store) StashItemFor(id, userID int64) (StashItem, error) {
 
 // SetStashStatus moves an item between unbuilt and building. Built is reached
 // only through FinishStashItem.
+// UpdateStashItem changes the details of a kit already in the stash, so a
+// typo or a price found later does not cost the kit its journal.
+func (s *Store) UpdateStashItem(item StashItem) error {
+	title := strings.TrimSpace(clip(item.Title, maxShortField))
+	if title == "" {
+		return errors.New("store: a kit needs a title")
+	}
+	if item.CostPence < 0 {
+		return errors.New("store: a kit cannot cost less than nothing")
+	}
+	return s.updateOwned(`update stash set title = ?, brand = ?, scale = ?, note = ?, cost_pence = ?
+		where id = ? and user_id = ?`,
+		title, clip(item.Brand, maxShortField), clip(item.Scale, maxShortField),
+		clip(item.Note, maxTextField), item.CostPence, item.ID, item.UserID)
+}
+
 func (s *Store) SetStashStatus(id, userID int64, status string) error {
 	if status != "unbuilt" && status != "building" {
 		return errors.New("store: bad stash status")

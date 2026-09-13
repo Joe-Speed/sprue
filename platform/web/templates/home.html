@@ -1,6 +1,10 @@
 {{define "content"}}
 <h1><img class="icon" src="{{static "icon-home.svg"}}" alt="" width="24" height="24">The community</h1>
 <p class="lede">Scale models, built and shared. Vote for the builds you like and the most voted are featured here. Any member can start a competition.</p>
+<form class="wide inline-fields" method="get" action="/">
+<div class="nes-field"><label for="q">Find a build</label><input class="nes-input" id="q" type="search" name="q" value="{{.Data.Query}}" maxlength="200" placeholder="Spitfire, Tamiya, 1/48" autocomplete="off"></div>
+<button class="nes-btn is-primary" type="submit">Search</button>
+</form>
 {{if .User}}
 <section class="nes-container with-title">
 <h2 class="title">Post a build</h2>
@@ -19,6 +23,17 @@
 {{else}}
 <p class="prompt"><a href="/login">Sign in</a> to post a build.</p>
 {{end}}
+{{if .Data.Query}}
+<section class="nes-container with-title">
+<h2 class="title">Matching "{{.Data.Query}}"</h2>
+{{if not .Data.Builds}}<p class="quiet">Nothing matches. Try part of a kit name, a brand, or a scale like 1/72.</p>
+{{else}}<p class="meta">{{len .Data.Builds}} build{{if ne (len .Data.Builds) 1}}s{{end}}{{if .Data.Capped}}, as many as one search shows. Narrow it down.{{end}}</p>{{end}}
+<ul class="cards">
+{{range .Data.Builds}}{{template "build_card" (card . true)}}{{end}}
+</ul>
+<p class="pager"><a class="nes-btn" href="/">Back to the community</a></p>
+</section>
+{{else}}
 {{if .Data.Featured}}
 <section class="nes-container with-title">
 <h2 class="title">Featured</h2>
@@ -40,4 +55,5 @@
 {{if .Data.Older}}<a class="nes-btn" href="/?before={{.Data.Older}}">Older builds</a>{{end}}
 </nav>{{end}}
 </section>
+{{end}}
 {{end}}

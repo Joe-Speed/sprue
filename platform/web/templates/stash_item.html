@@ -2,7 +2,7 @@
 <p class="back"><a href="/stash">&larr; my stash</a></p>
 <h1><img class="icon" src="{{static "icon-box.svg"}}" alt="" width="24" height="24">{{.Data.Item.Title}}</h1>
 <p class="meta"><span class="tag {{.Data.Item.Status}}">{{.Data.Item.Status}}</span>{{if .Data.Item.Next}} <span class="tag next">next</span>{{end}} {{if .Data.Item.Brand}}{{.Data.Item.Brand}} · {{end}}{{if .Data.Item.Scale}}{{.Data.Item.Scale}} · {{end}}{{if .Data.Item.CostPence}}{{currency}}{{money .Data.Item.CostPence}} · {{end}}added {{niceDate .Data.Item.AddedAt}}</p>
-{{if .Data.Item.Note}}<p>{{.Data.Item.Note}}</p>{{end}}
+{{if .Data.Item.Note}}<p class="brief">{{.Data.Item.Note}}</p>{{end}}
 {{if eq .Data.Item.Status "built"}}
 <p class="prompt">Finished {{niceDate .Data.Item.FinishedAt}}. <a href="/builds/{{.Data.Item.BuildID}}">See the build.</a></p>
 {{else}}
@@ -13,6 +13,21 @@
 <form method="post" action="/stash/{{.Data.Item.ID}}/finish"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="nes-btn is-primary" type="submit">Finished</button></form>
 </div>
 {{end}}
+<section class="nes-container with-title">
+<h2 class="title">Details</h2>
+<form method="post" action="/stash/{{.Data.Item.ID}}/edit">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<div class="wide inline-fields">
+<div class="nes-field"><label for="title">Kit</label><input class="nes-input" id="title" type="text" name="title" value="{{.Data.Item.Title}}" required maxlength="200"></div>
+<div class="nes-field"><label for="brand">Brand</label><input class="nes-input" id="brand" type="text" name="brand" value="{{.Data.Item.Brand}}" maxlength="200" list="kit-brands"></div>
+<div class="nes-field"><label for="scale">Scale</label><input class="nes-input" id="scale" type="text" name="scale" value="{{.Data.Item.Scale}}" maxlength="200" list="kit-scales"></div>
+<div class="nes-field"><label for="cost">Cost ({{currency}})</label><input class="nes-input" id="cost" type="text" name="cost" value="{{if .Data.Item.CostPence}}{{money .Data.Item.CostPence}}{{end}}" inputmode="decimal" maxlength="12"></div>
+</div>
+<div class="nes-field"><label for="note">Note</label><textarea class="nes-textarea" id="note" name="note" rows="2" maxlength="2000">{{.Data.Item.Note}}</textarea>
+<p class="meta">What you plan to do with it, what it is missing, where it came from.</p></div>
+<button class="nes-btn is-primary" type="submit">Save kit</button>
+</form>
+</section>
 <section class="nes-container with-title">
 <h2 class="title">Journal</h2>
 <form method="post" action="/stash/{{.Data.Item.ID}}/journal">

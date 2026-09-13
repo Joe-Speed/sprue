@@ -34,6 +34,11 @@
 <p class="prompt"><a href="/login">Sign in</a> to enter one of your builds.</p>
 {{end}}
 
+{{if .Data.CanWithdraw}}
+<p class="prompt">You have entered this competition.</p>
+<form method="post" action="/competitions/{{.Data.Competition.Slug}}/withdraw"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="linkish danger" type="submit">Withdraw my entry</button></form>
+{{end}}
+
 {{if .Data.HasVoted}}<p class="prompt">Your vote is in.</p>{{end}}
 
 <section class="nes-container with-title">

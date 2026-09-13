@@ -4,7 +4,9 @@
 {{if .Data.Builds}}
 <p class="meta">{{.Data.Page.Total}} build{{if ne .Data.Page.Total 1}}s{{end}} liked.</p>
 <ul class="cards">
-{{range .Data.Builds}}{{template "build_card" (card . true)}}{{end}}
+{{range .Data.Builds}}<li class="card">{{template "build_card_body" (card . true)}}
+<form class="cardform" method="post" action="/builds/{{.ID}}/like"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="back" value="/likes"><button class="linkish danger" type="submit">Take my like back</button></form>
+</li>{{end}}
 </ul>
 {{template "pager" .Data.Page}}
 {{else}}

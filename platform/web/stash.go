@@ -221,6 +221,24 @@ func (s *Server) handleStashAction(w http.ResponseWriter, r *http.Request) {
 	switch r.PathValue("action") {
 	case "next":
 		err = s.store.SetStashNext(id, user.ID)
+	case "edit":
+		cost, good := parsePence(r.FormValue("cost"))
+		if !good {
+			flashRedirect(w, r, itemPath, "", "Cost should be a price like 12.99, or empty.")
+			return
+		}
+		err = s.store.UpdateStashItem(store.StashItem{
+			ID: id, UserID: user.ID, Title: r.FormValue("title"), Brand: r.FormValue("brand"),
+			Scale: r.FormValue("scale"), Note: r.FormValue("note"), CostPence: cost,
+		})
+		if err == nil {
+			flashRedirect(w, r, itemPath, "Kit saved.", "")
+			return
+		}
+		if !errors.Is(err, store.ErrNotFound) {
+			flashRedirect(w, r, itemPath, "", "A kit needs a title.")
+			return
+		}
 	case "building", "unbuilt":
 		err = s.store.SetStashStatus(id, user.ID, r.PathValue("action"))
 	case "journal":

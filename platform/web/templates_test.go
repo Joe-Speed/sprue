@@ -60,7 +60,7 @@ func TestEveryPageRenders(t *testing.T) {
 		"admin": adminData{Competitions: []store.Competition{comp}, Trophies: []store.Trophy{trophy},
 			Reports:   []store.Report{{BuildID: 7, BuildTitle: "Spitfire Mk.I", OwnerName: "Joe", Count: 2, Reason: "Not a model.", LatestAt: "2026-05-01T00:00:00Z"}},
 			Donations: []store.Donation{{ID: 1, ExternalID: "tx-1", Name: "Sam", Message: "Lovely site", AmountMinor: 300, Currency: "GBP", Public: true, CreatedAt: "2026-09-01T00:00:00Z"}}},
-		"error": "Not your build.",
+		"error": errorData{Status: 404, Heading: "Page not found", Message: "No such build."},
 	}
 	if len(pages) != len(pageNames) {
 		t.Fatalf("test covers %d pages, server has %d", len(pages), len(pageNames))

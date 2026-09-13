@@ -22,7 +22,7 @@
 {{range .Data.Reports}}
 <li>
 <a href="/builds/{{.BuildID}}">{{.BuildTitle}}</a>{{if .Hidden}}<span class="tag">hidden</span>{{end}}
-<span class="meta">by {{.OwnerName}} · {{.Count}} report{{if ne .Count 1}}s{{end}} · latest {{niceDate .LatestAt}}{{if .Reason}} · "{{.Reason}}"{{end}}</span>
+<span class="meta">by {{.OwnerName}} · {{.Count}} report{{if ne .Count 1}}s{{end}} · latest {{ago .LatestAt}}{{if .Reason}} · "{{.Reason}}"{{end}}</span>
 <form method="post" action="/admin/builds/{{.BuildID}}/{{if .Hidden}}unhide{{else}}hide{{end}}"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="nes-btn{{if not .Hidden}} is-error{{end}}">{{if .Hidden}}unhide{{else}}hide{{end}}</button></form>
 <form method="post" action="/admin/builds/{{.BuildID}}/dismiss"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="nes-btn">Dismiss</button></form>
 </li>

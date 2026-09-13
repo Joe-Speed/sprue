@@ -256,6 +256,7 @@ type competitionData struct {
 	Trophies    []store.Trophy
 	MyBuilds    []buildChoice
 	CanEnter    bool
+	CanWithdraw bool // the viewer has an entry and entries are still open
 	CanVote     bool
 	HasVoted    bool
 	ShowVotes   bool
@@ -310,6 +311,7 @@ func (s *Server) fillViewerState(data *competitionData, user store.User) {
 	}
 	switch data.Competition.Status {
 	case "open":
+		data.CanWithdraw = entered
 		if !entered {
 			builds, err := s.store.BuildsForUser(user.ID)
 			if err != nil {
@@ -488,6 +490,31 @@ func (s *Server) handleAdminDecide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	flashRedirect(w, r, "/admin", "Decided.", "")
+}
+
+// handleWithdraw takes a member's own build back out of a competition while
+// entries are still open, for a build entered by mistake.
+func (s *Server) handleWithdraw(w http.ResponseWriter, r *http.Request) {
+	user, ok := s.requireUser(w, r)
+	if !ok {
+		return
+	}
+	comp, err := s.store.CompetitionBySlug(r.PathValue("slug"))
+	if err != nil {
+		s.renderError(w, r, http.StatusNotFound, "No such competition.")
+		return
+	}
+	page := "/competitions/" + comp.Slug
+	switch err := s.store.WithdrawEntry(comp.ID, user.ID); {
+	case errors.Is(err, store.ErrNotFound):
+		flashRedirect(w, r, page, "", "You have no entry in this competition.")
+	case errors.Is(err, store.ErrInUse):
+		flashRedirect(w, r, page, "", "Entries have closed, so your entry stays in.")
+	case err != nil:
+		flashRedirect(w, r, page, "", "Could not withdraw your entry.")
+	default:
+		flashRedirect(w, r, page, "Entry withdrawn. You can enter another build while entries are open.", "")
+	}
 }
 
 // handleAdminRemoveEntry takes an entry out of a running competition when it

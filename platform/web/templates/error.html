@@ -1,5 +1,13 @@
 {{define "content"}}
-<h1><img class="icon" src="{{static "icon-cross.svg"}}" alt="" width="24" height="24">Error</h1>
-<p>{{.Data}}</p>
-<p class="back"><a href="/">&larr; back to the home page</a></p>
+<h1><img class="icon" src="{{static "icon-cross.svg"}}" alt="" width="24" height="24">{{.Data.Heading}}</h1>
+<p>{{.Data.Message}}</p>
+<p class="meta">Try one of these instead.</p>
+<nav class="filters" aria-label="Somewhere else to go">
+<a href="/">The community</a>
+<a href="/competitions">Competitions</a>
+{{if .User}}<a href="/builds">My builds</a>
+<a href="/stash">My stash</a>
+{{else}}<a href="/members">Members</a>
+<a href="/login">Sign in</a>{{end}}
+</nav>
 {{end}}

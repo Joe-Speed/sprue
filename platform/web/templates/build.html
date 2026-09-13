@@ -1,7 +1,10 @@
 {{define "content"}}
 <p class="back"><a href="/u/{{.Data.Build.OwnerSlug}}">&larr; {{.Data.Build.OwnerName}}</a></p>
 <h1>{{.Data.Build.Title}}{{template "place_badge" .Data.Build.TrophyPlace}}</h1>
-<p class="meta">{{.Data.Build.Kit}}{{if .Data.Build.Brand}} · {{.Data.Build.Brand}}{{end}}{{if .Data.Build.Scale}} · {{.Data.Build.Scale}}{{end}}{{if .Data.Build.BuiltOn}} · built {{niceDate .Data.Build.BuiltOn}}{{end}}{{if .Data.IsOwner}} · <a href="/builds/{{.Data.Build.ID}}/edit">edit</a>{{end}}</p>
+<p class="meta">{{.Data.Build.Kit}}{{if .Data.Build.Brand}} · {{.Data.Build.Brand}}{{end}}{{if .Data.Build.Scale}} · {{.Data.Build.Scale}}{{end}}{{if .Data.Build.BuiltOn}} · built {{niceDate .Data.Build.BuiltOn}}{{end}} · posted {{ago .Data.Build.CreatedAt}}{{if .Data.IsOwner}} · <a href="/builds/{{.Data.Build.ID}}/edit">edit</a>{{end}}</p>
+{{if .Data.Competitions}}
+<p class="prompt">In {{range $index, $comp := .Data.Competitions}}{{if $index}}, {{end}}<a href="/competitions/{{$comp.Slug}}">{{$comp.Title}}</a> {{template "status_tag" $comp.Status}}{{end}}</p>
+{{end}}
 <div class="votes">
 <span class="count"><img class="icon" src="{{static "icon-thumb.svg"}}" alt="" width="16" height="16">{{.Data.Build.Votes}} vote{{if ne .Data.Build.Votes 1}}s{{end}}</span>
 {{if .Data.CanVote}}

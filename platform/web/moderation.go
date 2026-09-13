@@ -25,8 +25,13 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	page := buildPage(build.ID)
-	if err := s.store.ReportBuild(build.ID, user.ID, r.FormValue("reason")); err != nil {
+	added, err := s.store.ReportBuild(build.ID, user.ID, r.FormValue("reason"))
+	if err != nil {
 		flashRedirect(w, r, page, "", "Could not report that build.")
+		return
+	}
+	if !added {
+		flashRedirect(w, r, page, "You have already reported this build. Your first report still stands.", "")
 		return
 	}
 	flashRedirect(w, r, page, "Reported. The admin will take a look.", "")

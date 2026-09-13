@@ -728,6 +728,32 @@ func (s *Store) NewerBuilds(afterID int64, limit int) ([]Build, error) {
 	return builds, nil
 }
 
+// MaxSearchedBuilds is how many matches one build search shows.
+const MaxSearchedBuilds = 48
+
+// SearchBuilds finds public builds whose title, kit, brand or scale contains
+// the words typed, newest first. An empty search matches nothing, so the
+// caller shows its usual list instead.
+func (s *Store) SearchBuilds(query string, limit int) ([]Build, error) {
+	if limit <= 0 || limit > MaxSearchedBuilds {
+		limit = MaxSearchedBuilds
+	}
+	query = strings.ToLower(strings.TrimSpace(clip(query, maxShortField)))
+	if query == "" {
+		return nil, nil
+	}
+	pattern := "%" + escapeLike(query) + "%"
+	rows, err := s.db.Query(`select `+buildColumns+` from builds b join users u on u.id = b.user_id
+		where b.private = 0 and b.hidden = 0 and (lower(b.title) like ? escape '\'
+			or lower(b.kit) like ? escape '\' or lower(b.brand) like ? escape '\'
+			or lower(b.scale) like ? escape '\')
+		order by b.id desc limit ?`, pattern, pattern, pattern, pattern, limit)
+	if err != nil {
+		return nil, err
+	}
+	return s.scanBuilds(rows)
+}
+
 type SitemapBuild struct {
 	ID        int64
 	CreatedAt string
@@ -1048,6 +1074,7 @@ type Competition struct {
 	CreatorSlug  string
 	EntriesClose string // last day entries are accepted, YYYY-MM-DD
 	VotingCloses string // last day votes are accepted, YYYY-MM-DD
+	Entries      int    // how many builds have been entered
 	Status       string // open, voting, decided
 	Official     bool   // a sprue competition with a fixed brief
 	Theme        string // which sprue brief, empty for a community competition
@@ -1068,7 +1095,8 @@ func validCategory(category string) bool {
 }
 
 const competitionColumns = `c.id, c.slug, c.title, c.description, c.creator_id, u.display_name, u.slug,
-	c.entries_close, c.voting_closes, c.status, c.official, c.theme, c.category, c.created_at
+	c.entries_close, c.voting_closes, c.status, c.official, c.theme, c.category, c.created_at,
+	(select count(*) from entries e where e.competition_id = c.id)
 	from competitions c join users u on u.id = c.creator_id`
 
 const dayLayout = "2006-01-02"
@@ -1179,7 +1207,8 @@ func scanCompetitions(rows *sql.Rows) ([]Competition, error) {
 		var c Competition
 		var official int
 		err := rows.Scan(&c.ID, &c.Slug, &c.Title, &c.Description, &c.CreatorID, &c.CreatorName, &c.CreatorSlug,
-			&c.EntriesClose, &c.VotingCloses, &c.Status, &official, &c.Theme, &c.Category, &c.CreatedAt)
+			&c.EntriesClose, &c.VotingCloses, &c.Status, &official, &c.Theme, &c.Category, &c.CreatedAt,
+			&c.Entries)
 		if err != nil {
 			return nil, err
 		}
@@ -1322,6 +1351,45 @@ func (s *Store) RemoveEntry(competitionID, entryID int64) error {
 		return ErrNotFound
 	}
 	return tx.Commit()
+}
+
+// WithdrawEntry takes the member's own build back out of a competition while
+// entries are still open. Once voting starts an entry stays put, because
+// votes have been cast on the field as it stands.
+func (s *Store) WithdrawEntry(competitionID, userID int64) error {
+	var status string
+	err := s.db.QueryRow(`select status from competitions where id = ?`, competitionID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if status != "open" {
+		return ErrInUse
+	}
+	var entryID int64
+	err = s.db.QueryRow(`select e.id from entries e join builds b on b.id = e.build_id
+		where e.competition_id = ? and b.user_id = ?`, competitionID, userID).Scan(&entryID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	return s.RemoveEntry(competitionID, entryID)
+}
+
+// CompetitionsForBuild lists the competitions a build has been entered in,
+// newest first, so its page can say where it is running.
+func (s *Store) CompetitionsForBuild(buildID int64) ([]Competition, error) {
+	rows, err := s.db.Query(`select `+competitionColumns+`
+		where c.id in (select e.competition_id from entries e where e.build_id = ?)
+		order by c.id desc limit ?`, buildID, MaxCompetitions)
+	if err != nil {
+		return nil, err
+	}
+	return scanCompetitions(rows)
 }
 
 // EntriesWithVotes lists a competition's entries in entry order with counts.

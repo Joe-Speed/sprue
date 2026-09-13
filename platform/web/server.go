@@ -130,6 +130,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /competitions/new", s.handleCompetitionCreate)
 	mux.HandleFunc("GET /competitions/{slug}", s.handleCompetition)
 	mux.HandleFunc("POST /competitions/{slug}/enter", s.handleEnter)
+	mux.HandleFunc("POST /competitions/{slug}/withdraw", s.handleWithdraw)
 	mux.HandleFunc("POST /competitions/{slug}/vote", s.handleVote)
 	mux.HandleFunc("GET /trophies/{id}/download", s.handleTrophyDownload)
 	mux.HandleFunc("GET /admin", s.handleAdmin)
@@ -357,8 +358,33 @@ func (s *Server) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	s.renderError(w, r, http.StatusNotFound, "Page not found.")
 }
 
+// errorData is what the error page shows: a heading that matches the status
+// and the sentence explaining this particular refusal.
+type errorData struct {
+	Status  int
+	Heading string
+	Message string
+}
+
+// errorHeading names the kind of problem, so a missing page does not read
+// like a fault in the site.
+func errorHeading(status int) string {
+	switch status {
+	case http.StatusNotFound:
+		return "Page not found"
+	case http.StatusForbidden:
+		return "Not allowed"
+	case http.StatusRequestTimeout:
+		return "That did not finish"
+	case http.StatusBadRequest:
+		return "That did not work"
+	}
+	return "Something went wrong"
+}
+
 func (s *Server) renderError(w http.ResponseWriter, r *http.Request, status int, message string) {
-	s.renderMeta(w, r, status, "error", "Something went wrong", message, meta{})
+	heading := errorHeading(status)
+	s.renderMeta(w, r, status, "error", heading, errorData{Status: status, Heading: heading, Message: message}, meta{})
 }
 
 // maxMessageLength bounds the flash text a page will show from its query

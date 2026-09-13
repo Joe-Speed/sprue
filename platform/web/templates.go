@@ -61,6 +61,8 @@ func parseTemplates() (map[string]*template.Template, error) {
 		"under":        under,
 		"niceDate":     niceDate,
 		"niceTime":     niceTime,
+		"ago":          ago,
+		"daysUntil":    daysUntil,
 		"today":        today,
 		"inc":          func(n int) int { return n + 1 },
 		"monthYear":    monthYear,
@@ -171,6 +173,43 @@ func niceTime(value string) string {
 		return t.UTC().Format("2 Jan 2006, 15:04")
 	}
 	return value
+}
+
+// ago says how long since a stamp in the words people use for recent things.
+// Anything older than a month is better given as its date.
+func ago(value string) string {
+	t, ok := parseStoredDate(value)
+	if !ok {
+		return value
+	}
+	days := int(time.Since(t).Hours() / 24)
+	switch {
+	case days < 0:
+		return niceDate(value)
+	case days == 0:
+		return "today"
+	case days == 1:
+		return "yesterday"
+	case days < 7:
+		return fmt.Sprintf("%d days ago", days)
+	case days < 31:
+		weeks := days / 7
+		if weeks == 1 {
+			return "a week ago"
+		}
+		return fmt.Sprintf("%d weeks ago", weeks)
+	}
+	return niceDate(value)
+}
+
+// daysUntil counts whole days from today to a date, negative once it is past.
+func daysUntil(value string) int {
+	t, ok := parseStoredDate(value)
+	if !ok {
+		return 0
+	}
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	return int(t.UTC().Truncate(24*time.Hour).Sub(today).Hours() / 24)
 }
 
 // today is the date a date field should not look past, such as the day a

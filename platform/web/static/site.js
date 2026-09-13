@@ -127,13 +127,56 @@ function moveFile(input, strip, from, to) {
   drawPreviews(input, strip);
 }
 
+// takePhotos accepts a set of files for one photo box, keeping only pictures
+// and only as many as a post holds. The box itself is filled too where the
+// browser allows it, so a submit without script still carries them.
+function takePhotos(input, strip, files) {
+  var pictures = Array.prototype.slice.call(files).filter(function (file) {
+    return file.type && file.type.indexOf("image/") === 0;
+  }).slice(0, maxPreviews);
+  if (pictures.length === 0) {
+    return;
+  }
+  input.ordered = pictures;
+  if (window.DataTransfer) {
+    var holder = new DataTransfer();
+    pictures.forEach(function (file) {
+      holder.items.add(file);
+    });
+    input.files = holder.files;
+  }
+  drawPreviews(input, strip);
+}
+
 document.querySelectorAll('input[type="file"][accept^="image"]').forEach(function (input) {
   var strip = document.createElement("div");
   strip.className = "previews";
   input.insertAdjacentElement("afterend", strip);
   input.addEventListener("change", function () {
-    input.ordered = Array.from(input.files).slice(0, maxPreviews);
+    input.ordered = Array.prototype.slice.call(input.files).slice(0, maxPreviews);
     drawPreviews(input, strip);
+  });
+  // Photos can also be dropped on the field, which is what anyone who has
+  // just dragged one thumbnail past another expects to be able to do.
+  var zone = input.closest(".nes-field") || input;
+  zone.classList.add("dropzone");
+  ["dragenter", "dragover"].forEach(function (name) {
+    zone.addEventListener(name, function (event) {
+      event.preventDefault();
+      zone.classList.add("over");
+    });
+  });
+  ["dragleave", "dragend"].forEach(function (name) {
+    zone.addEventListener(name, function () {
+      zone.classList.remove("over");
+    });
+  });
+  zone.addEventListener("drop", function (event) {
+    event.preventDefault();
+    zone.classList.remove("over");
+    if (event.dataTransfer && event.dataTransfer.files) {
+      takePhotos(input, strip, event.dataTransfer.files);
+    }
   });
 });
 

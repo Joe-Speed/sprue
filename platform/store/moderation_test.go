@@ -11,12 +11,20 @@ func TestReportsAndHiding(t *testing.T) {
 	bob := testUser(t, s, "bob@example.com")
 	cara := testUser(t, s, "cara@example.com")
 	build := testBuild(t, s, alice.ID, "Odd one")
-	if err := s.ReportBuild(build, alice.ID, "mine"); err == nil {
+	if _, err := s.ReportBuild(build, alice.ID, "mine"); err == nil {
 		t.Fatal("reported own build")
 	}
-	for _, reporter := range []int64{bob.ID, bob.ID, cara.ID} {
-		if err := s.ReportBuild(build, reporter, "Not a model."); err != nil {
+	// Bob reports twice. The second is ignored, and the store says so.
+	for _, want := range []struct {
+		reporter int64
+		added    bool
+	}{{bob.ID, true}, {bob.ID, false}, {cara.ID, true}} {
+		added, err := s.ReportBuild(build, want.reporter, "Not a model.")
+		if err != nil {
 			t.Fatal(err)
+		}
+		if added != want.added {
+			t.Fatalf("report from %d: added %v, wanted %v", want.reporter, added, want.added)
 		}
 	}
 	reports, err := s.OpenReports()

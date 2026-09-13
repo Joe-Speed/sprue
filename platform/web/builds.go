@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Joe-Speed/sprue/platform/images"
@@ -24,12 +25,18 @@ const homePageSize = 24
 type homeData struct {
 	Featured []store.Build // most voted in the featured window, shown on the first page only
 	Builds   []store.Build
-	Older    int64 // ID to page down from, zero when this is the last page
-	Newer    int64 // ID to page up from, zero when nothing newer is left
-	Paged    bool  // the reader has moved off the first page
+	Query    string // what was searched for, empty when this is the usual feed
+	Capped   bool   // the search filled its page, so there may be more to find
+	Older    int64  // ID to page down from, zero when this is the last page
+	Newer    int64  // ID to page up from, zero when nothing newer is left
+	Paged    bool   // the reader has moved off the first page
 }
 
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
+	if query := strings.TrimSpace(r.URL.Query().Get("q")); query != "" {
+		s.showSearch(w, r, query)
+		return
+	}
 	before := parseID(r.URL.Query().Get("before"))
 	after := parseID(r.URL.Query().Get("after"))
 	data := homeData{Paged: before > 0 || after > 0}
@@ -60,6 +67,22 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.render(w, r, "home", "The community", data)
+}
+
+// showSearch answers a search over the community page with the builds that
+// match, newest first, in place of the usual feed.
+func (s *Server) showSearch(w http.ResponseWriter, r *http.Request, query string) {
+	builds, err := s.store.SearchBuilds(query, store.MaxSearchedBuilds)
+	if err != nil {
+		s.renderError(w, r, http.StatusInternalServerError, "Could not search builds.")
+		return
+	}
+	data := homeData{
+		Builds: builds,
+		Query:  clipMessage(query),
+		Capped: len(builds) == store.MaxSearchedBuilds,
+	}
+	s.render(w, r, "home", "Builds matching "+data.Query, data)
 }
 
 // newerPage returns the page of builds immediately newer than an ID, and the
@@ -317,12 +340,13 @@ func (s *Server) handleBuildUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 type buildPageData struct {
-	Build   store.Build
-	Photos  []string
-	IsOwner bool
-	CanVote bool // signed in and not the owner; also allows reporting
-	Voted   bool
-	Liked   bool
+	Build        store.Build
+	Photos       []string
+	Competitions []store.Competition // the ones this build has been entered in
+	IsOwner      bool
+	CanVote      bool // signed in and not the owner; also allows reporting
+	Voted        bool
+	Liked        bool
 }
 
 func (s *Server) handleBuildPage(w http.ResponseWriter, r *http.Request) {
@@ -344,7 +368,12 @@ func (s *Server) handleBuildPage(w http.ResponseWriter, r *http.Request) {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not load photos.")
 		return
 	}
-	data := buildPageData{Build: build, Photos: photos}
+	entered, err := s.store.CompetitionsForBuild(build.ID)
+	if err != nil {
+		s.renderError(w, r, http.StatusInternalServerError, "Could not load the build.")
+		return
+	}
+	data := buildPageData{Build: build, Photos: photos, Competitions: entered}
 	if viewer != nil {
 		data.IsOwner = viewer.ID == build.UserID
 		data.CanVote = !data.IsOwner && !build.Private
@@ -448,6 +477,12 @@ func (s *Server) handleBuildLike(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.renderError(w, r, http.StatusInternalServerError, "Could not record the like.")
 		return
+	}
+	// The likes page is the one place a member sees their likes together, so
+	// a like taken back there leaves them looking at the list, not at a
+	// build they have just stopped liking.
+	if r.FormValue("back") == "/likes" {
+		page = "/likes"
 	}
 	if liked {
 		flashRedirect(w, r, page, "Like taken back.", "")
