@@ -717,6 +717,47 @@ func (s *Server) handlePhotoMove(w http.ResponseWriter, r *http.Request) {
 	flashRedirect(w, r, editPath, "Order changed.", "")
 }
 
+// handlePhotoOrder saves the order the photos were dragged into on the edit
+// page. The script that sends it wants no page back, so it is answered with
+// 204 and the pictures stay where they were put; a plain form post lands
+// back on the edit page.
+func (s *Server) handlePhotoOrder(w http.ResponseWriter, r *http.Request) {
+	user, ok := s.requireUser(w, r)
+	if !ok {
+		return
+	}
+	build, err := s.store.BuildByID(parseID(r.PathValue("id")))
+	if err != nil || build.UserID != user.ID {
+		s.renderError(w, r, http.StatusNotFound, "Not your build.")
+		return
+	}
+	names := r.Form["order"]
+	if len(names) > store.MaxPhotosPerBuild {
+		s.renderError(w, r, http.StatusBadRequest, "Too many photos.")
+		return
+	}
+	for _, name := range names {
+		if !photoNamePattern.MatchString(name) {
+			s.renderError(w, r, http.StatusNotFound, "No such photo.")
+			return
+		}
+	}
+	quiet := r.Header.Get("X-Requested-With") == "fetch"
+	if err := s.store.OrderPhotos(build.ID, names); err != nil {
+		if quiet {
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
+		flashRedirect(w, r, buildEdit(build.ID), "", "Could not change the order. The photos may have changed, so here they are again.")
+		return
+	}
+	if quiet {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	flashRedirect(w, r, buildEdit(build.ID), "Order changed.", "")
+}
+
 func (s *Server) handlePhotoDelete(w http.ResponseWriter, r *http.Request) {
 	build, name, ok := s.ownedBuildPhoto(w, r)
 	if !ok {

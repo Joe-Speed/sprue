@@ -1024,6 +1024,31 @@ func (s *Store) SetCoverPhoto(buildID int64, fileName string) error {
 	return s.writePhotoOrder(buildID, append([]string{fileName}, ordered...))
 }
 
+// OrderPhotos saves the order a build's photos were dragged into. The names
+// must be the build's current photos, each once, so a stale page can neither
+// drop a photo nor add one. The first name becomes the cover.
+func (s *Store) OrderPhotos(buildID int64, names []string) error {
+	current, err := s.Photos(buildID)
+	if err != nil {
+		return err
+	}
+	if len(names) != len(current) {
+		return ErrNotFound
+	}
+	placed := make(map[string]bool, len(current))
+	for _, name := range current {
+		placed[name] = false
+	}
+	for _, name := range names {
+		already, known := placed[name]
+		if !known || already {
+			return ErrNotFound
+		}
+		placed[name] = true
+	}
+	return s.writePhotoOrder(buildID, names)
+}
+
 // writePhotoOrder replaces a build's photo rows with names in the given order.
 func (s *Store) writePhotoOrder(buildID int64, names []string) error {
 	if len(names) > MaxPhotosPerBuild {

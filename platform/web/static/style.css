@@ -895,20 +895,19 @@ ul.cards.featured li.card .cover {
   height: 220px;
 }
 
-/* A tag on the member's own card, such as a pinned build, outside the
-   main link so the whole card still leads to the build. */
-li.card .cardtag {
-  display: inline-block;
-  margin: 0.6rem 0.6rem 0;
+/* The owner's row under a card: a pinned tag and the Edit button, outside
+   the main link so the whole card still leads to the build. */
+li.card .cardfoot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem;
 }
 
-/* Owner-only edit link in a card's footer, outside the main link. */
-li.card .cardlink {
-  display: block;
-  padding: 0 0.6rem 0.5rem;
-  font-family: var(--display);
+li.card .cardfoot .nes-btn {
+  margin-left: auto;
+  padding: 0.3rem 0.6rem;
   font-size: 0.55rem;
-  text-decoration: none;
 }
 
 /* Page head: title on the left, one action button on the right. */
@@ -1593,52 +1592,81 @@ button.linkish {
 }
 
 /* Chosen photos before they upload. The first is the cover, so each one can
-   be dragged or nudged into place. */
+   be dragged into place. */
+.previews .preview,
+ul.thumbs li {
+  position: relative;
+}
+
 .previews .preview {
+  width: 120px;
+}
+
+.previews .preview,
+ul.thumbs.sortable li {
   cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.previews .preview.dragging {
-  opacity: 0.5;
+.previews .preview.dragging,
+ul.thumbs li.dragging {
+  cursor: grabbing;
+  opacity: 0.6;
 }
 
-.previews .preview.over img {
+.previews .preview.dragging img,
+ul.thumbs li.dragging img {
   border-color: var(--blue);
 }
 
-.previews .order {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin: 4px 0 0;
+/* The cover tag sits on the first picture, the corner cross takes a
+   picture out of the set. */
+.previews .tag.cover,
+ul.thumbs .tag.cover {
+  display: none;
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background: var(--blue);
 }
 
-.previews .pos {
-  flex: 1 1 auto;
-  font-family: var(--display);
-  font-size: 0.5rem;
-  color: var(--ink-soft);
+.previews .first .tag.cover,
+ul.thumbs .first .tag.cover {
+  display: inline-block;
 }
 
-.previews .pos.cover {
-  color: var(--blue);
+.previews .remove,
+ul.thumbs .corner {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  margin: 0;
 }
 
-.previews .nudge {
-  padding: 0 6px;
+.previews .remove,
+ul.thumbs .remove {
+  width: 24px;
+  height: 24px;
+  padding: 0;
   border: 4px solid var(--ink);
-  background: var(--paper-deep);
+  background: var(--paper);
   color: var(--ink);
   font-family: var(--display);
   font-size: 0.5rem;
-  line-height: 20px;
+  line-height: 16px;
   cursor: pointer;
 }
 
-.previews .nudge:disabled {
-  color: var(--ink-soft);
-  cursor: default;
-  opacity: 0.5;
+.previews .remove:hover,
+ul.thumbs .remove:hover {
+  color: var(--red);
+}
+
+/* With script the photos drag into place, so the one-step links go. */
+ul.thumbs.sortable .thumb-actions {
+  display: none;
 }
 
 /* A link for keyboard users, out of the way until it has the focus. */
@@ -1720,7 +1748,11 @@ body.viewing {
 }
 
 .viewer .close {
-  flex: 0 0 auto;
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  padding: 0 0.7rem;
+  cursor: auto;
 }
 
 /* The row under a full size photo: which one it is, the way to the next,
@@ -1856,6 +1888,11 @@ body.viewing {
 
   .viewer {
     padding: 0.5rem;
+  }
+
+  .viewer .close {
+    top: 0.5rem;
+    left: 0.5rem;
   }
 
   /* A toast across the top, rather than a narrow box in the corner. */

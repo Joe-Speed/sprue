@@ -19,8 +19,7 @@
 {{if .Data.Builds}}<p class="meta">{{.Data.Page.Total}} build{{if ne .Data.Page.Total 1}}s{{end}}.</p>{{end}}
 <ul class="cards">
 {{range .Data.Builds}}<li class="card">{{template "build_card_body" (card . false)}}
-{{if .Pinned}}<span class="cardtag tag next">pinned</span>{{end}}
-<a class="cardlink" href="/builds/{{.ID}}/edit">Edit</a></li>{{end}}
+<span class="cardfoot">{{if .Pinned}}<span class="tag next">pinned</span>{{end}}<a class="nes-btn" href="/builds/{{.ID}}/edit">Edit</a></span></li>{{end}}
 </ul>
 {{template "pager" .Data.Page}}
 </section>

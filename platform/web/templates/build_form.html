@@ -12,24 +12,28 @@
 <div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="pinned" {{if .Data.Build.Pinned}}checked{{end}}><span>Pin this build to the top of my profile</span></label></div>
 <div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="private" {{if .Data.Build.Private}}checked{{end}}><span>Keep this private. Only I can see it.</span></label></div>
 {{if .Data.IsNew}}<div class="nes-field"><label for="photos">Photos</label><input id="photos" type="file" name="photos" accept="image/jpeg,image/png,image/gif" multiple>
-<p class="meta">Up to six now, JPEG or PNG, twelve per build. The first is the cover. More can be added after posting.</p></div>{{end}}
+<p class="meta">Drag the photos into order. The first is the cover. Up to six now, JPEG or PNG, twelve per build, and more can be added after posting.</p></div>{{end}}
 <button class="nes-btn is-primary" type="submit">Save</button>
 </form>
 {{if not .Data.IsNew}}
 <section class="nes-container with-title">
 <h2 class="title">Photos</h2>
 {{if .Data.Photos}}
-<ul class="thumbs">
-{{range $index, $name := .Data.Photos}}<li>
-<img src="/photos/{{$.Data.Build.ID}}/{{$name}}" alt="">
+{{/* With script the photos drag into order and the row of links is hidden;
+     without it the links do the same job one step at a time. */}}
+<ul class="thumbs" data-order="/builds/{{.Data.Build.ID}}/photos/order" data-csrf="{{.CSRF}}">
+{{range $index, $name := .Data.Photos}}<li{{if eq $index 0}} class="first"{{end}} data-name="{{$name}}">
+<img src="/photos/{{$.Data.Build.ID}}/{{$name}}" alt="" draggable="false">
+<span class="tag cover">cover</span>
+<form class="corner" method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/delete"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="remove" title="Remove this photo" aria-label="Remove this photo">&times;</button></form>
 <span class="thumb-actions">
-{{if eq $index 0}}<span class="tag">cover</span>{{else}}<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/cover"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish">Make cover</button></form>
+{{if ne $index 0}}<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/cover"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish">Make cover</button></form>
 <form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/move/earlier"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish" title="Move earlier">&larr;</button></form>{{end}}
 {{if notLast $index (len $.Data.Photos)}}<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/move/later"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish" title="Move later">&rarr;</button></form>{{end}}
-<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/delete"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish danger">Remove</button></form>
 </span>
 </li>{{end}}
 </ul>
+<p class="meta">Drag the photos into order. The first is the cover.</p>
 {{else}}
 <p class="quiet">No photos yet. The first one you add becomes the cover.</p>
 {{end}}

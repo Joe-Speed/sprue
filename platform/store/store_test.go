@@ -924,6 +924,23 @@ func TestMovePhotoAndBio(t *testing.T) {
 	if err := s.MovePhoto(build, "never.jpg", true); !errors.Is(err, ErrNotFound) {
 		t.Errorf("an unknown photo: %v", err)
 	}
+	// A dragged order is any arrangement of the same photos, and nothing else.
+	if err := s.OrderPhotos(build, []string{"b.jpg", "c.jpg", "a.jpg"}); err != nil || order() != "b.jpg,c.jpg,a.jpg" {
+		t.Errorf("ordering all photos: %v %s", err, order())
+	}
+	for _, bad := range [][]string{
+		{"b.jpg", "c.jpg"},
+		{"b.jpg", "c.jpg", "a.jpg", "a.jpg"},
+		{"b.jpg", "b.jpg", "a.jpg"},
+		{"b.jpg", "c.jpg", "never.jpg"},
+	} {
+		if err := s.OrderPhotos(build, bad); !errors.Is(err, ErrNotFound) {
+			t.Errorf("order %v should be refused, got %v", bad, err)
+		}
+	}
+	if order() != "b.jpg,c.jpg,a.jpg" {
+		t.Errorf("a refused order must change nothing, got %s", order())
+	}
 	if err := s.SetBio(sam.ID, "  Mostly 1/72 RAF aircraft  "); err != nil {
 		t.Fatal(err)
 	}

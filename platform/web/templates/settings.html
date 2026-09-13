@@ -21,8 +21,8 @@
 </form>
 <form class="avatar-form" method="post" action="/settings/avatar" enctype="multipart/form-data">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
-<img class="avatar" src="{{avatarPath .Data.Avatar}}" alt="" width="96" height="96">
-<div class="nes-field"><label for="avatar">Profile picture</label><input id="avatar" type="file" name="avatar" accept="image/jpeg,image/png,image/gif" required>
+<img class="avatar" id="avatar-shown" src="{{avatarPath .Data.Avatar}}" alt="" width="96" height="96">
+<div class="nes-field"><label for="avatar">Profile picture</label><input id="avatar" type="file" name="avatar" accept="image/jpeg,image/png,image/gif" data-shows="avatar-shown" required>
 <p class="meta">Cropped to a square. Shown on your profile and in member lists.</p></div>
 <button class="nes-btn" type="submit">Upload</button>
 </form>

@@ -46,10 +46,10 @@ document.addEventListener("click", function (event) {
 });
 
 // Chosen photos show as thumbnails before they upload, in the order they
-// will be saved. The first is the cover, so the order can be changed by
-// dragging a photo or nudging it with the arrows. A file box cannot be
-// rewritten by script, so the chosen order is held here and the form is
-// built from it when the post goes out.
+// will be saved. The first is the cover, and the order is changed by
+// dragging a photo into place. A file box cannot always be rewritten by
+// script, so the chosen order is held here too and the form is built from
+// it when the post goes out.
 var maxPreviews = 6;
 
 function orderedFiles(input) {
@@ -65,71 +65,146 @@ function drawPreviews(input, strip) {
   files.forEach(function (file, index) {
     var item = document.createElement("div");
     item.className = "preview";
-    item.draggable = true;
+    item.file = file;
 
     var image = document.createElement("img");
     image.alt = file.name;
+    image.draggable = false;
     image.src = URL.createObjectURL(file);
     image.onload = function () { URL.revokeObjectURL(image.src); };
     item.appendChild(image);
 
-    var row = document.createElement("p");
-    row.className = "order";
-    var label = document.createElement("span");
-    label.className = index === 0 ? "pos cover" : "pos";
-    label.textContent = index === 0 ? "cover" : String(index + 1);
-    row.appendChild(label);
-    [["\u2190", -1], ["\u2192", 1]].forEach(function (pair) {
-      var nudge = document.createElement("button");
-      nudge.type = "button";
-      nudge.className = "nudge";
-      nudge.textContent = pair[0];
-      nudge.title = pair[1] < 0 ? "Move earlier" : "Move later";
-      nudge.disabled = (pair[1] < 0 && index === 0) || (pair[1] > 0 && index === files.length - 1);
-      nudge.addEventListener("click", function () {
-        moveFile(input, strip, index, index + pair[1]);
-      });
-      row.appendChild(nudge);
-    });
-    item.appendChild(row);
+    // The first photo wears the cover tag on the picture itself, the way a
+    // listing site marks its main shot. Dragging any photo into the first
+    // place moves the tag to it.
+    var tag = document.createElement("span");
+    tag.className = "tag cover";
+    tag.textContent = "cover";
+    item.appendChild(tag);
 
-    item.addEventListener("dragstart", function (event) {
-      item.classList.add("dragging");
-      event.dataTransfer.setData("text/plain", String(index));
-      event.dataTransfer.effectAllowed = "move";
+    var drop = document.createElement("button");
+    drop.type = "button";
+    drop.className = "remove";
+    drop.textContent = "\u00d7";
+    drop.title = "Remove this photo";
+    drop.setAttribute("aria-label", "Remove " + file.name);
+    drop.addEventListener("click", function () {
+      files.splice(index, 1);
+      holdFiles(input, files);
+      drawPreviews(input, strip);
     });
-    item.addEventListener("dragend", function () {
-      item.classList.remove("dragging");
-    });
-    item.addEventListener("dragover", function (event) {
-      event.preventDefault();
-      item.classList.add("over");
-    });
-    item.addEventListener("dragleave", function () {
-      item.classList.remove("over");
-    });
-    item.addEventListener("drop", function (event) {
-      event.preventDefault();
-      item.classList.remove("over");
-      moveFile(input, strip, parseInt(event.dataTransfer.getData("text/plain"), 10), index);
+    item.appendChild(drop);
+
+    dragToReorder(strip, item, function () {
+      holdFiles(input, Array.prototype.map.call(strip.children, function (child) { return child.file; }));
     });
     strip.appendChild(item);
   });
+  markCover(strip);
 }
 
-function moveFile(input, strip, from, to) {
-  var files = orderedFiles(input);
-  if (isNaN(from) || from === to || from < 0 || to < 0 || from >= files.length || to >= files.length) {
+// markCover shows the tag on whichever photo is first right now.
+function markCover(list) {
+  Array.prototype.forEach.call(list.children, function (item, index) {
+    item.classList.toggle("first", index === 0);
+  });
+}
+
+// dragToReorder lets a photo be picked up and carried past its neighbours
+// with a mouse or a finger. Pointer events cover both, where the older drag
+// and drop only worked with a mouse. The item under the pointer swaps with
+// the carried one as it passes, and settle is called with the list when it
+// is let go so the new order can be kept.
+function dragToReorder(list, item, settle) {
+  item.addEventListener("pointerdown", function (event) {
+    if (event.target.closest("button")) {
+      return;
+    }
+    event.preventDefault();
+    item.setPointerCapture(event.pointerId);
+    item.classList.add("dragging");
+  });
+  item.addEventListener("pointermove", function (event) {
+    if (!item.classList.contains("dragging")) {
+      return;
+    }
+    var under = document.elementFromPoint(event.clientX, event.clientY);
+    var over = under && under.closest(".preview, li");
+    if (!over || over === item || over.parentNode !== list) {
+      return;
+    }
+    var items = Array.prototype.slice.call(list.children);
+    if (items.indexOf(over) < items.indexOf(item)) {
+      list.insertBefore(item, over);
+    } else {
+      list.insertBefore(item, over.nextSibling);
+    }
+    markCover(list);
+  });
+  ["pointerup", "pointercancel"].forEach(function (name) {
+    item.addEventListener(name, function () {
+      if (!item.classList.contains("dragging")) {
+        return;
+      }
+      item.classList.remove("dragging");
+      settle(list);
+    });
+  });
+}
+
+// Saved photos on the edit page drag the same way. The order goes to the
+// server as it is let go, and if that fails the page reloads to show what
+// the server really has.
+function photoNames(list) {
+  return Array.prototype.map.call(list.querySelectorAll("li[data-name]"), function (item) {
+    return item.dataset.name;
+  });
+}
+
+function sendPhotoOrder(list) {
+  var names = photoNames(list);
+  if (names.join(",") === list.dataset.sent) {
     return;
   }
-  var moved = files.splice(from, 1)[0];
-  files.splice(to, 0, moved);
-  drawPreviews(input, strip);
+  list.dataset.sent = names.join(",");
+  var body = new FormData();
+  body.append("csrf", list.dataset.csrf);
+  names.forEach(function (name) { body.append("order", name); });
+  fetch(list.dataset.order, {
+    method: "post",
+    body: body,
+    credentials: "same-origin",
+    headers: { "X-Requested-With": "fetch" }
+  }).then(function (response) {
+    if (!response.ok) {
+      window.location.reload();
+    }
+  }).catch(function () {
+    window.location.reload();
+  });
 }
 
-// takePhotos accepts a set of files for one photo box, keeping only pictures
-// and only as many as a post holds. The box itself is filled too where the
-// browser allows it, so a submit without script still carries them.
+document.querySelectorAll("ul.thumbs[data-order]").forEach(function (list) {
+  list.classList.add("sortable");
+  list.dataset.sent = photoNames(list).join(",");
+  list.querySelectorAll("li[data-name]").forEach(function (item) {
+    dragToReorder(list, item, sendPhotoOrder);
+  });
+});
+
+// holdFiles keeps the arranged list on the input, and in its file list too
+// where the browser allows, so the form sends what is shown.
+function holdFiles(input, files) {
+  input.ordered = files;
+  if (window.DataTransfer) {
+    var holder = new DataTransfer();
+    files.forEach(function (file) {
+      holder.items.add(file);
+    });
+    input.files = holder.files;
+  }
+}
+
 function takePhotos(input, strip, files) {
   var pictures = Array.prototype.slice.call(files).filter(function (file) {
     return file.type && file.type.indexOf("image/") === 0;
@@ -137,18 +212,42 @@ function takePhotos(input, strip, files) {
   if (pictures.length === 0) {
     return;
   }
-  input.ordered = pictures;
-  if (window.DataTransfer) {
-    var holder = new DataTransfer();
-    pictures.forEach(function (file) {
-      holder.items.add(file);
-    });
-    input.files = holder.files;
-  }
+  holdFiles(input, pictures);
   drawPreviews(input, strip);
 }
 
+// A single picture, like the profile photo, swaps into the image it names
+// and goes up at once. Choosing is the whole job, with no second button.
+function showAndSend(input, shown) {
+  var form = input.form;
+  input.addEventListener("change", function () {
+    var file = input.files && input.files[0];
+    if (!file || !file.type || file.type.indexOf("image/") !== 0) {
+      return;
+    }
+    var was = shown.src;
+    shown.src = URL.createObjectURL(file);
+    shown.onload = function () { URL.revokeObjectURL(shown.src); };
+    shown.onerror = function () { shown.src = was; };
+    if (form && form.requestSubmit) {
+      form.requestSubmit();
+    } else if (form) {
+      form.submit();
+    }
+  });
+  if (form) {
+    Array.prototype.forEach.call(form.querySelectorAll('button[type="submit"]'), function (button) {
+      button.hidden = true;
+    });
+  }
+}
+
 document.querySelectorAll('input[type="file"][accept^="image"]').forEach(function (input) {
+  var shown = input.dataset.shows ? document.getElementById(input.dataset.shows) : null;
+  if (shown) {
+    showAndSend(input, shown);
+    return;
+  }
   var strip = document.createElement("div");
   strip.className = "previews";
   input.insertAdjacentElement("afterend", strip);
@@ -549,15 +648,18 @@ function photoViewer() {
   on.title = "Next photo";
   var count = document.createElement("span");
   count.className = "count";
+  // The way out is a cross in the top left corner, where a window closes,
+  // rather than a word in the row of steps.
   var close = document.createElement("button");
   close.type = "button";
   close.className = "nes-btn close";
-  close.textContent = "Close";
+  close.textContent = "\u00d7";
+  close.title = "Close";
+  close.setAttribute("aria-label", "Close");
   if (shots.length > 1) {
     bar.append(back, count, on);
   }
-  bar.appendChild(close);
-  frame.append(full, bar);
+  frame.append(close, full, bar);
   document.body.appendChild(frame);
 
   var opener = null;
