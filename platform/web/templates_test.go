@@ -43,7 +43,7 @@ func TestEveryPageRenders(t *testing.T) {
 		"build":        buildPageData{Build: build, Photos: []string{"abc.jpg"}, CanVote: true, Voted: true},
 		"build_form":   buildFormData{Build: build, Photos: []string{"abc.jpg", "def.jpg"}, CanDelete: true},
 		"competitions": competitionsData{Competitions: []store.Competition{comp}, Categories: store.Categories, Category: "fighter"},
-		"past":         []pastCompetition{{Competition: comp, Trophies: []store.Trophy{trophy}}},
+		"past":         pastData{Past: []pastCompetition{{Competition: comp, Trophies: []store.Trophy{trophy}}}, Years: []string{"2026", "2025"}, Year: "2026"},
 		"terms":        "2026-09-07",
 		"privacy":      "2026-09-07",
 		"feedback":     nil,

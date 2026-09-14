@@ -1711,16 +1711,55 @@ func (s *Store) UnseenTrophy(userID int64) (Trophy, error) {
 	return list[0], err
 }
 
-// DecidedCompetitions lists finished competitions, newest first.
-func (s *Store) DecidedCompetitions(limit int) ([]Competition, error) {
+// DecidedCompetitions lists finished competitions, newest first. A year
+// such as "2026" narrows the list to competitions decided that year; empty
+// means every year.
+func (s *Store) DecidedCompetitions(year string, limit int) ([]Competition, error) {
 	if limit <= 0 || limit > MaxCompetitions {
 		limit = MaxCompetitions
 	}
-	rows, err := s.db.Query(`select `+competitionColumns+` where c.status = 'decided' order by c.voting_closes desc, c.id desc limit ?`, limit)
+	if year != "" && !validYear(year) {
+		return nil, errors.New("store: bad year")
+	}
+	rows, err := s.db.Query(`select `+competitionColumns+` where c.status = 'decided' and (? = '' or substr(c.voting_closes, 1, 4) = ?)
+		order by c.voting_closes desc, c.id desc limit ?`, year, year, limit)
 	if err != nil {
 		return nil, err
 	}
 	return scanCompetitions(rows)
+}
+
+// DecidedYears lists the years in which competitions were decided, newest
+// first, for the past winners filter. Bounded by the competition cap.
+func (s *Store) DecidedYears() ([]string, error) {
+	rows, err := s.db.Query(`select distinct substr(voting_closes, 1, 4) from competitions
+		where status = 'decided' order by 1 desc limit ?`, MaxCompetitions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	years := make([]string, 0, 8)
+	for rows.Next() {
+		var year string
+		if err := rows.Scan(&year); err != nil {
+			return nil, err
+		}
+		years = append(years, year)
+	}
+	return years, rows.Err()
+}
+
+// validYear accepts exactly four digits.
+func validYear(year string) bool {
+	if len(year) != 4 {
+		return false
+	}
+	for _, r := range year {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // Entrant is one member who put a build into a competition, with the place

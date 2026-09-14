@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -330,7 +331,7 @@ func TestCompetitionLifecycle(t *testing.T) {
 	if _, err := s.UnseenTrophy(cara.ID); !errors.Is(err, ErrNotFound) {
 		t.Error("cara has no trophy")
 	}
-	if past, _ := s.DecidedCompetitions(10); len(past) != 1 || past[0].ID != comp.ID {
+	if past, _ := s.DecidedCompetitions("", 10); len(past) != 1 || past[0].ID != comp.ID {
 		t.Errorf("decided list: %+v", past)
 	}
 	if err := s.Decide(comp.ID); err != nil {
@@ -1118,5 +1119,37 @@ func TestSearchBuilds(t *testing.T) {
 	found, _ := s.SearchBuilds("spitfire", 0)
 	if len(found) != 1 || found[0].ID != spit || found[0].ID == hidden {
 		t.Fatalf("a private build turned up in a search: %+v", found)
+	}
+}
+
+func TestDecidedYearsAndFilter(t *testing.T) {
+	s := testStore(t)
+	cara := testUser(t, s, "cara@example.com")
+	for _, year := range []int{2025, 2026} {
+		_, err := s.CreateCompetition(Competition{
+			Title: fmt.Sprintf("Comp %d", year), CreatorID: cara.ID, Category: "fighter",
+			EntriesClose: fmt.Sprintf("%d-06-10", year), VotingCloses: fmt.Sprintf("%d-06-20", year),
+		}, time.Date(year, 6, 1, 0, 0, 0, 0, time.UTC))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.Advance(time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	years, err := s.DecidedYears()
+	if err != nil || len(years) != 2 || years[0] != "2026" || years[1] != "2025" {
+		t.Fatalf("years newest first: %v %v", years, err)
+	}
+	only, err := s.DecidedCompetitions("2025", 10)
+	if err != nil || len(only) != 1 || only[0].VotingCloses != "2025-06-20" {
+		t.Fatalf("filter by year: %v %d", err, len(only))
+	}
+	all, err := s.DecidedCompetitions("", 10)
+	if err != nil || len(all) != 2 {
+		t.Fatalf("no year means every year: %v %d", err, len(all))
+	}
+	if _, err := s.DecidedCompetitions("20x6", 10); err == nil {
+		t.Error("a malformed year must be refused")
 	}
 }

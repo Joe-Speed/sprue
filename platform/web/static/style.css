@@ -1243,6 +1243,7 @@ ul.rows .nes-btn {
 }
 
 .podium li {
+  grid-row: 1;
   padding: 0.6rem;
   text-align: center;
   background: var(--paper-deep);
@@ -1252,18 +1253,18 @@ ul.rows .nes-btn {
 }
 
 .podium .place-1 {
-  order: 2;
+  grid-column: 2;
   padding-bottom: 2rem;
   animation-delay: 0.9s;
 }
 
 .podium .place-2 {
-  order: 1;
+  grid-column: 1;
   animation-delay: 0.5s;
 }
 
 .podium .place-3 {
-  order: 3;
+  grid-column: 3;
   animation-delay: 0.1s;
 }
 
@@ -1353,10 +1354,12 @@ ul.rows .nes-btn {
     grid-template-columns: 1fr;
   }
 
+  .podium li,
   .podium .place-1,
   .podium .place-2,
   .podium .place-3 {
-    order: 0;
+    grid-row: auto;
+    grid-column: auto;
     padding-bottom: 0.6rem;
   }
 }

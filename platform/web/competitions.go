@@ -261,11 +261,31 @@ type pastCompetition struct {
 	Trophies    []store.Trophy
 }
 
+// pastData is the past winners page: the competitions shown, the years
+// there are to choose from, and the year in force, empty for all.
+type pastData struct {
+	Past  []pastCompetition
+	Years []string
+	Year  string
+}
+
 const pastPageSize = 24
 
 func (s *Server) handlePastCompetitions(w http.ResponseWriter, r *http.Request) {
 	s.advanceCompetitions()
-	decided, err := s.store.DecidedCompetitions(pastPageSize)
+	year := r.URL.Query().Get("year")
+	if len(year) != 4 {
+		year = ""
+	}
+	years, err := s.store.DecidedYears()
+	if err != nil {
+		s.serverError(w, r, err, "Could not load past competitions.")
+		return
+	}
+	if !knownYear(years, year) {
+		year = ""
+	}
+	decided, err := s.store.DecidedCompetitions(year, pastPageSize)
 	if err != nil {
 		s.serverError(w, r, err, "Could not load past competitions.")
 		return
@@ -279,7 +299,21 @@ func (s *Server) handlePastCompetitions(w http.ResponseWriter, r *http.Request) 
 		}
 		past = append(past, pastCompetition{Competition: comp, Trophies: trophies})
 	}
-	s.render(w, r, "past", "Past winners", past)
+	s.render(w, r, "past", "Past winners", pastData{Past: past, Years: years, Year: year})
+}
+
+// knownYear says whether a requested year is one that has results, so the
+// filter only ever shows a year that exists. Empty means all and is fine.
+func knownYear(years []string, year string) bool {
+	if year == "" {
+		return true
+	}
+	for _, known := range years {
+		if known == year {
+			return true
+		}
+	}
+	return false
 }
 
 type competitionFormData struct {

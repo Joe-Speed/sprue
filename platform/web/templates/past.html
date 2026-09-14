@@ -2,8 +2,12 @@
 <p class="back"><a href="/competitions">&larr; Competitions</a></p>
 <h1><img class="icon" src="{{static "icon-medal.svg"}}" alt="" width="24" height="24">Past winners</h1>
 <p class="meta">Every decided competition and who placed.</p>
-{{if not .Data}}<p class="quiet">No competition has been decided yet.</p>{{end}}
-{{range .Data}}
+{{if gt (len .Data.Years) 1}}<nav class="filters" aria-label="Filter by year">
+<a href="/competitions/past"{{if not .Data.Year}} aria-current="page"{{end}}>All years</a>
+{{range .Data.Years}}<a href="/competitions/past?year={{.}}"{{if eq . $.Data.Year}} aria-current="page"{{end}}>{{.}}</a>{{end}}
+</nav>{{end}}
+{{if not .Data.Past}}<p class="quiet">No competition has been decided yet.</p>{{end}}
+{{range .Data.Past}}
 <section class="plain">
 <h2><a href="/competitions/{{.Competition.Slug}}">{{.Competition.Title}}</a></h2>
 <p class="meta">{{if .Competition.Official}}<span class="tag official">sprue</span>{{end}}<span class="tag category">{{.Competition.Category}}</span> decided {{niceDate .Competition.VotingCloses}}</p>
