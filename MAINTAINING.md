@@ -144,10 +144,9 @@ Winners download their own trophy: each winner sees a `download your trophy STL`
 
 ## Deployment on Railway or Render
 
-The Dockerfile at the repo root builds the platform. The container runs as an unprivileged user with id 10001, so the mounted volume has to be writable by that id. On Railway set the service variable `RAILWAY_RUN_UID=10001`; without it the volume is owned by root and the first start fails with a permission error creating the photos folder. Set up the service with:
+The Dockerfile at the repo root builds the platform. The container runs as root because Railway mounts the volume owned by root; a deploy that switched to an unprivileged user exited at start on 14 September 2026 because the database could not be opened for writing. If that is ever wanted, Railway's route is the service variable `RAILWAY_RUN_UID` set to the container user's id before the deploy, and it needs testing on a throwaway service first. Set up the service with:
 
 - a persistent volume mounted at `/data`
-- `RAILWAY_RUN_UID=10001` on Railway, so the volume belongs to the container's user
 - `SPRUE_URL` set to your domain
 - `SPRUE_ADMIN_EMAIL` set to your email
 - the mail variables pointed at your email provider
