@@ -104,7 +104,7 @@ func (s *Server) handleAvatarUpload(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 	raw, err := io.ReadAll(io.LimitReader(file, images.MaxUploadBytes+1))
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Upload failed.")
+		s.serverError(w, r, err, "Upload failed.")
 		return
 	}
 	processed, err := images.ProcessSquare(raw, avatarSize)
@@ -118,20 +118,20 @@ func (s *Server) handleAvatarUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	name, err := randomToken()
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Upload failed.")
+		s.serverError(w, r, err, "Upload failed.")
 		return
 	}
 	fileName := name[:24] + ".jpg"
 	if err := os.MkdirAll(s.avatarDir(), 0o755); err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Upload failed.")
+		s.serverError(w, r, err, "Upload failed.")
 		return
 	}
 	if err := os.WriteFile(filepath.Join(s.avatarDir(), fileName), processed, 0o644); err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Upload failed.")
+		s.serverError(w, r, err, "Upload failed.")
 		return
 	}
 	if err := s.store.SetAvatar(user.ID, fileName); err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Upload failed.")
+		s.serverError(w, r, err, "Upload failed.")
 		return
 	}
 	s.removeAvatarFile(user.Avatar)
@@ -144,7 +144,7 @@ func (s *Server) handleAvatarRemove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.store.SetAvatar(user.ID, ""); err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not remove the picture.")
+		s.serverError(w, r, err, "Could not remove the picture.")
 		return
 	}
 	s.removeAvatarFile(user.Avatar)

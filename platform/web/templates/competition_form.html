@@ -13,9 +13,9 @@
 <p class="meta">What members filter by when looking for something to enter.</p></div>
 <div class="nes-field"><label for="description">Brief</label><textarea class="nes-textarea" id="description" name="description" maxlength="2000" rows="5">{{.Data.Competition.Description}}</textarea>
 <p class="meta">What counts as an entry: subject, scale, brand, anything the builders should know.</p></div>
-<div class="nes-field"><label for="entries_close">Entries close</label><input class="nes-input" id="entries_close" type="date" name="entries_close" min="{{.Data.Tomorrow}}" required>
+<div class="nes-field"><label for="entries_close">Entries close</label><input class="nes-input" id="entries_close" type="date" name="entries_close" value="{{.Data.Competition.EntriesClose}}" min="{{.Data.Tomorrow}}" required>
 <p class="meta">Last day to enter, up to 180 days from now.</p></div>
-<div class="nes-field"><label for="voting_closes">Voting closes</label><input class="nes-input" id="voting_closes" type="date" name="voting_closes" min="{{.Data.Tomorrow}}" required>
+<div class="nes-field"><label for="voting_closes">Voting closes</label><input class="nes-input" id="voting_closes" type="date" name="voting_closes" value="{{.Data.Competition.VotingCloses}}" min="{{.Data.Tomorrow}}" required>
 <p class="meta">Last day to vote, up to 60 days after entries close.</p></div>
 <button class="nes-btn is-primary" type="submit">Create</button>
 </form>

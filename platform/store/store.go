@@ -39,6 +39,10 @@ var ErrNotFound = errors.New("not found")
 var ErrLimit = errors.New("limit reached")
 var ErrInUse = errors.New("in use")
 
+// ErrInvalid marks input that can never be stored, as opposed to a fault
+// that a retry might get past.
+var ErrInvalid = errors.New("invalid")
+
 type Store struct {
 	db *sql.DB
 }
@@ -195,19 +199,70 @@ create table if not exists donations (
 );
 `
 
-// migrations add columns to tables that shipped without them. SQLite has no
-// "add column if not exists", so a duplicate column error means already done.
-var migrations = []string{
-	`alter table magic_tokens add column remember integer not null default 1`,
-	`alter table sessions add column remember integer not null default 1`,
-	`alter table users add column slug_chosen integer not null default 0`,
-	`alter table users add column bio text not null default ''`,
+// A migration is a numbered change to a database that already exists.
+// Each runs once; the schema_versions table records which have.
+type migration struct {
+	version    int
+	statements []string
 }
 
+// migrations run in order on databases older than the newest version.
+// Never edit or reorder a shipped entry; add a new version instead.
+// "create index if not exists" is safe to re-run, "alter table add column"
+// is not, so column additions rely on the version record. A database made
+// before the version table existed has the columns already; migrate
+// treats a duplicate column as done on that first pass only.
+var migrations = []migration{
+	{1, []string{`alter table magic_tokens add column remember integer not null default 1`}},
+	{2, []string{`alter table sessions add column remember integer not null default 1`}},
+	{3, []string{`alter table users add column slug_chosen integer not null default 0`}},
+	{4, []string{`alter table users add column bio text not null default ''`}},
+	// Competitions decided before this column existed were already written
+	// about, so they start as told; Decide clears the flag for new results.
+	{5, []string{`alter table competitions add column notified integer not null default 1`}},
+	{6, []string{
+		`create index if not exists photos_by_build on photos (build_id, position)`,
+		`create index if not exists builds_by_user on builds (user_id)`,
+		`create index if not exists builds_by_date on builds (created_at)`,
+		`create index if not exists trophies_by_build on trophies (build_id)`,
+		`create index if not exists trophies_by_user on trophies (user_id)`,
+		`create index if not exists entries_by_build on entries (build_id)`,
+		`create index if not exists votes_by_entry on votes (entry_id)`,
+		`create index if not exists build_likes_by_user on build_likes (user_id)`,
+		`create index if not exists build_votes_by_date on build_votes (created_at)`,
+		`create index if not exists friendships_by_addressee on friendships (addressee_id, status)`,
+		`create index if not exists stash_by_user on stash (user_id)`,
+		`create index if not exists journal_by_stash on journal (stash_id)`,
+		`create index if not exists competitions_by_status on competitions (status)`,
+		`create index if not exists sessions_by_user on sessions (user_id)`,
+		`create index if not exists sessions_by_expiry on sessions (expires_at)`,
+	}},
+}
+
+const versionTable = `create table if not exists schema_versions (
+	version integer primary key,
+	applied_at text not null
+)`
+
 func migrate(db *sql.DB) error {
-	for _, statement := range migrations {
-		if _, err := db.Exec(statement); err != nil && !strings.Contains(err.Error(), "duplicate column") {
-			return fmt.Errorf("store: migrate %q: %w", statement, err)
+	if _, err := db.Exec(versionTable); err != nil {
+		return fmt.Errorf("store: version table: %w", err)
+	}
+	var applied int
+	if err := db.QueryRow(`select coalesce(max(version), 0) from schema_versions`).Scan(&applied); err != nil {
+		return fmt.Errorf("store: read version: %w", err)
+	}
+	for _, m := range migrations {
+		if m.version <= applied {
+			continue
+		}
+		for _, statement := range m.statements {
+			if _, err := db.Exec(statement); err != nil && !strings.Contains(err.Error(), "duplicate column") {
+				return fmt.Errorf("store: migrate %d %q: %w", m.version, statement, err)
+			}
+		}
+		if _, err := db.Exec(`insert into schema_versions (version, applied_at) values (?, ?)`, m.version, now()); err != nil {
+			return fmt.Errorf("store: record version %d: %w", m.version, err)
 		}
 	}
 	return nil
@@ -239,6 +294,19 @@ func (s *Store) Close() error {
 func (s *Store) Ping() error {
 	var one int
 	return s.db.QueryRow(`select 1`).Scan(&one)
+}
+
+// Backup writes a consistent copy of the database to path, which must not
+// exist yet. SQLite does the copying inside one read transaction, so it is
+// safe while the site is serving.
+func (s *Store) Backup(path string) error {
+	if path == "" {
+		return errors.New("store: empty backup path")
+	}
+	if _, err := s.db.Exec(`vacuum into ?`, path); err != nil {
+		return fmt.Errorf("store: backup: %w", err)
+	}
+	return nil
 }
 
 // Sweep removes expired sessions, spent or expired sign-in tokens, and
@@ -1269,40 +1337,72 @@ func (s *Store) AdminUser() (User, error) {
 
 // Advance moves competitions along by date: open ones whose entry day has
 // passed start voting, voting ones whose voting day has passed are decided.
-// Call it on a timer and before showing competitions.
-// Advance moves competitions on by date and returns the ones it decided in
-// this run, so the caller can tell the people who entered them.
-func (s *Store) Advance(today time.Time) ([]Competition, error) {
+// Call it on a timer and before showing competitions. Telling entrants is
+// a separate step, ClaimUntold, so a page request never waits on mail.
+func (s *Store) Advance(today time.Time) error {
 	day := today.UTC().Format(dayLayout)
 	if _, err := s.db.Exec(`update competitions set status = 'voting' where status = 'open' and entries_close < ?`, day); err != nil {
-		return nil, fmt.Errorf("store: advance to voting: %w", err)
+		return fmt.Errorf("store: advance to voting: %w", err)
 	}
-	rows, err := s.db.Query(`select id from competitions where status = 'voting' and voting_closes < ? limit ?`, day, MaxCompetitions)
+	due, err := s.ids(`select id from competitions where status = 'voting' and voting_closes < ? limit ?`, day, MaxCompetitions)
+	if err != nil {
+		return err
+	}
+	for _, id := range due {
+		if err := s.Decide(id); err != nil {
+			return fmt.Errorf("store: decide %d: %w", id, err)
+		}
+	}
+	return nil
+}
+
+// ClaimUntold returns decided competitions whose entrants have not been
+// written to, marking each as told in the same step. A competition comes
+// back from exactly one call, however many callers race for it.
+func (s *Store) ClaimUntold(limit int) ([]Competition, error) {
+	if limit <= 0 || limit > MaxCompetitions {
+		limit = MaxCompetitions
+	}
+	untold, err := s.ids(`select id from competitions where status = 'decided' and notified = 0 order by id limit ?`, limit)
 	if err != nil {
 		return nil, err
 	}
-	var due []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
+	claimed := make([]Competition, 0, len(untold))
+	for _, id := range untold {
+		result, err := s.db.Exec(`update competitions set notified = 1 where id = ? and notified = 0`, id)
+		if err != nil {
 			return nil, err
 		}
-		due = append(due, id)
-	}
-	rows.Close()
-	decided := make([]Competition, 0, len(due))
-	for _, id := range due {
-		if err := s.Decide(id); err != nil {
-			return nil, fmt.Errorf("store: decide %d: %w", id, err)
+		changed, err := result.RowsAffected()
+		if err != nil || changed == 0 {
+			continue
 		}
 		comp, err := s.CompetitionByID(id)
 		if err != nil {
 			return nil, err
 		}
-		decided = append(decided, comp)
+		claimed = append(claimed, comp)
 	}
-	return decided, nil
+	return claimed, nil
+}
+
+// ids runs a query whose only column is an id and returns the list. Every
+// caller's query carries its own limit.
+func (s *Store) ids(query string, args ...any) ([]int64, error) {
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	list := make([]int64, 0, 8)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		list = append(list, id)
+	}
+	return list, rows.Err()
 }
 
 type Entry struct {
@@ -1510,7 +1610,7 @@ func (s *Store) Decide(competitionID int64) error {
 		return err
 	}
 	defer tx.Rollback()
-	result, err := tx.Exec(`update competitions set status = 'decided' where id = ? and status != 'decided'`, competitionID)
+	result, err := tx.Exec(`update competitions set status = 'decided', notified = 0 where id = ? and status != 'decided'`, competitionID)
 	if err != nil {
 		return err
 	}

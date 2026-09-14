@@ -25,6 +25,9 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	page := buildPage(build.ID)
+	if s.tooFast(w, r, user, page) {
+		return
+	}
 	added, err := s.store.ReportBuild(build.ID, user.ID, r.FormValue("reason"))
 	if err != nil {
 		flashRedirect(w, r, page, "", "Could not report that build.")

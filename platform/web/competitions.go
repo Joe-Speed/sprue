@@ -90,21 +90,34 @@ func (s *Server) startScheduledCompetitions(today time.Time) {
 // trophyFiles maps a placing to the STL file in the data directory.
 var trophyFiles = [...]string{1: "first-place.stl", 2: "second-place.stl", 3: "third-place.stl"}
 
-// advanceCompetitions moves competitions along by date before they are shown
+// advanceCompetitions moves competitions on by date before they are shown
 // or acted on. A failure is logged and the stored state is shown as is.
-// advanceCompetitions moves competitions on by date and writes to everyone
-// who entered any that were decided. Advancing needs no admin step, so a
-// result would otherwise be silent.
+// Writing to entrants happens in housekeeping, so no page waits on mail.
 func (s *Server) advanceCompetitions() {
-	decided, err := s.store.Advance(time.Now())
-	if err != nil {
+	if err := s.store.Advance(time.Now()); err != nil {
 		log.Printf("web: %v", err)
+	}
+}
+
+// tellDecided writes to everyone who entered a competition decided since
+// the last run. The store hands each competition out once.
+func (s *Server) tellDecided() {
+	if !s.mailConfigured() {
+		return
+	}
+	decided, err := s.store.ClaimUntold(maxResultsPerRun)
+	if err != nil {
+		log.Printf("web: results: %v", err)
 		return
 	}
 	for _, comp := range decided {
 		s.tellEntrants(comp)
 	}
 }
+
+// maxResultsPerRun bounds how many competitions one housekeeping pass
+// writes about; the rest wait for the next hour.
+const maxResultsPerRun = 8
 
 // tellEntrants writes to each member who entered a decided competition:
 // winners get their placing and the address of their trophy, everyone else
@@ -160,7 +173,7 @@ func (s *Server) handleCompetitions(w http.ResponseWriter, r *http.Request) {
 	category := r.URL.Query().Get("category")
 	list, err := s.store.Competitions(category)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load competitions.")
+		s.serverError(w, r, err, "Could not load competitions.")
 		return
 	}
 	data := competitionsData{Competitions: list, Categories: store.Categories}
@@ -184,14 +197,14 @@ func (s *Server) handlePastCompetitions(w http.ResponseWriter, r *http.Request) 
 	s.advanceCompetitions()
 	decided, err := s.store.DecidedCompetitions(pastPageSize)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load past competitions.")
+		s.serverError(w, r, err, "Could not load past competitions.")
 		return
 	}
 	past := make([]pastCompetition, 0, len(decided))
 	for _, comp := range decided {
 		trophies, err := s.store.TrophiesForCompetition(comp.ID)
 		if err != nil {
-			s.renderError(w, r, http.StatusInternalServerError, "Could not load past competitions.")
+			s.serverError(w, r, err, "Could not load past competitions.")
 			return
 		}
 		past = append(past, pastCompetition{Competition: comp, Trophies: trophies})
@@ -209,8 +222,15 @@ func (s *Server) handleCompetitionForm(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.requireUser(w, r); !ok {
 		return
 	}
-	data := competitionFormData{Tomorrow: time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02"), Categories: store.Categories}
-	s.render(w, r, "competition_form", "Start a competition", data)
+	s.render(w, r, "competition_form", "Start a competition", competitionForm(store.Competition{}))
+}
+
+func competitionForm(draft store.Competition) competitionFormData {
+	return competitionFormData{
+		Competition: draft,
+		Tomorrow:    time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02"),
+		Categories:  store.Categories,
+	}
 }
 
 func (s *Server) handleCompetitionCreate(w http.ResponseWriter, r *http.Request) {
@@ -227,17 +247,19 @@ func (s *Server) handleCompetitionCreate(w http.ResponseWriter, r *http.Request)
 		Category:     r.FormValue("category"),
 	}
 	created, err := s.store.CreateCompetition(comp, time.Now())
+	const title = "Start a competition"
 	switch {
 	case errors.Is(err, store.ErrBadDates):
-		flashRedirect(w, r, "/competitions/new", "", fmt.Sprintf(
+		s.renderForm(w, r, "competition_form", title, competitionForm(comp), fmt.Sprintf(
 			"Entries must close after today and within %d days. Voting must close after entries and within %d days.",
 			store.MaxEntryDays, store.MaxVotingDays))
 		return
 	case errors.Is(err, store.ErrLimit):
-		flashRedirect(w, r, "/competitions/new", "", fmt.Sprintf("You can have %d competitions running at once.", store.MaxOpenPerCreator))
+		s.renderForm(w, r, "competition_form", title, competitionForm(comp),
+			fmt.Sprintf("You can have %d competitions running at once.", store.MaxOpenPerCreator))
 		return
 	case err != nil:
-		flashRedirect(w, r, "/competitions/new", "", "A competition needs a title, a category, and both dates.")
+		s.renderForm(w, r, "competition_form", title, competitionForm(comp), "A competition needs a title, a category, and both dates.")
 		return
 	}
 	flashRedirect(w, r, "/competitions/"+created.Slug, "Competition created. Entries are open.", "")
@@ -273,7 +295,7 @@ func (s *Server) handleCompetition(w http.ResponseWriter, r *http.Request) {
 	}
 	entries, err := s.store.EntriesWithVotes(comp.ID)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load entries.")
+		s.serverError(w, r, err, "Could not load entries.")
 		return
 	}
 	data := competitionData{Competition: comp, Entries: entries, ShowVotes: comp.Status == "decided"}
@@ -285,7 +307,7 @@ func (s *Server) handleCompetition(w http.ResponseWriter, r *http.Request) {
 	if comp.Status == "decided" {
 		trophies, err := s.store.TrophiesForCompetition(comp.ID)
 		if err != nil {
-			s.renderError(w, r, http.StatusInternalServerError, "Could not load results.")
+			s.serverError(w, r, err, "Could not load results.")
 			return
 		}
 		data.Trophies = trophies
@@ -408,12 +430,12 @@ func (s *Server) handleTrophyDownload(w http.ResponseWriter, r *http.Request) {
 		stlName = trophyFiles[trophy.Place]
 	}
 	if stlName == "" {
-		s.renderError(w, r, http.StatusInternalServerError, "Bad trophy record.")
+		s.serverError(w, r, fmt.Errorf("trophy %d has place %d", trophy.ID, trophy.Place), "Bad trophy record.")
 		return
 	}
 	path := filepath.Join(s.config.DataDir, "stl", stlName)
 	if _, err := os.Stat(path); err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "The trophy file is missing. Contact the admin.")
+		s.serverError(w, r, err, "The trophy file is missing. Contact the admin.")
 		return
 	}
 	if err := s.store.UseTrophyDownload(trophy.ID, user.ID); err != nil {
@@ -442,19 +464,19 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	s.advanceCompetitions()
 	comps, err := s.store.Competitions("")
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load competitions.")
+		s.serverError(w, r, err, "Could not load competitions.")
 		return
 	}
 	reports, err := s.store.OpenReports()
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load reports.")
+		s.serverError(w, r, err, "Could not load reports.")
 		return
 	}
 	data := adminData{Competitions: comps, Reports: reports}
 	if s.config.KofiURL != "" {
 		data.Donations, err = s.store.RecentDonations()
 		if err != nil {
-			s.renderError(w, r, http.StatusInternalServerError, "Could not load donations.")
+			s.serverError(w, r, err, "Could not load donations.")
 			return
 		}
 	}
@@ -464,12 +486,36 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		}
 		trophies, err := s.store.TrophiesForCompetition(comp.ID)
 		if err != nil {
-			s.renderError(w, r, http.StatusInternalServerError, "Could not load trophies.")
+			s.serverError(w, r, err, "Could not load trophies.")
 			return
 		}
 		data.Trophies = append(data.Trophies, trophies...)
 	}
 	s.render(w, r, "admin", "Admin", data)
+}
+
+// handleAdminBackup hands the admin a copy of the database. The copy is
+// made in the data directory beside the live file and removed once sent,
+// so the volume never keeps a second copy around.
+func (s *Server) handleAdminBackup(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.requireAdmin(w, r); !ok {
+		return
+	}
+	stamp := time.Now().UTC().Format("2006-01-02-150405")
+	path := filepath.Join(s.config.DataDir, "backup-"+stamp+".db")
+	if err := s.store.Backup(path); err != nil {
+		s.serverError(w, r, err, "Could not make the backup.")
+		return
+	}
+	defer func() {
+		if err := os.Remove(path); err != nil {
+			log.Printf("web: remove backup copy: %v", err)
+		}
+	}()
+	w.Header().Set("Content-Type", "application/vnd.sqlite3")
+	w.Header().Set("Content-Disposition", `attachment; filename="sprue-`+stamp+`.db"`)
+	w.Header().Set("Cache-Control", "no-store")
+	http.ServeFile(w, r, path)
 }
 
 func (s *Server) handleAdminDecide(w http.ResponseWriter, r *http.Request) {

@@ -7,7 +7,7 @@
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="nes-field"><label for="display_name">Display name</label><input class="nes-input" id="display_name" type="text" name="display_name" value="{{if .Data.SlugChosen}}{{.Data.DisplayName}}{{end}}" placeholder="{{if not .Data.SlugChosen}}Your name{{end}}" required maxlength="100">
 {{if not .Data.SlugChosen}}<p class="meta">Your page is at /u/{{.Data.Slug}} until you pick an address below.</p></div>
-<div class="nes-field"><label for="slug">Page address</label><input class="nes-input" id="slug" type="text" name="slug" value="" placeholder="{{.Data.Slug}}" minlength="3" maxlength="40" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocomplete="off">
+<div class="nes-field"><label for="slug">Page address</label><input class="nes-input" id="slug" type="text" name="slug" value="{{.Data.WantedSlug}}" placeholder="{{.Data.Slug}}" minlength="3" maxlength="40" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocomplete="off">
 <p class="meta">Lowercase letters, numbers, and hyphens. Chosen once, then it never changes so your links keep working.</p></div>
 {{else}}<p class="meta">Your page stays at /u/{{.Data.Slug}}</p></div>{{end}}
 <div class="nes-field"><label for="bio">What you build</label><input class="nes-input" id="bio" type="text" name="bio" value="{{.Data.Bio}}" maxlength="200" placeholder="Mostly 1/72 RAF aircraft">
@@ -40,6 +40,15 @@
 </select></div>
 <p class="meta">A short email about your unbuilt kits and your goal. Nothing else is sent.</p></div>
 <button class="nes-btn is-primary" type="submit">Save reminders</button>
+</form>
+</section>
+<section class="nes-container with-title">
+<h2 class="title">Remove account</h2>
+<form method="post" action="/settings/delete">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<p class="meta">Your builds, photos, stash, friends, votes, and likes go. A build that entered a competition stays as an empty hidden entry, because votes were cast on it. Any podium place stays under the name Removed member. This cannot be undone.</p>
+<div class="nes-field"><label class="choice"><input class="nes-checkbox" type="checkbox" name="confirm"><span>I understand, remove my account.</span></label></div>
+<button class="nes-btn is-error" type="submit">Remove my account</button>
 </form>
 </section>
 {{end}}

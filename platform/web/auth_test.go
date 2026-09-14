@@ -111,20 +111,54 @@ func TestVerifyPageDoesNotBurnToken(t *testing.T) {
 	if err := st.CreateMagicToken(hashToken(token), "scan@example.com", true); err != nil {
 		t.Fatal(err)
 	}
+	var pair *http.Cookie
 	for i := 0; i < 2; i++ {
 		res, body := get(t, ts, "/auth/verify?token="+token)
 		if res.StatusCode != http.StatusOK || !strings.Contains(body, `name="token"`) {
 			t.Fatalf("scanner visit %d should only show the button: %d", i+1, res.StatusCode)
 		}
+		for _, cookie := range res.Cookies() {
+			if cookie.Name == verifyCookie {
+				pair = cookie
+			}
+		}
 	}
-	res, _ := postForm(t, ts, "/auth/verify", url.Values{"token": {token}})
+	if pair == nil {
+		t.Fatal("the button page should set the pairing cookie")
+	}
+	// Another site posting the token has no pairing cookie, so it is refused.
+	res, _ := postForm(t, ts, "/auth/verify", url.Values{"token": {token}, "nonce": {pair.Value}})
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("a post without the pairing cookie should be refused, got %d", res.StatusCode)
+	}
+	res = postVerify(t, ts, token, pair)
 	if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != "/settings" {
 		t.Fatalf("pressing the button should sign in and send a new member to settings: %d %s", res.StatusCode, res.Header.Get("Location"))
 	}
-	res, _ = postForm(t, ts, "/auth/verify", url.Values{"token": {token}})
+	res = postVerify(t, ts, token, pair)
 	if res.StatusCode != http.StatusBadRequest {
 		t.Errorf("a used token should be refused, got %d", res.StatusCode)
 	}
+}
+
+// postVerify presses the sign-in button the way a browser would: the nonce
+// in the form and the pairing cookie alongside it.
+func postVerify(t *testing.T, ts *httptest.Server, token string, pair *http.Cookie) *http.Response {
+	t.Helper()
+	form := url.Values{"token": {token}, "nonce": {pair.Value}}
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/auth/verify", strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: verifyCookie, Value: pair.Value})
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	return res
 }
 
 func TestQuota(t *testing.T) {

@@ -3,10 +3,12 @@ package web
 import (
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Joe-Speed/sprue/platform/store"
 )
@@ -33,6 +35,10 @@ type kofiPayload struct {
 func (s *Server) handleKofiWebhook(w http.ResponseWriter, r *http.Request) {
 	if s.config.KofiToken == "" {
 		http.NotFound(w, r)
+		return
+	}
+	if !s.quota.allow("kofi:"+clientKey(r), maxWebhooksPerHour, time.Hour) {
+		http.Error(w, "too many requests", http.StatusTooManyRequests)
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxWebhookBytes)
@@ -68,13 +74,23 @@ func (s *Server) handleKofiWebhook(w http.ResponseWriter, r *http.Request) {
 		ExternalID: payload.TransactionID, Name: name, Message: payload.Message,
 		AmountMinor: amount, Currency: payload.Currency, Public: payload.IsPublic,
 	})
-	if err != nil {
+	switch {
+	case errors.Is(err, store.ErrInvalid), errors.Is(err, store.ErrLimit):
+		// A retry would bring the same payload, so answer 200 and keep
+		// the log line as the record of what was not stored.
+		log.Printf("web: ko-fi payment %q not recorded: %v", payload.TransactionID, err)
+		w.WriteHeader(http.StatusOK)
+	case err != nil:
 		log.Printf("web: ko-fi webhook: %v", err)
-		http.Error(w, "not recorded", http.StatusBadRequest)
-		return
+		http.Error(w, "not recorded", http.StatusInternalServerError)
+	default:
+		w.WriteHeader(http.StatusOK)
 	}
-	w.WriteHeader(http.StatusOK)
 }
+
+// maxWebhooksPerHour bounds guesses at the verification token from one
+// address; Ko-fi itself sends a handful a day.
+const maxWebhooksPerHour = 120
 
 // donorView is one line of the supporters list with the amount formatted.
 type donorView struct {
@@ -97,7 +113,7 @@ func (s *Server) handleSupport(w http.ResponseWriter, r *http.Request) {
 	}
 	donors, err := s.store.TopDonors()
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load supporters.")
+		s.serverError(w, r, err, "Could not load supporters.")
 		return
 	}
 	data := supportData{KofiURL: s.config.KofiURL}
@@ -111,7 +127,7 @@ func (s *Server) handleSupport(w http.ResponseWriter, r *http.Request) {
 	if currency != "" {
 		total, gifts, err := s.store.DonationTotal(currency)
 		if err != nil {
-			s.renderError(w, r, http.StatusInternalServerError, "Could not load supporters.")
+			s.serverError(w, r, err, "Could not load supporters.")
 			return
 		}
 		data.Total = formatGift(total, currency)

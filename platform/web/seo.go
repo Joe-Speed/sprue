@@ -18,6 +18,7 @@ const siteDescription = "A community for scale modellers. Post your builds, vote
 type meta struct {
 	Description string
 	Image       string
+	Error       string // shown in the red toast when a form is sent back with its input
 }
 
 // noIndexPages are pages search engines should not list: forms, account

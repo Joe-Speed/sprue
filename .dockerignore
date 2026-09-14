@@ -1,0 +1,12 @@
+# Only platform/ reaches the build; keep local state and binaries out.
+.git
+data/
+notes/
+assets/
+platform/data/
+platform/sprue
+*.db
+*.stl
+*.pdf
+.env
+.DS_Store

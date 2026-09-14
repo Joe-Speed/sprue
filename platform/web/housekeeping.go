@@ -38,6 +38,7 @@ func (s *Server) housekeep() {
 		log.Printf("web: %v", err)
 	}
 	s.advanceCompetitions()
+	s.tellDecided()
 	s.startScheduledCompetitions(time.Now())
 	s.sendNudges()
 }

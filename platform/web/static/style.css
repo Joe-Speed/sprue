@@ -1664,9 +1664,13 @@ ul.thumbs .remove:hover {
   color: var(--red);
 }
 
-/* With script the photos drag into place, so the one-step links go. */
-ul.thumbs.sortable .thumb-actions {
-  display: none;
+/* The remove cross widens into a word while it waits for the second press. */
+ul.thumbs .remove.armed,
+.previews .remove.armed {
+  width: auto;
+  padding: 0 0.4rem;
+  font-size: 0.5rem;
+  color: var(--red);
 }
 
 /* A link for keyboard users, out of the way until it has the focus. */

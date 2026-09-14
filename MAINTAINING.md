@@ -24,7 +24,7 @@ go build -o sprue .
 SPRUE_ADMIN_EMAIL=you@example.com ./sprue
 ```
 
-Sign-in requests are limited: one per email address and one per visitor address every 30 seconds, six per visitor address an hour, and 200 for the whole site a day so Brevo's free allowance of 300 cannot be spent by a bot. The form also carries a hidden field that people never see; a request that fills it is shown the usual "check your email" page and nothing is sent.
+Sign-in requests are limited: one per email address and one per visitor address every 30 seconds, six per visitor address an hour, and 200 for the whole site a day so Brevo's free allowance of 300 cannot be spent by a bot. The form also carries a hidden field that people never see; a request that fills it is shown the usual "check your email" page and nothing is sent. Pressing the sign-in button on the link page only works from the browser that opened the page, so another site cannot sign a reader in to an account they did not ask for. Friend requests are capped at twenty a day per member because each one sends an email, and votes, likes, and reports allow one press a second.
 
 Without a mail provider configured, sign-in links are printed to the server log instead of emailed. Open the site, enter your email, copy the link from the log into the browser. Signing in with the address in `SPRUE_ADMIN_EMAIL` makes that account the admin.
 
@@ -38,7 +38,9 @@ Static files are served with a one year cache and a version parameter that is a 
 
 ## Operations
 
-`GET /healthz` returns `ok` when the database answers, for platform health checks. Every response carries a strict Content-Security-Policy (only the site's own script, plus Google's tag when analytics is configured; same-origin styles, fonts, and images), nosniff, and frame denial. Text form posts are capped at 64KB; photo uploads at six files of 15MB each. Expired sessions and sign-in tokens are swept at startup and every hour, competitions advance by date in the same run, and due stash reminders go out. Four kinds of email leave the site: the sign-in link, the stash reminder members opt into, a note when someone asks to be friends, and the result when a competition decides itself, which tells winners where their trophy is. All of them go through the same provider and the same pixel-styled template. SIGTERM drains open requests for up to fifteen seconds before exit.
+Every request is logged as one line: a short random id, method, path, status, and time taken. When a handler fails, the cause is logged with the same id just before that line, so a 500 in the log always has its reason beside it. A panic in a handler is caught, logged with its stack, and answered with the styled error page. Pages shown to a signed-in member carry `Cache-Control: no-store`, so nothing personal is kept by a proxy or shown from the back button after signing out.
+
+`GET /healthz` returns `ok` when the database answers, for platform health checks. Every response carries a strict Content-Security-Policy (only the site's own script, plus Google's tag when analytics is configured; same-origin styles, fonts, and images), nosniff, and frame denial. Text form posts are capped at 64KB; photo uploads at six files of 15MB each. Expired sessions and sign-in tokens are swept at startup and every hour, competitions advance by date in the same run, results are emailed to entrants of competitions decided since the last run, and due stash reminders go out. Opening a competition page also advances it by date, but never sends mail; the hourly run does that, and each competition is written about exactly once however many processes race for it. Four kinds of email leave the site: the sign-in link, the stash reminder members opt into, a note when someone asks to be friends, and the result when a competition decides itself, which tells winners where their trophy is. All of them go through the same provider and the same pixel-styled template. SIGTERM drains open requests for up to fifteen seconds before exit.
 
 Builders can remove photos, choose the cover photo, and delete a build. A build that has entered a competition cannot be deleted because entries, votes, and trophies refer to it. Build IDs are never reused, so a link to a deleted build stays a 404.
 
@@ -90,7 +92,15 @@ Any signed-in member can report a build that is not their own, with an optional 
 
 ## Schema changes
 
-Tables are created on first start and never altered. Adding a table is safe. Adding a column to an existing table needs a migration step, because an existing database will not get it. Nothing has needed one before launch; add a versioned migration in the store before the first such change afterwards.
+Tables are created on first start with `create table if not exists`, so adding a table is a schema edit and nothing more. Changing an existing table is a numbered migration in `migrations` in `store/store.go`. Each entry has a version and a list of statements; the `schema_versions` table records which have run, and a start-up runs only the ones newer than the highest recorded. Never edit or reorder a shipped entry, add a new version. Column additions must be migrations because SQLite has no "add column if not exists"; indexes use `create index if not exists` and are harmless to repeat. Databases made before versions were recorded have every column already, and the first start after upgrading treats a duplicate column as done and records the version.
+
+## Backups
+
+The admin page has a "Download a database backup" link. It makes a consistent copy with SQLite's `vacuum into`, streams it, and removes the copy, so nothing extra accumulates on the volume. Photos and avatars are not in the file; copy the `photos` and `avatars` folders from the volume as well, for example with `railway ssh -- tar cz /data/photos /data/avatars`. Restore by stopping the service, putting the database file back as `sprue.db` and the folders beside it, and starting again. Take a backup before every deploy that includes a migration.
+
+## Removing an account
+
+Members remove their own account from the bottom of the settings page, after ticking a box. Everything they own goes in one transaction: sessions, stash and journal, friendships and requests, votes, likes, reports, and their builds with their photos. A build that entered a competition is kept as an empty hidden row because entries, votes, and trophies point at it, and the user row is kept blank under the name Removed member so competitions they started and podium places they won still resolve. The email is replaced by an address nobody can sign in with, so signing in again with the real address makes a fresh account. The admin account is refused; change `SPRUE_ADMIN_EMAIL` first if the admin wants to leave.
 
 ## The stash
 
@@ -134,9 +144,10 @@ Winners download their own trophy: each winner sees a `download your trophy STL`
 
 ## Deployment on Railway or Render
 
-The Dockerfile at the repo root builds the platform. Set up the service with:
+The Dockerfile at the repo root builds the platform. The container runs as an unprivileged user with id 10001, so the mounted volume has to be writable by that id. On Railway set the service variable `RAILWAY_RUN_UID=10001`; without it the volume is owned by root and the first start fails with a permission error creating the photos folder. Set up the service with:
 
 - a persistent volume mounted at `/data`
+- `RAILWAY_RUN_UID=10001` on Railway, so the volume belongs to the container's user
 - `SPRUE_URL` set to your domain
 - `SPRUE_ADMIN_EMAIL` set to your email
 - the mail variables pointed at your email provider

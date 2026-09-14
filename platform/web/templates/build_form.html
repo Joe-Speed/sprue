@@ -19,8 +19,8 @@
 <section class="nes-container with-title">
 <h2 class="title">Photos</h2>
 {{if .Data.Photos}}
-{{/* With script the photos drag into order and the row of links is hidden;
-     without it the links do the same job one step at a time. */}}
+{{/* With script the photos also drag into order; the links do the same
+     job one step at a time and work from the keyboard. */}}
 <ul class="thumbs" data-order="/builds/{{.Data.Build.ID}}/photos/order" data-csrf="{{.CSRF}}">
 {{range $index, $name := .Data.Photos}}<li{{if eq $index 0}} class="first"{{end}} data-name="{{$name}}">
 <img src="/photos/{{$.Data.Build.ID}}/{{$name}}" alt="" draggable="false">
@@ -28,19 +28,19 @@
 <form class="corner" method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/delete"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="remove" title="Remove this photo" aria-label="Remove this photo">&times;</button></form>
 <span class="thumb-actions">
 {{if ne $index 0}}<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/cover"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish">Make cover</button></form>
-<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/move/earlier"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish" title="Move earlier">&larr;</button></form>{{end}}
-{{if notLast $index (len $.Data.Photos)}}<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/move/later"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish" title="Move later">&rarr;</button></form>{{end}}
+<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/move/earlier"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish" title="Move earlier" aria-label="Move earlier">&larr;</button></form>{{end}}
+{{if notLast $index (len $.Data.Photos)}}<form method="post" action="/builds/{{$.Data.Build.ID}}/photos/{{$name}}/move/later"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="linkish" title="Move later" aria-label="Move later">&rarr;</button></form>{{end}}
 </span>
 </li>{{end}}
 </ul>
-<p class="meta">Drag the photos into order. The first is the cover.</p>
+<p class="meta">Drag the photos into order, or use the arrows. The first is the cover.</p>
 {{else}}
 <p class="quiet">No photos yet. The first one you add becomes the cover.</p>
 {{end}}
 <form method="post" action="/builds/{{.Data.Build.ID}}/photos" enctype="multipart/form-data">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
 <div class="nes-field"><label for="photos">Add photos</label><input id="photos" type="file" name="photos" accept="image/jpeg,image/png,image/gif" multiple required>
-<p class="meta">Up to six at a time, JPEG or PNG, 15MB each, twelve per build.</p></div>
+<p class="meta">Up to six at a time, JPEG, PNG, or GIF, 15MB each, twelve per build.</p></div>
 <button class="nes-btn is-primary" type="submit">Upload</button>
 </form>
 </section>

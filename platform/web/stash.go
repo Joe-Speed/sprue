@@ -65,6 +65,8 @@ type stashData struct {
 	Filter   string
 	Filters  []string
 	Page     listPage
+	Draft    store.StashItem // what the member typed, kept when the add form is sent back
+	Cost     string          // the cost as typed, since a bad one cannot be parsed
 }
 
 // stashFilter keeps only a filter the page offers.
@@ -96,15 +98,23 @@ func (s *Server) handleStash(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	data, err := s.stashPage(user, r)
+	if err != nil {
+		s.serverError(w, r, err, "Could not load your stash.")
+		return
+	}
+	s.render(w, r, "stash", "My stash", data)
+}
+
+// stashPage gathers everything the stash page shows for one member.
+func (s *Server) stashPage(user store.User, r *http.Request) (stashData, error) {
 	items, err := s.store.StashForUser(user.ID)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load your stash.")
-		return
+		return stashData{}, err
 	}
 	summary, err := s.summaryFor(user, items)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load your stash.")
-		return
+		return stashData{}, err
 	}
 	data := stashData{
 		Summary:  summary,
@@ -115,7 +125,19 @@ func (s *Server) handleStash(w http.ResponseWriter, r *http.Request) {
 	// The summary counts the whole stash, so it is worked out before the
 	// list is narrowed to one state and cut into pages.
 	data.Items, data.Page = pageOf(matchingKits(items, data.Filter), r, rowsPerPage)
-	s.render(w, r, "stash", "My stash", data)
+	return data, nil
+}
+
+// stashFormBack shows the stash page again with the add form filled in
+// and the reason it was refused.
+func (s *Server) stashFormBack(w http.ResponseWriter, r *http.Request, user store.User, draft store.StashItem, cost, errorText string) {
+	data, err := s.stashPage(user, r)
+	if err != nil {
+		s.serverError(w, r, err, "Could not load your stash.")
+		return
+	}
+	data.Draft, data.Cost = draft, cost
+	s.renderForm(w, r, "stash", "My stash", data, errorText)
 }
 
 func (s *Server) summaryFor(user store.User, items []store.StashItem) (stashSummary, error) {
@@ -164,22 +186,24 @@ func (s *Server) handleStashAdd(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	cost, ok := parsePence(r.FormValue("cost"))
-	if !ok {
-		flashRedirect(w, r, "/stash", "", "Cost should be a price like 12.99, or empty.")
-		return
-	}
 	item := store.StashItem{
 		UserID: user.ID, Title: r.FormValue("title"), Brand: r.FormValue("brand"),
-		Scale: r.FormValue("scale"), Note: r.FormValue("note"), CostPence: cost,
+		Scale: r.FormValue("scale"), Note: r.FormValue("note"),
 	}
+	costText := r.FormValue("cost")
+	cost, ok := parsePence(costText)
+	if !ok {
+		s.stashFormBack(w, r, user, item, costText, "Cost should be a price like 12.99, or empty.")
+		return
+	}
+	item.CostPence = cost
 	_, err := s.store.CreateStashItem(item)
 	if errors.Is(err, store.ErrLimit) {
-		flashRedirect(w, r, "/stash", "", fmt.Sprintf("A stash holds %d kits at most.", store.MaxStashPerUser))
+		s.stashFormBack(w, r, user, item, costText, fmt.Sprintf("A stash holds %d kits at most.", store.MaxStashPerUser))
 		return
 	}
 	if err != nil {
-		flashRedirect(w, r, "/stash", "", "A kit needs at least a title.")
+		s.stashFormBack(w, r, user, item, costText, "A kit needs at least a title.")
 		return
 	}
 	flashRedirect(w, r, "/stash", "Added to your stash.", "")
@@ -202,7 +226,7 @@ func (s *Server) handleStashItem(w http.ResponseWriter, r *http.Request) {
 	}
 	journal, err := s.store.JournalFor(item.ID)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load the journal.")
+		s.serverError(w, r, err, "Could not load the journal.")
 		return
 	}
 	s.render(w, r, "stash_item", item.Title, stashItemData{Item: item, Journal: journal})

@@ -271,13 +271,13 @@ func TestCompetitionLifecycle(t *testing.T) {
 		t.Fatalf("entries: %v %d", err, len(entries))
 	}
 
-	if _, err := s.Advance(testToday); err != nil {
+	if err := s.Advance(testToday); err != nil {
 		t.Fatal(err)
 	}
 	if c, _ := s.CompetitionBySlug("spring-classic"); c.Status != "open" {
 		t.Fatalf("advanced too early: %s", c.Status)
 	}
-	if _, err := s.Advance(time.Date(2026, 6, 11, 0, 0, 0, 0, time.UTC)); err != nil {
+	if err := s.Advance(time.Date(2026, 6, 11, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	if c, _ := s.CompetitionBySlug("spring-classic"); c.Status != "voting" {
@@ -300,7 +300,7 @@ func TestCompetitionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := s.Advance(time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)); err != nil {
+	if err := s.Advance(time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	comp, err = s.CompetitionBySlug("spring-classic")
@@ -385,7 +385,7 @@ func TestRemoveEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 	entries, _ := s.EntriesWithVotes(comp.ID)
-	if _, err := s.Advance(time.Date(2026, 6, 11, 0, 0, 0, 0, time.UTC)); err != nil {
+	if err := s.Advance(time.Date(2026, 6, 11, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Vote(comp.ID, alice.ID, entries[0].ID); err != nil {
@@ -403,7 +403,7 @@ func TestRemoveEntry(t *testing.T) {
 	if err := s.RemoveEntry(comp.ID, entries[0].ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("removing twice: %v", err)
 	}
-	if _, err := s.Advance(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+	if err := s.Advance(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.RemoveEntry(comp.ID, 999); !errors.Is(err, ErrInUse) {
@@ -438,7 +438,7 @@ func TestCompetitionRules(t *testing.T) {
 		t.Errorf("creator cap: %v", err)
 	}
 	// A competition nobody votes in still closes, with no trophies.
-	if _, err := s.Advance(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+	if err := s.Advance(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	list, _ := s.Competitions("")
@@ -994,9 +994,16 @@ func TestEntrantsCarryPlacings(t *testing.T) {
 	if err := s.Vote(comp.ID, dan.ID, entryID); err != nil {
 		t.Fatal(err)
 	}
-	decided, err := s.Advance(time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC))
-	if err != nil || len(decided) != 1 || decided[0].ID != comp.ID {
-		t.Fatalf("advance should report what it decided: %v %d", err, len(decided))
+	if err := s.Advance(time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	untold, err := s.ClaimUntold(10)
+	if err != nil || len(untold) != 1 || untold[0].ID != comp.ID {
+		t.Fatalf("a fresh result should be claimed once: %v %d", err, len(untold))
+	}
+	again, err := s.ClaimUntold(10)
+	if err != nil || len(again) != 0 {
+		t.Fatalf("a claimed result must not come back: %v %d", err, len(again))
 	}
 	entrants, err := s.Entrants(comp.ID)
 	if err != nil || len(entrants) != 2 {
@@ -1036,7 +1043,7 @@ func TestWithdrawOwnEntry(t *testing.T) {
 	if err := s.EnterCompetition(comp.ID, build, alice.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Advance(testToday.AddDate(0, 0, 15)); err != nil {
+	if err := s.Advance(testToday.AddDate(0, 0, 15)); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.WithdrawEntry(comp.ID, alice.ID); !errors.Is(err, ErrInUse) {

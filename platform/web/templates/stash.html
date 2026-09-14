@@ -40,11 +40,11 @@
 <h2 class="title">Add a kit</h2>
 <form class="wide inline-fields" method="post" action="/stash">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
-<div class="nes-field"><label for="title">Kit</label><input class="nes-input" id="title" type="text" name="title" required maxlength="200"></div>
-<div class="nes-field"><label for="brand">Brand</label><input class="nes-input" id="brand" type="text" name="brand" maxlength="200" list="kit-brands"></div>
-<div class="nes-field"><label for="scale">Scale</label><input class="nes-input" id="scale" type="text" name="scale" maxlength="200" list="kit-scales"></div>
-<div class="nes-field"><label for="cost">Cost ({{currency}})</label><input class="nes-input" id="cost" type="text" name="cost" inputmode="decimal" maxlength="12"></div>
-<div class="nes-field"><label for="note">Note</label><input class="nes-input" id="note" type="text" name="note" maxlength="200" placeholder="Bought at a show, missing decals"></div>
+<div class="nes-field"><label for="title">Kit</label><input class="nes-input" id="title" type="text" name="title" value="{{.Data.Draft.Title}}" required maxlength="200"></div>
+<div class="nes-field"><label for="brand">Brand</label><input class="nes-input" id="brand" type="text" name="brand" value="{{.Data.Draft.Brand}}" maxlength="200" list="kit-brands"></div>
+<div class="nes-field"><label for="scale">Scale</label><input class="nes-input" id="scale" type="text" name="scale" value="{{.Data.Draft.Scale}}" maxlength="200" list="kit-scales"></div>
+<div class="nes-field"><label for="cost">Cost ({{currency}})</label><input class="nes-input" id="cost" type="text" name="cost" value="{{.Data.Cost}}" inputmode="decimal" maxlength="12"></div>
+<div class="nes-field"><label for="note">Note</label><input class="nes-input" id="note" type="text" name="note" value="{{.Data.Draft.Note}}" maxlength="200" placeholder="Bought at a show, missing decals"></div>
 <button class="nes-btn is-primary" type="submit">Add</button>
 </form>
 </section>

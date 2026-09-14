@@ -2,6 +2,7 @@
 package web
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"embed"
@@ -12,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -98,6 +100,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /settings/reminders", s.handleRemindersSave)
 	mux.HandleFunc("POST /settings/avatar", s.handleAvatarUpload)
 	mux.HandleFunc("POST /settings/avatar/remove", s.handleAvatarRemove)
+	mux.HandleFunc("POST /settings/delete", s.handleAccountDelete)
 	mux.HandleFunc("GET /avatars/{name}", s.handleAvatar)
 	mux.HandleFunc("GET /u/{slug}", s.handleProfile)
 	mux.HandleFunc("GET /members", s.handleMembers)
@@ -135,6 +138,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /competitions/{slug}/vote", s.handleVote)
 	mux.HandleFunc("GET /trophies/{id}/download", s.handleTrophyDownload)
 	mux.HandleFunc("GET /admin", s.handleAdmin)
+	mux.HandleFunc("GET /admin/backup", s.handleAdminBackup)
 	mux.HandleFunc("POST /admin/competitions/{slug}/decide", s.handleAdminDecide)
 	mux.HandleFunc("POST /admin/competitions/{slug}/entries/{id}/remove", s.handleAdminRemoveEntry)
 	mux.HandleFunc("POST /admin/trophies/{id}/rearm", s.handleAdminRearm)
@@ -151,7 +155,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /sitemap.xml", s.handleSitemap)
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("/", s.handleNotFound)
-	return s.withRequestLog(s.withSecurityHeaders(withBodyLimit(mux)))
+	return s.withRequestLog(s.withRecover(s.withSecurityHeaders(withBodyLimit(mux))))
 }
 
 // maxFormBytes bounds every POST except the two that carry photos, which set
@@ -238,7 +242,7 @@ func localReferer(r *http.Request) string {
 }
 
 // policyUpdated is the date the terms and privacy text last changed.
-const policyUpdated = "2026-09-08"
+const policyUpdated = "2026-09-14"
 
 func (s *Server) handleTerms(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "terms", "Terms", policyUpdated)
@@ -266,11 +270,71 @@ func cacheForever(next http.Handler) http.Handler {
 	})
 }
 
+// requestIDKey holds the short random id given to every request, so a log
+// line about a failure can be matched to the request line it belongs to.
+type requestIDKey struct{}
+
+func requestID(r *http.Request) string {
+	id, _ := r.Context().Value(requestIDKey{}).(string)
+	return id
+}
+
+// statusWriter remembers the status a handler sent so the request log can
+// record it. Unwrap lets http.ResponseController reach the real writer for
+// the longer read deadline the upload handlers set.
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(status int) {
+	if w.status == 0 {
+		w.status = status
+	}
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *statusWriter) Write(body []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return w.ResponseWriter.Write(body)
+}
+
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
 func (s *Server) withRequestLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		started := time.Now()
+		id, err := randomToken()
+		if err != nil {
+			id = "no-id"
+		} else {
+			id = id[:8]
+		}
+		r = r.WithContext(context.WithValue(r.Context(), requestIDKey{}, id))
+		recorder := &statusWriter{ResponseWriter: w}
+		next.ServeHTTP(recorder, r)
+		log.Printf("%s %s %s %d %s", id, r.Method, r.URL.Path, recorder.status, time.Since(started).Round(time.Millisecond))
+	})
+}
+
+// withRecover turns a panic in a handler into a logged 500 with the request
+// id, instead of a dropped connection and a stack trace nobody sees.
+func (s *Server) withRecover(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			cause := recover()
+			if cause == nil {
+				return
+			}
+			log.Printf("web: %s panic: %v\n%s", requestID(r), cause, debug.Stack())
+			if recorder, ok := w.(*statusWriter); ok && recorder.status != 0 {
+				return
+			}
+			s.renderError(w, r, http.StatusInternalServerError, "Something went wrong on our side. Try again in a moment.")
+		}()
 		next.ServeHTTP(w, r)
-		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(started).Round(time.Millisecond))
 	})
 }
 
@@ -308,6 +372,12 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, title stri
 	s.renderMeta(w, r, http.StatusOK, name, title, data, meta{})
 }
 
+// renderForm sends a form back with what the member typed still in it and
+// one sentence saying what to fix.
+func (s *Server) renderForm(w http.ResponseWriter, r *http.Request, name, title string, data any, errorText string) {
+	s.renderMeta(w, r, http.StatusUnprocessableEntity, name, title, data, meta{Error: errorText})
+}
+
 func (s *Server) renderMeta(w http.ResponseWriter, r *http.Request, status int, name, title string, data any, m meta) {
 	t, ok := s.templates[name]
 	if !ok {
@@ -321,6 +391,9 @@ func (s *Server) renderMeta(w http.ResponseWriter, r *http.Request, status int, 
 		m.Image = s.absolute(staticPath("apple-touch-icon.png"))
 	}
 	note, errorText := readFlash(w, r)
+	if m.Error != "" {
+		note, errorText = "", m.Error
+	}
 	p := page{
 		Title: title + " · sprue", Description: m.Description, Image: m.Image,
 		Canonical: s.absolute(r.URL.Path), NoIndex: noIndexPages[name],
@@ -349,6 +422,11 @@ func (s *Server) renderMeta(w http.ResponseWriter, r *http.Request, status int, 
 		}
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if p.User != nil {
+		// Signed-in pages are personal: never cached by a proxy, never shown
+		// from the back button after signing out.
+		w.Header().Set("Cache-Control", "no-store")
+	}
 	w.WriteHeader(status)
 	if err := t.Execute(w, p); err != nil {
 		log.Printf("web: render %s: %v", name, err)
@@ -386,6 +464,13 @@ func errorHeading(status int) string {
 func (s *Server) renderError(w http.ResponseWriter, r *http.Request, status int, message string) {
 	heading := errorHeading(status)
 	s.renderMeta(w, r, status, "error", heading, errorData{Status: status, Heading: heading, Message: message}, meta{})
+}
+
+// serverError logs what went wrong, tagged with the request id, and shows
+// the reader a 500 with the given sentence. The cause never reaches the page.
+func (s *Server) serverError(w http.ResponseWriter, r *http.Request, cause error, message string) {
+	log.Printf("web: %s %s %s: %v", requestID(r), r.Method, r.URL.Path, cause)
+	s.renderError(w, r, http.StatusInternalServerError, message)
 }
 
 // maxMessageLength bounds the flash text a page will show from its query
@@ -541,6 +626,20 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, token string, remember 
 		SameSite: http.SameSiteLaxMode,
 		Secure:   strings.HasPrefix(s.config.BaseURL, "https://"),
 	})
+}
+
+// actionMinGap is the shortest gap between two votes, likes, or reports
+// from one member; a person cannot click faster, a script can.
+const actionMinGap = time.Second
+
+// tooFast reports whether the member acted again inside actionMinGap and,
+// if so, sends them back to the page with a note.
+func (s *Server) tooFast(w http.ResponseWriter, r *http.Request, user store.User, back string) bool {
+	if s.limiter.allow(fmt.Sprintf("act:%d", user.ID), actionMinGap) {
+		return false
+	}
+	flashRedirect(w, r, back, "", "Slow down a little and try again.")
+	return true
 }
 
 // rateLimiter caps how often one key may perform an action, with a bounded

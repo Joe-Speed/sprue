@@ -35,7 +35,7 @@ func TestEveryPageRenders(t *testing.T) {
 		"home":         homeData{Featured: []store.Build{build}, Builds: []store.Build{build}, Older: 7, Newer: 9, Paged: true},
 		"login":        nil,
 		"check_email":  "joe@example.com",
-		"verify":       strings.Repeat("ab", 32),
+		"verify":       verifyData{Token: strings.Repeat("ab", 32), Nonce: strings.Repeat("cd", 32)},
 		"settings":     settingsData{User: user, Won: [4]bool{false, true, false, false}},
 		"builds":       myBuildsData{Builds: []store.Build{build}, Filters: buildFilters, AnyHidden: true, Page: listPage{Page: 1, Pages: 2, Total: 30, Next: "/builds?page=2"}},
 		"likes":        likesData{Builds: []store.Build{build}, Page: listPage{Page: 2, Pages: 3, Total: 60, Prev: "/likes", Next: "/likes?page=3"}},

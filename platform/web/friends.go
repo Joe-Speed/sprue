@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/Joe-Speed/sprue/platform/store"
 )
@@ -19,7 +20,7 @@ func (s *Server) handleMembers(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
 	members, err := s.store.SearchMembers(query, store.MaxSearchResults)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not search members.")
+		s.serverError(w, r, err, "Could not search members.")
 		return
 	}
 	data := membersData{Query: clipMessage(query), Members: members, Capped: len(members) == store.MaxSearchResults}
@@ -45,7 +46,7 @@ func (s *Server) handleFriends(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load friends.")
+		s.serverError(w, r, err, "Could not load friends.")
 		return
 	}
 	s.render(w, r, "friends", "Friends", data)
@@ -70,6 +71,10 @@ func (s *Server) handleFriendAction(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.PathValue("action") {
 	case "request":
+		if !s.quota.allow(fmt.Sprintf("friend-mail:%d", user.ID), maxFriendRequestsPerDay, 24*time.Hour) {
+			flashRedirect(w, r, back, "", "You have sent a lot of requests today. Try again tomorrow.")
+			return
+		}
 		err = s.store.RequestFriend(user.ID, other.ID)
 		if err == nil {
 			s.tellAboutRequest(user, other)
@@ -93,6 +98,10 @@ func (s *Server) handleFriendAction(w http.ResponseWriter, r *http.Request) {
 		flashRedirect(w, r, back, "Saved.", "")
 	}
 }
+
+// maxFriendRequestsPerDay bounds the emails one member can cause by asking
+// to be friends, so nobody can spend the site's mail allowance.
+const maxFriendRequestsPerDay = 20
 
 // tellAboutRequest emails the member who has been asked. A friend request
 // is invisible until they next visit, so without this it may never be seen.

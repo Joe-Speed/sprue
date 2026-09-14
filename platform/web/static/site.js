@@ -13,23 +13,43 @@ document.querySelectorAll("details.menu, details.legend").forEach(function (menu
   });
 });
 
-// A toast leaves on its own after a few seconds, or when clicked. The
-// message came in the address, so the address is cleaned up too.
+// A green toast leaves on its own after a few seconds, or when clicked. A
+// red one says what to fix, so it stays until clicked.
 document.querySelectorAll(".toast").forEach(function (toast) {
   var leave = function () {
     toast.classList.add("gone");
     toast.addEventListener("animationend", function () { toast.remove(); }, { once: true });
   };
   toast.addEventListener("click", leave);
-  setTimeout(leave, 4000);
+  if (!toast.classList.contains("error")) {
+    setTimeout(leave, 4000);
+  }
 });
-if (window.location.search && history.replaceState) {
-  var params = new URLSearchParams(window.location.search);
-  params.delete("note");
-  params.delete("error");
-  var query = params.toString();
-  history.replaceState(null, "", window.location.pathname + (query ? "?" + query : ""));
-}
+
+// Removing a photo takes two presses: the first turns the cross into a
+// question, the second sends the form. Pressing anywhere else resets it.
+document.querySelectorAll("form.corner button.remove").forEach(function (button) {
+  var armed = false;
+  var label = button.getAttribute("aria-label");
+  button.addEventListener("click", function (event) {
+    if (armed) {
+      return;
+    }
+    event.preventDefault();
+    armed = true;
+    button.textContent = "Sure?";
+    button.classList.add("armed");
+    button.setAttribute("aria-label", label + ": press again to confirm");
+  });
+  document.addEventListener("click", function (event) {
+    if (armed && !button.contains(event.target)) {
+      armed = false;
+      button.innerHTML = "&times;";
+      button.classList.remove("armed");
+      button.setAttribute("aria-label", label);
+    }
+  });
+});
 
 // Tooltips open on tap and close on the next tap anywhere, for screens
 // without hover.

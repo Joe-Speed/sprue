@@ -1,7 +1,7 @@
 package store
 
 import (
-	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -45,10 +45,10 @@ func (s *Store) AddDonation(d Donation) error {
 	d.Message = clip(d.Message, maxDonorMessage)
 	d.Currency = strings.ToUpper(strings.TrimSpace(d.Currency))
 	if d.ExternalID == "" || d.Name == "" || len(d.Currency) != 3 {
-		return errors.New("store: donation needs an id, a name, and a currency")
+		return fmt.Errorf("%w: donation needs an id, a name, and a currency", ErrInvalid)
 	}
 	if d.AmountMinor <= 0 || d.AmountMinor > maxDonationMinor {
-		return errors.New("store: donation amount out of range")
+		return fmt.Errorf("%w: donation amount out of range", ErrInvalid)
 	}
 	var count int
 	if err := s.db.QueryRow(`select count(*) from donations`).Scan(&count); err != nil {

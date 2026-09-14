@@ -50,7 +50,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load the community page.")
+		s.serverError(w, r, err, "Could not load the community page.")
 		return
 	}
 	// Paging down needs a full page to be sure there is more below. Coming
@@ -62,7 +62,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 		since := time.Now().Add(-store.FeaturedWindowDays * 24 * time.Hour)
 		data.Featured, err = s.store.FeaturedBuilds(since, store.MaxFeatured)
 		if err != nil {
-			s.renderError(w, r, http.StatusInternalServerError, "Could not load the community page.")
+			s.serverError(w, r, err, "Could not load the community page.")
 			return
 		}
 	}
@@ -74,7 +74,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 func (s *Server) showSearch(w http.ResponseWriter, r *http.Request, query string) {
 	builds, err := s.store.SearchBuilds(query, store.MaxSearchedBuilds)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not search builds.")
+		s.serverError(w, r, err, "Could not search builds.")
 		return
 	}
 	data := homeData{
@@ -118,12 +118,12 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	all, err := s.store.BuildsForUser(owner.ID)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load builds.")
+		s.serverError(w, r, err, "Could not load builds.")
 		return
 	}
 	trophies, err := s.store.TrophiesForUser(owner.ID)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load trophies.")
+		s.serverError(w, r, err, "Could not load trophies.")
 		return
 	}
 	var viewer *store.User
@@ -133,7 +133,7 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 	data := profileData{Owner: owner, Trophies: trophies, IsSelf: viewer != nil && viewer.ID == owner.ID}
 	if viewer != nil && !data.IsSelf {
 		if data.Friendship, err = s.store.Friendship(viewer.ID, owner.ID); err != nil {
-			s.renderError(w, r, http.StatusInternalServerError, "Could not load the profile.")
+			s.serverError(w, r, err, "Could not load the profile.")
 			return
 		}
 	}
@@ -174,7 +174,7 @@ func (s *Server) handleMyBuilds(w http.ResponseWriter, r *http.Request) {
 	}
 	builds, err := s.store.BuildsForUser(user.ID)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load your builds.")
+		s.serverError(w, r, err, "Could not load your builds.")
 		return
 	}
 	data := myBuildsData{Filter: buildFilter(r.URL.Query().Get("show")), Filters: buildFilters}
@@ -244,12 +244,12 @@ func (s *Server) handleBuildForm(w http.ResponseWriter, r *http.Request) {
 		}
 		photos, err := s.store.Photos(build.ID)
 		if err != nil {
-			s.renderError(w, r, http.StatusInternalServerError, "Could not load photos.")
+			s.serverError(w, r, err, "Could not load photos.")
 			return
 		}
 		entered, err := s.store.BuildHasEntries(build.ID)
 		if err != nil {
-			s.renderError(w, r, http.StatusInternalServerError, "Could not load the build.")
+			s.serverError(w, r, err, "Could not load the build.")
 			return
 		}
 		data = buildFormData{Build: build, Photos: photos, IsNew: false, CanDelete: !entered}
@@ -336,7 +336,7 @@ func (s *Server) handleBuildUpdate(w http.ResponseWriter, r *http.Request) {
 		flashRedirect(w, r, buildEdit(build.ID), "", "A build needs at least a title and a kit.")
 		return
 	}
-	http.Redirect(w, r, buildPage(build.ID), http.StatusSeeOther)
+	flashRedirect(w, r, buildPage(build.ID), "Saved.", "")
 }
 
 type buildPageData struct {
@@ -365,12 +365,12 @@ func (s *Server) handleBuildPage(w http.ResponseWriter, r *http.Request) {
 	}
 	photos, err := s.store.Photos(build.ID)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load photos.")
+		s.serverError(w, r, err, "Could not load photos.")
 		return
 	}
 	entered, err := s.store.CompetitionsForBuild(build.ID)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load the build.")
+		s.serverError(w, r, err, "Could not load the build.")
 		return
 	}
 	data := buildPageData{Build: build, Photos: photos, Competitions: entered}
@@ -418,9 +418,12 @@ func (s *Server) handleBuildVote(w http.ResponseWriter, r *http.Request) {
 		flashRedirect(w, r, page, "", "You cannot vote for your own build.")
 		return
 	}
+	if s.tooFast(w, r, user, page) {
+		return
+	}
 	voted, err := s.store.HasVotedBuild(build.ID, user.ID)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not record the vote.")
+		s.serverError(w, r, err, "Could not record the vote.")
 		return
 	}
 	if voted {
@@ -429,7 +432,7 @@ func (s *Server) handleBuildVote(w http.ResponseWriter, r *http.Request) {
 		err = s.store.VoteBuild(build.ID, user.ID)
 	}
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not record the vote.")
+		s.serverError(w, r, err, "Could not record the vote.")
 		return
 	}
 	if voted {
@@ -460,9 +463,12 @@ func (s *Server) handleBuildLike(w http.ResponseWriter, r *http.Request) {
 		flashRedirect(w, r, page, "", "You cannot like your own build.")
 		return
 	}
+	if s.tooFast(w, r, user, page) {
+		return
+	}
 	liked, err := s.store.HasLikedBuild(build.ID, user.ID)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not record the like.")
+		s.serverError(w, r, err, "Could not record the like.")
 		return
 	}
 	if liked {
@@ -475,7 +481,7 @@ func (s *Server) handleBuildLike(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not record the like.")
+		s.serverError(w, r, err, "Could not record the like.")
 		return
 	}
 	// The likes page is the one place a member sees their likes together, so
@@ -504,7 +510,7 @@ func (s *Server) handleLikes(w http.ResponseWriter, r *http.Request) {
 	}
 	builds, err := s.store.LikedBuilds(user.ID, store.MaxLikesShown)
 	if err != nil {
-		s.renderError(w, r, http.StatusInternalServerError, "Could not load your likes.")
+		s.serverError(w, r, err, "Could not load your likes.")
 		return
 	}
 	var data likesData

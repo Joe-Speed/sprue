@@ -234,8 +234,13 @@ func TestResultMailReachesEntrants(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Voting closed, so asking for the page decides it and writes to both.
+	// Voting closed, so a page request decides it but sends nothing; the
+	// housekeeping pass writes to both.
 	server.advanceCompetitions()
+	if len(sent) != 0 {
+		t.Fatalf("a page request must not send mail, sent %d", len(sent))
+	}
+	server.tellDecided()
 	if len(sent) != 2 {
 		t.Fatalf("both entrants should be written to, got %d", len(sent))
 	}
@@ -261,9 +266,10 @@ func TestResultMailReachesEntrants(t *testing.T) {
 	if !strings.Contains(subject, "has been decided") {
 		t.Errorf("an unplaced entrant should get the result: %q", subject)
 	}
-	// Deciding happens once, so a second pass writes to nobody.
+	// Deciding and telling happen once, so a second pass writes to nobody.
 	sent = nil
 	server.advanceCompetitions()
+	server.tellDecided()
 	if len(sent) != 0 {
 		t.Errorf("a decided competition should not write again, sent %d", len(sent))
 	}
