@@ -106,24 +106,29 @@ var kitScales = []string{
 // maxMeterBlocks is the width of a pixel vote meter, in blocks.
 const maxMeterBlocks = 12
 
-// meterBlocks lays out a vote meter as filled and empty blocks. With no
-// scale each vote takes one block, up to the width of the meter. With a
-// scale, that many votes fill the whole meter, which turns a competition's
-// entries into a poll anyone can read at a glance.
+// meterBlocks lays out a vote meter as filled and empty blocks, one block
+// per vote. The scale is the leading entry's count: the meter is that many
+// blocks wide, so every entry is read against the leader and three votes
+// look like three, not a full bar. Past the width of the meter the blocks
+// go proportional, and one vote always shows at least one block.
 func meterBlocks(votes, scale int) []bool {
-	blocks := make([]bool, maxMeterBlocks)
+	width := maxMeterBlocks
+	if scale > 0 && scale < maxMeterBlocks {
+		width = scale
+	}
+	blocks := make([]bool, width)
 	if votes <= 0 {
 		return blocks
 	}
 	filled := votes
-	if scale > 0 {
+	if scale > maxMeterBlocks {
 		filled = votes * maxMeterBlocks / scale
 		if filled == 0 {
 			filled = 1
 		}
 	}
-	if filled > maxMeterBlocks {
-		filled = maxMeterBlocks
+	if filled > width {
+		filled = width
 	}
 	for i := 0; i < filled; i++ {
 		blocks[i] = true

@@ -514,6 +514,21 @@ section.nes-container > :last-child {
   margin-bottom: 0;
 }
 
+/* Plain sections hold framed things, cards or photos, so they take no
+   frame of their own: a heading, then the grid. */
+section.plain {
+  margin: 2rem 0 0;
+}
+
+section.plain > h2 {
+  font-size: 0.7rem;
+  margin: 0 0 1rem;
+}
+
+section.plain > :last-child {
+  margin-bottom: 0;
+}
+
 /* Text helpers */
 
 .meta {
@@ -1213,14 +1228,17 @@ ul.rows .nes-btn {
   margin: 0;
 }
 
-/* Podium: three winning builds, first raised in the middle. */
+/* Podium: three winning builds in the classic order, second on the left,
+   first raised in the middle, third on the right. Each place rises into
+   view in turn, third first, and its badge stamps onto the corner of the
+   photo once the tile has landed. */
 .podium {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
   align-items: end;
   list-style: none;
-  margin: 0;
+  margin: 0.5rem 0 0;
   padding: 0;
 }
 
@@ -1230,23 +1248,39 @@ ul.rows .nes-btn {
   background: var(--paper-deep);
   border: 4px solid var(--ink);
   box-shadow: 4px 4px 0 var(--shadow);
+  animation: podium-rise 0.4s steps(4, end) both;
 }
 
 .podium .place-1 {
   order: 2;
   padding-bottom: 2rem;
+  animation-delay: 0.9s;
 }
 
 .podium .place-2 {
   order: 1;
+  animation-delay: 0.5s;
 }
 
 .podium .place-3 {
   order: 3;
+  animation-delay: 0.1s;
+}
+
+@keyframes podium-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .podium a {
   display: block;
+  position: relative;
   color: var(--ink);
   text-decoration: none;
 }
@@ -1264,9 +1298,44 @@ ul.rows .nes-btn {
   height: 170px;
 }
 
+/* The badge sits over the top left corner of the photo, tilted like a
+   sticker pressed on by hand. It stamps in after its tile has risen. */
 .podium .badge {
-  display: block;
-  margin: 0 auto 0.3rem;
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  width: 40px;
+  height: 40px;
+  transform: rotate(-12deg);
+  filter: drop-shadow(3px 3px 0 var(--shadow));
+  animation: podium-stamp 0.3s steps(3, end) both;
+}
+
+.podium .place-1 .badge {
+  width: 52px;
+  height: 52px;
+  top: -14px;
+  left: -14px;
+  animation-delay: 1.4s;
+}
+
+.podium .place-2 .badge {
+  animation-delay: 1s;
+}
+
+.podium .place-3 .badge {
+  animation-delay: 0.6s;
+}
+
+@keyframes podium-stamp {
+  from {
+    opacity: 0;
+    transform: rotate(-12deg) scale(1.8);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-12deg) scale(1);
+  }
 }
 
 .podium strong {
@@ -1298,6 +1367,7 @@ ul.rows .nes-btn {
   border-color: var(--ink);
 }
 
+section.plain > h2 a,
 section.nes-container.with-title > .title a {
   color: var(--ink);
   text-decoration: none;
@@ -1828,6 +1898,10 @@ body.viewing {
 
   main.panel {
     padding: 1rem 0.8rem 1.5rem;
+  }
+
+  section.plain {
+    margin-top: 1.5rem;
   }
 
   section.nes-container {

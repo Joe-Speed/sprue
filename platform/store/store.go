@@ -237,6 +237,9 @@ var migrations = []migration{
 		`create index if not exists sessions_by_user on sessions (user_id)`,
 		`create index if not exists sessions_by_expiry on sessions (expires_at)`,
 	}},
+	// Competitions decided before this column existed start as announced, so
+	// the first run with a results webhook does not post about old results.
+	{7, []string{`alter table competitions add column announced integer not null default 1`}},
 }
 
 const versionTable = `create table if not exists schema_versions (
@@ -1360,16 +1363,38 @@ func (s *Store) Advance(today time.Time) error {
 // written to, marking each as told in the same step. A competition comes
 // back from exactly one call, however many callers race for it.
 func (s *Store) ClaimUntold(limit int) ([]Competition, error) {
+	return s.claimDecided("notified", limit)
+}
+
+// ClaimUnannounced hands out decided competitions whose result has not yet
+// been posted to the community channel, each once. ReleaseAnnouncement puts
+// one back when the post fails so the next run tries again.
+func (s *Store) ClaimUnannounced(limit int) ([]Competition, error) {
+	return s.claimDecided("announced", limit)
+}
+
+func (s *Store) ReleaseAnnouncement(competitionID int64) error {
+	_, err := s.db.Exec(`update competitions set announced = 0 where id = ?`, competitionID)
+	return err
+}
+
+// claimDecided flips a flag column from 0 to 1 on decided competitions and
+// returns those it flipped. The column name comes only from the two callers
+// above, never from input.
+func (s *Store) claimDecided(flag string, limit int) ([]Competition, error) {
+	if flag != "notified" && flag != "announced" {
+		return nil, errors.New("store: unknown claim flag")
+	}
 	if limit <= 0 || limit > MaxCompetitions {
 		limit = MaxCompetitions
 	}
-	untold, err := s.ids(`select id from competitions where status = 'decided' and notified = 0 order by id limit ?`, limit)
+	waiting, err := s.ids(`select id from competitions where status = 'decided' and `+flag+` = 0 order by id limit ?`, limit)
 	if err != nil {
 		return nil, err
 	}
-	claimed := make([]Competition, 0, len(untold))
-	for _, id := range untold {
-		result, err := s.db.Exec(`update competitions set notified = 1 where id = ? and notified = 0`, id)
+	claimed := make([]Competition, 0, len(waiting))
+	for _, id := range waiting {
+		result, err := s.db.Exec(`update competitions set `+flag+` = 1 where id = ? and `+flag+` = 0`, id)
 		if err != nil {
 			return nil, err
 		}
@@ -1610,7 +1635,7 @@ func (s *Store) Decide(competitionID int64) error {
 		return err
 	}
 	defer tx.Rollback()
-	result, err := tx.Exec(`update competitions set status = 'decided', notified = 0 where id = ? and status != 'decided'`, competitionID)
+	result, err := tx.Exec(`update competitions set status = 'decided', notified = 0, announced = 0 where id = ? and status != 'decided'`, competitionID)
 	if err != nil {
 		return err
 	}

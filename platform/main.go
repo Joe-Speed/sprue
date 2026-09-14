@@ -65,6 +65,7 @@ func main() {
 		VisionKey:      os.Getenv("SPRUE_VISION_KEY"),
 		DiscordURL:     os.Getenv("SPRUE_DISCORD_URL"),
 		DiscordWebhook: os.Getenv("SPRUE_DISCORD_WEBHOOK"),
+		DiscordResults: os.Getenv("SPRUE_DISCORD_RESULTS"),
 		SupportEmail:   os.Getenv("SPRUE_SUPPORT_EMAIL"),
 		KofiURL:        os.Getenv("SPRUE_KOFI_URL"),
 		KofiToken:      os.Getenv("SPRUE_KOFI_TOKEN"),

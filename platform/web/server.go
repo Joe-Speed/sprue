@@ -44,6 +44,7 @@ type Config struct {
 	VisionKey      string // Google Cloud Vision API key for photo screening, empty to skip
 	DiscordURL     string // invite link shown in the footer, empty to hide
 	DiscordWebhook string // webhook the feedback form posts to, empty to hide the form
+	DiscordResults string // webhook competition results are posted to, empty for none
 	SupportEmail   string // address shown in the footer for support
 	KofiURL        string // the site's Ko-fi page, empty to hide the donate page
 	KofiToken      string // Ko-fi webhook verification token, empty to refuse webhooks

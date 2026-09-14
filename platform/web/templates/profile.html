@@ -32,15 +32,15 @@
 </section>
 {{end}}
 {{if .Data.Pinned}}
-<section class="nes-container with-title">
-<h2 class="title">Pinned</h2>
+<section class="plain">
+<h2>Pinned</h2>
 <ul class="cards featured">
 {{range .Data.Pinned}}<li class="card">{{template "build_card_body" (card . false)}}{{if $.Data.IsSelf}}<span class="cardfoot"><a class="nes-btn" href="/builds/{{.ID}}/edit">Edit</a></span>{{end}}</li>{{end}}
 </ul>
 </section>
 {{end}}
-<section class="nes-container with-title">
-<h2 class="title">{{if .Data.Pinned}}More builds{{else}}Builds{{end}}</h2>
+<section class="plain">
+<h2>{{if .Data.Pinned}}More builds{{else}}Builds{{end}}</h2>
 {{if not .Data.Builds}}<p class="quiet">{{if .Data.IsSelf}}{{if .Data.Pinned}}Everything you have built is pinned above.{{else}}Nothing here yet. <a href="/builds/new">Add your first build.</a>{{end}}{{else}}Nothing here yet.{{end}}</p>{{end}}
 <ul class="cards">
 {{range .Data.Builds}}<li class="card">{{template "build_card_body" (card . false)}}{{if $.Data.IsSelf}}<span class="cardfoot"><a class="nes-btn" href="/builds/{{.ID}}/edit">Edit</a></span>{{end}}</li>{{end}}

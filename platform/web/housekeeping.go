@@ -39,6 +39,7 @@ func (s *Server) housekeep() {
 	}
 	s.advanceCompetitions()
 	s.tellDecided()
+	s.announceDecided()
 	s.startScheduledCompetitions(time.Now())
 	s.sendNudges()
 }

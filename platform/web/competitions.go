@@ -115,6 +115,76 @@ func (s *Server) tellDecided() {
 	}
 }
 
+// announceDecided posts each newly decided competition to the community
+// channel once, so members can congratulate each other there. A failed post
+// is released for the next hourly run. Without a results webhook nothing
+// is claimed.
+func (s *Server) announceDecided() {
+	if s.config.DiscordResults == "" {
+		return
+	}
+	decided, err := s.store.ClaimUnannounced(maxResultsPerRun)
+	if err != nil {
+		log.Printf("web: announce: %v", err)
+		return
+	}
+	for _, comp := range decided {
+		entrants, err := s.store.Entrants(comp.ID)
+		if err == nil {
+			err = postDiscord(s.config.DiscordResults, "sprue", s.resultAnnouncement(comp, entrants))
+		}
+		if err != nil {
+			log.Printf("web: announce %s: %v", comp.Slug, err)
+			if err := s.store.ReleaseAnnouncement(comp.ID); err != nil {
+				log.Printf("web: announce %s: %v", comp.Slug, err)
+			}
+		}
+	}
+}
+
+// resultAnnouncement is the channel message for a decided competition in
+// three paragraphs: the title, the podium, then thanks to everyone who
+// entered with the link. Entrants come ordered by placing, so the first
+// three with a place are the podium.
+func (s *Server) resultAnnouncement(comp store.Competition, entrants []store.Entrant) string {
+	podium := make([]string, 0, 3)
+	for _, entrant := range entrants {
+		if entrant.Place == 0 || len(podium) >= 3 {
+			break
+		}
+		podium = append(podium, fmt.Sprintf("%s %s by %s", placeMedal(entrant.Place), entrant.BuildTitle, entrant.DisplayName))
+	}
+	if len(podium) == 0 {
+		podium = append(podium, "No votes were cast, so nobody placed this time.")
+	}
+	thanks := fmt.Sprintf("Well done to all %d who entered!", len(entrants))
+	switch len(entrants) {
+	case 0:
+		thanks = "Nobody entered this one."
+	case 1:
+		thanks = "Well done to the one builder who entered!"
+	}
+	paragraphs := []string{
+		fmt.Sprintf("**%s** has been decided!", comp.Title),
+		strings.Join(podium, "\n"),
+		thanks + "\n" + s.absolute("/competitions/"+comp.Slug),
+	}
+	return strings.Join(paragraphs, "\n\n")
+}
+
+// placeMedal is the gold, silver, or bronze medal emoji for a placing.
+func placeMedal(place int) string {
+	switch place {
+	case 1:
+		return "\U0001F947"
+	case 2:
+		return "\U0001F948"
+	case 3:
+		return "\U0001F949"
+	}
+	return ""
+}
+
 // maxResultsPerRun bounds how many competitions one housekeeping pass
 // writes about; the rest wait for the next hour.
 const maxResultsPerRun = 8

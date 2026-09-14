@@ -307,11 +307,14 @@ func TestMeterBlocks(t *testing.T) {
 	if got := meterBlocks(99, 0); filled(got) != maxMeterBlocks {
 		t.Errorf("more votes than blocks should fill the meter, got %d", filled(got))
 	}
-	if got := meterBlocks(5, 10); filled(got) != maxMeterBlocks/2 {
-		t.Errorf("half the leading entry should half fill the meter, got %d", filled(got))
+	if got := meterBlocks(2, 3); len(got) != 3 || filled(got) != 2 {
+		t.Errorf("the meter should be as wide as the leader, with a block per vote, got %d of %d", filled(got), len(got))
 	}
-	if got := meterBlocks(10, 10); filled(got) != maxMeterBlocks {
-		t.Errorf("the leading entry should fill the meter, got %d", filled(got))
+	if got := meterBlocks(3, 3); len(got) != 3 || filled(got) != 3 {
+		t.Errorf("the leading entry should fill the meter, got %d of %d", filled(got), len(got))
+	}
+	if got := meterBlocks(50, 100); len(got) != maxMeterBlocks || filled(got) != maxMeterBlocks/2 {
+		t.Errorf("past the meter width votes go proportional, got %d of %d", filled(got), len(got))
 	}
 	if got := meterBlocks(1, 100); filled(got) != 1 {
 		t.Errorf("one vote should still show one block, got %d", filled(got))

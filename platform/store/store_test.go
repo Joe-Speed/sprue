@@ -1005,6 +1005,20 @@ func TestEntrantsCarryPlacings(t *testing.T) {
 	if err != nil || len(again) != 0 {
 		t.Fatalf("a claimed result must not come back: %v %d", err, len(again))
 	}
+	unannounced, err := s.ClaimUnannounced(10)
+	if err != nil || len(unannounced) != 1 || unannounced[0].ID != comp.ID {
+		t.Fatalf("the announcement is claimed separately from the mail: %v %d", err, len(unannounced))
+	}
+	if err := s.ReleaseAnnouncement(comp.ID); err != nil {
+		t.Fatal(err)
+	}
+	retry, err := s.ClaimUnannounced(10)
+	if err != nil || len(retry) != 1 {
+		t.Fatalf("a released announcement comes back for another try: %v %d", err, len(retry))
+	}
+	if gone, err := s.ClaimUnannounced(10); err != nil || len(gone) != 0 {
+		t.Fatalf("a claimed announcement must not come back: %v %d", err, len(gone))
+	}
 	entrants, err := s.Entrants(comp.ID)
 	if err != nil || len(entrants) != 2 {
 		t.Fatalf("entrants: %v %d", err, len(entrants))

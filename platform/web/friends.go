@@ -69,7 +69,13 @@ func (s *Server) handleFriendAction(w http.ResponseWriter, r *http.Request) {
 	if r.FormValue("back") == "/friends" {
 		back = "/friends"
 	}
-	switch r.PathValue("action") {
+	standing, err := s.store.Friendship(user.ID, other.ID)
+	if err != nil {
+		s.serverError(w, r, err, "Could not save.")
+		return
+	}
+	action := r.PathValue("action")
+	switch action {
 	case "request":
 		if !s.quota.allow(fmt.Sprintf("friend-mail:%d", user.ID), maxFriendRequestsPerDay, 24*time.Hour) {
 			flashRedirect(w, r, back, "", "You have sent a lot of requests today. Try again tomorrow.")
@@ -95,8 +101,29 @@ func (s *Server) handleFriendAction(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		flashRedirect(w, r, back, "", "Could not save.")
 	default:
-		flashRedirect(w, r, back, "Saved.", "")
+		flashRedirect(w, r, back, friendNote(action, standing, other.DisplayName), "")
 	}
+}
+
+// friendNote says what just happened between the viewer and a member, in
+// their name. Remove covers three cases, told apart by the standing before
+// the change: unfriending, withdrawing a sent request, declining one.
+func friendNote(action, before, name string) string {
+	switch action {
+	case "request":
+		return fmt.Sprintf("Request sent! %s will see it on their friends page.", name)
+	case "accept":
+		return fmt.Sprintf("You and %s are now friends.", name)
+	}
+	switch before {
+	case store.FriendsAccepted:
+		return fmt.Sprintf("You and %s are no longer friends.", name)
+	case store.FriendsRequested:
+		return fmt.Sprintf("Your request to %s has been withdrawn.", name)
+	case store.FriendsIncoming:
+		return fmt.Sprintf("The request from %s has been declined.", name)
+	}
+	return "Saved."
 }
 
 // maxFriendRequestsPerDay bounds the emails one member can cause by asking
