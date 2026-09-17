@@ -1956,6 +1956,42 @@ body.viewing {
   .filters .past {
     margin-left: 0;
   }
+
+  /* A popup anchored to a small control near the left edge hangs off the
+     screen. On a phone it spans its row instead: the legend list across
+     the page head, the flair tooltip across the picker. The legend toggle
+     keeps to the right, where it sits on a wide screen. */
+  .page-head,
+  .flair-picker {
+    position: relative;
+  }
+
+  .legend,
+  .flair-picker [data-tip] {
+    position: static;
+  }
+
+  .page-head .legend {
+    margin-left: auto;
+  }
+
+  .legend-list {
+    top: auto;
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: none;
+    margin-top: 0.6rem;
+  }
+
+  .flair-picker [data-tip]::after,
+  .flair-picker .locked::after {
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: none;
+    transform: none;
+  }
 }
 
 @media (max-width: 420px) {
