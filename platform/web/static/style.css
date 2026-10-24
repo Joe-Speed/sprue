@@ -76,7 +76,10 @@ body {
 body {
   min-height: 100vh;
   margin: 0;
-  padding: 0 0.75rem;
+  /* The page reaches under the phone's status bar and rounded corners; keep
+     content inside the safe area. */
+  padding: env(safe-area-inset-top) max(0.75rem, env(safe-area-inset-right))
+    env(safe-area-inset-bottom) max(0.75rem, env(safe-area-inset-left));
   font-size: 1.125rem;
   line-height: 1.5;
   color: var(--ink);
@@ -85,6 +88,19 @@ body {
   /* Titles, kit names and display names are typed by members and can be one
      unbroken word. Break them rather than let them push the page sideways. */
   overflow-wrap: anywhere;
+}
+
+/* A solid sky band under the status bar, so iOS Safari has a flat colour to
+   tint instead of blurring the page as it scrolls beneath. */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  height: env(safe-area-inset-top);
+  background: var(--sky-top);
 }
 
 /* Photos are not pixelated. Only the badges and the mark are. */
@@ -558,7 +574,7 @@ section.plain > :last-child {
    or a click. Green with a tick for success, red with a cross for errors. */
 .toast {
   position: fixed;
-  top: 1rem;
+  top: calc(1rem + env(safe-area-inset-top));
   right: 1rem;
   z-index: 20;
   display: flex;
